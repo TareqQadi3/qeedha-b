@@ -64,6 +64,7 @@ model Company {
   accounts               Account[]
   journalEntries         JournalEntry[]
   journalLines           JournalLine[]
+  fiscalPeriods          FiscalPeriod[]
 
   @@map("companies")
 }
@@ -1151,4 +1152,42 @@ model JournalLine {
   @@index([companyId, journalEntryId])
   @@index([companyId, accountId])
   @@map("journal_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 1: Fiscal Periods
+// ---------------------------------------------------------------------------
+//
+// Simple, extensible period lock (docs/ACCOUNTING.md "Fiscal Periods"): once
+// CLOSED, JournalService refuses to post/reverse any entry whose posting date
+// (always "now" - there is no backdating in this system) falls inside it.
+// Does NOT change the reversal-not-mutation principle - closing a period
+// never touches a posted entry's lines. Non-overlap between periods of the
+// same company is enforced in FiscalPeriodsService, not a DB constraint,
+// matching the rest of this schema's business-rule enforcement style.
+
+enum FiscalPeriodStatus {
+  open
+  closed
+}
+
+model FiscalPeriod {
+  id        String             @id @default(uuid()) @db.Uuid
+  companyId String             @map("company_id") @db.Uuid
+  name      String
+  startDate DateTime           @map("start_date") @db.Date
+  endDate   DateTime           @map("end_date") @db.Date
+  status    FiscalPeriodStatus @default(open)
+
+  closedAt             DateTime? @map("closed_at")
+  closedByMembershipId String?   @map("closed_by_membership_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, startDate, endDate])
+  @@index([companyId, status])
+  @@map("fiscal_periods")
 }

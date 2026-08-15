@@ -13,6 +13,8 @@ const NAV_ITEMS = [
   { to: '/purchases', label: 'المشتريات' },
   { to: '/expenses', label: 'المصروفات' },
   { to: '/accounting', label: 'الحسابات والقيود' },
+  { to: '/reports', label: 'التقارير المحاسبية' },
+  { to: '/receivables-payables', label: 'الذمم (العملاء والموردون)' },
 ];
 
 export function Layout() {

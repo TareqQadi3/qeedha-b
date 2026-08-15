@@ -244,7 +244,7 @@ expenses             المبلغ، الفئة، الفرع (اختياري — 
 لا عمود مرفق/إيصال (Receipt attachment) في هذه المرحلة — راجع
 `docs/EXPENSES.md` "ما لم يُبنَ بعد".
 
-## 7. Accounting (المرحلة 4 — منفَّذ، بنطاق أضيق مما خُطِّط له أصلًا هنا)
+## 7. Accounting (المرحلة 4 — منفَّذ؛ مُكمَّل في Milestone 1: Accounting Completion)
 
 ```text
 accounts              دليل الحسابات (شجري عبر self-relation parent_id:
@@ -254,19 +254,56 @@ accounts              دليل الحسابات (شجري عبر self-relation p
 journal_entries        قيد محاسبي. status: posted | reversed فقط — لا
                       draft (لا تدفق إدخال يدوي يبرره). reference_type/
                       reference_id يربطانه بمعاملته المصدر (Sale/Purchase/
-                      Expense). reversal_of_entry_id يشير للقيد الأصلي عند
-                      قيد عكسي. branch_id اختياري.
+                      Expense/OpeningBalance منذ Milestone 1).
+                      reversal_of_entry_id يشير للقيد الأصلي عند قيد
+                      عكسي. branch_id اختياري.
 journal_lines           بنود القيد (مدين/دائن، حساب واحد لكل سطر) — يجب أن
                       يتوازن كل قيد (مدين = دائن، مُتحقَّق برمجيًا عند
                       الترحيل، وليس بقيد Check على مستوى قاعدة البيانات).
+fiscal_periods          فترة مالية قابلة للإقفال (Milestone 1). id,
+                      company_id, name, start_date DATE, end_date DATE,
+                      status (open|closed، افتراضي open)، closed_at،
+                      closed_by_membership_id. لا تُنشئ أي قيد ولا تلمس
+                      أي قيد مُرحَّل — فقط تمنع JournalService من ترحيل/
+                      عكس قيد جديد طالما "اليوم" يقع ضمن فترة closed
+                      (لا Backdating في هذا النظام، فـ"اليوم" هو المعيار
+                      الوحيد). راجع `docs/ACCOUNTING.md` "الفترات
+                      المحاسبية".
 ```
 
+**فهرس مفهرس**: `fiscal_periods_company_id_start_date_end_date_idx`
+(`company_id, start_date, end_date`) و
+`fiscal_periods_company_id_status_idx` (`company_id, status`).
+
+**RLS**: `fiscal_periods` بنفس نمط `FORCE ROW LEVEL SECURITY` + policy
+`tenant_isolation` المستقل لكل جدول تجاري في هذا النظام — بلا استثناء.
+
+**حارس تزامن الرصيد الافتتاحي (Opening Balance)**: فهرس فريد جزئي إضافي
+على `journal_entries` نفسها (وليس جدولًا جديدًا — الرصيد الافتتاحي مجرد
+`JournalEntry` بـ`reference_type = 'OpeningBalance'`):
+
+```sql
+CREATE UNIQUE INDEX "journal_entries_one_active_opening_balance"
+  ON "journal_entries" ("company_id")
+  WHERE "reference_type" = 'OpeningBalance' AND "status" = 'posted'
+        AND "reversal_of_entry_id" IS NULL;
+```
+
+يضمن وجود قيد رصيد افتتاحي "نشط" (مُرحَّل وليس عكسيًا) واحد فقط لكل
+منشأة، حتى تحت سباق تزامن حقيقي — انتهاك القيد يُترجَم إلى `409` في
+`OpeningBalanceService.create()`. راجع `docs/ACCOUNTING.md` "حارس
+التزامن" للتفصيل الكامل، بما فيه علّة ترتيب كانت تنتهك هذا الفهرس
+عابرًا أثناء `reverseJournalEntry` واكتُشفت وصُحِّحت في نفس الـMilestone.
+
 **انحراف موثَّق عن التصميم الأصلي لهذا القسم**: التصميم الأصلي افترض
-`fiscal_periods`/`opening_balances` كذلك. **لم يُبنَيا في المرحلة 4** —
-لا مفهوم إغلاق فترة مالية ولا أرصدة افتتاحية محاسبية بعد (راجع
-`docs/ACCOUNTING.md` "مؤجَّل"). كذلك، لا `manual` كمصدر لقيد — كل قيد
-تلقائي حصرًا (`reference_type` من ثلاث قيم فقط: `Sale`/`Purchase`/
-`Expense`، بالإضافة لقيد عكسي بنفس `reference_type` الأصل).
+`fiscal_periods`/`opening_balances` كذلك. **لم يُبنَيا في المرحلة 4،
+وبُنيا لاحقًا في Milestone 1** — `fiscal_periods` جدول مستقل كما أعلاه؛
+الرصيد الافتتاحي **لم يُبنَ كجدول `opening_balances` منفصل كما افترض
+التصميم الأصلي** — بل كـ`JournalEntry` عادي (راجع أعلاه)، لتفادي أي
+آلية ترحيل موازية لنقطة العبور الوحيدة `JournalService.postJournalEntry`.
+كذلك، لا `manual` كمصدر لقيد — كل قيد تلقائي حصرًا (`reference_type` من
+أربع قيم: `Sale`/`Purchase`/`Expense`/`OpeningBalance`، بالإضافة لقيد
+عكسي بنفس `reference_type` الأصل).
 
 **لا إدخال يدوي مزدوج — مُنفَّذ فعليًا، وليس مبدأً مؤجَّلًا بعد الآن**: كل
 عملية تجارية (بيع، استلام شراء، مصروف) تُنشئ قيدها تلقائيًا عبر
@@ -341,6 +378,16 @@ expense_categories, expenses, accounts, journal_entries, journal_lines` —
 `tenant_isolation` مستقل (`prisma/migrations/
 20260815200000_phase4_purchasing_expenses_accounting/`). لا تعديل على أي
 جدول من المراحل السابقة.
+
+**Milestone 1 (Accounting Completion)**: جدول جديد واحد فقط —
+`fiscal_periods` (نفس نمط `FORCE ROW LEVEL SECURITY` + `tenant_isolation`،
+migration `20260815220000_milestone1_accounting_completion`) — بالإضافة
+لفهرس فريد جزئي جديد على `journal_entries` الموجود أصلًا
+(`journal_entries_one_active_opening_balance`، migration
+`20260815223000_milestone1_opening_balance_concurrency_guard`). لا جدول
+جديد آخر: التقارير المالية وSubledger الذمم وطبقة الأرصدة الافتتاحية
+كلها تقرأ/تكتب عبر `journal_entries`/`journal_lines` الموجودتين أصلًا،
+بلا أي حالة مخزَّنة موازية. لا تعديل على أي جدول من المراحل السابقة.
 
 `integration_transactions` لا يزال مؤجَّلًا حتى وجود Adapter خارجي فعلي
 يستهلكه — لم يُستهلَك بعد لأن الدفع المحلي (نقدي/بطاقة/تحويل) لا يمر عبر

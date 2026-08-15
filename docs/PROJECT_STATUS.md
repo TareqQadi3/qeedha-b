@@ -1,8 +1,9 @@
 # حالة المشروع (Project Status)
 
 **آخر تحديث**: 2026-08-15
-**المرحلة الحالية**: Phase 4 — Purchases + Expenses + Accounting Foundation
-— **مكتملة ومُختبرة**، بانتظار موافقتك الصريحة لبدء المرحلة القادمة
+**المرحلة الحالية**: Milestone 1 — Accounting Completion (تقارير مالية +
+ذمم + أرصدة افتتاحية + فترات محاسبية) — **مكتملة ومُختبرة**، بانتظار
+موافقتك الصريحة لبدء المرحلة القادمة
 
 ## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة القادمة
 
@@ -224,6 +225,208 @@ commit منفصل ونظيف لهذه المرحلة فقط، بدون تعدي�
 ### Push
 NOT PUSHED
 
+---
+
+# Milestone 1 — Accounting Completion
+
+**Status**: Completed
+
+## ملخص: ما هذا الـMilestone وما ليس
+
+طبقة قراءة/إدارة كاملة فوق أساس المرحلة 4 المحاسبي، بلا أي تغيير على
+نقطة العبور الوحيدة لترحيل القيود (`JournalService.postJournalEntry`/
+`reverseJournalEntry`): 4 تقارير مالية حية تقرأ مباشرة من دفتر الأستاذ
+(ميزان مراجعة، دفتر أستاذ، أرباح وخسائر، ميزانية عمومية)، Subledger ذمم
+مدينة/دائنة، أرصدة افتتاحية محاسبية (مُنفَّذة كقيد عادي، لا آلية جديدة)،
+وفترات محاسبية قابلة للإقفال. لم يُبنَ في هذا الـMilestone: تكلفة
+البضاعة المباعة (COGS)/تقييم المخزون (لا يزال قرارًا مفتوحًا)، بيع آجل
+فعلي (AR سيبقى فارغًا هيكليًا حتى يُبنى)، خطوة "دفع لمورد" (AP لا
+يتناقص)، قيد إقفال فترة فعلي يكنس صافي الدخل إلى Equity حقيقي (بند
+"الأرباح المرحّلة غير المقفلة" حل عرض محسوب، وليس بديلًا) — كلها موثَّقة
+صراحة أدناه تحت "Known Limitations" و`docs/ACCOUNTING.md` "مؤجَّل".
+
+## ما تم إنجازه في هذه الدورة (Milestone 1)
+
+- [x] `AccountingReportsService` + `AccountingReportsController`
+      (`/accounting/reports/*`): Trial Balance، General Ledger (برصيد
+      افتتاحي محسوب صحيحًا عند تمرير `dateFrom`)، Profit & Loss،
+      Balance Sheet (ببند "أرباح مرحّلة غير مقفلة" محسوب، `computed:
+      true`، يعالج غياب إجراء إقفال فترة فعلي بأسلوب محاسبي معياري).
+      كل التقارير تقرأ حيًا من `JournalLine`/`JournalEntry` المُرحَّلة،
+      بلا رصيد إجمالي مُخزَّن منفصل، وتحترم نطاق الفرع.
+- [x] `SubledgerService` + `SubledgerController`
+      (`/accounting/ar/customers`, `/accounting/ap/suppliers`): بنية AR
+      حقيقية وعامة لكنها فارغة هيكليًا اليوم (لا بيع آجل)؛ AP مُعبَّأة
+      فعليًا (تتراكم فقط، لا خطوة سداد بعد) — كلاهما موثَّق ومُختبَر
+      صراحة كقيد معروف وليس خللًا.
+- [x] `OpeningBalanceService` + `OpeningBalanceController`
+      (`/accounting/opening-balance`): رصيد افتتاحي محاسبي (مختلف تمامًا
+      عن الرصيد الافتتاحي للمخزون من المرحلة 2) مُنفَّذ كـ`JournalEntry`
+      عادي عبر `JournalService.postJournalEntry` نفسها — لا جدول ولا
+      آلية ترحيل جديدة. حارس تزامن بفهرس فريد جزئي على `journal_entries`
+      يمنع أكثر من رصيد "نشط" واحد لكل منشأة حتى تحت سباق تزامن حقيقي.
+- [x] عِلّة اكتُشفت وصُحِّحت: `JournalService.reverseJournalEntry` كان
+      يُنشئ قيد العكس قبل تعليم الأصلي `reversed`، ما ينتهك عابرًا فهرس
+      التزامن أعلاه — صُحِّح بإعادة الترتيب.
+- [x] `FiscalPeriodsService` + `FiscalPeriodsController`
+      (`/accounting/fiscal-periods`، جدول جديد `fiscal_periods` بـRLS
+      FORCE كاملة): إنشاء/إقفال/إعادة فتح فترة، مع رفض تقاطع الفترات
+      ورفض مدى تاريخ غير منطقي. `JournalService` يستدعي
+      `assertTodayNotLocked` قبل أي ترحيل أو عكس — يمنع قيودًا *جديدة*
+      فقط طالما اليوم داخل فترة مُقفلة، بلا أي أثر على قيد سابق.
+- [x] 5 صلاحيات RBAC جديدة (`accounting.reports.view`,
+      `accounting.ar.view`, `accounting.ap.view`,
+      `accounting.opening_balance.manage`, `accounting.period.manage`)،
+      تحديث الأدوار الافتراضية (Manager: تقارير+ذمم دون الإداري؛
+      Accountant: الخمس كاملة؛ Cashier/Inventory Manager: بلا أي منها).
+- [x] واجهة أمامية جديدة: `/reports` (تبويبات التقارير الأربعة)،
+      `/receivables-payables` (تبويبا AR/AP مع Empty State يشرح فراغ AR
+      صراحة)، تبويبان جديدان داخل `/accounting` الموجودة ("الأرصدة
+      الافتتاحية"، "الفترات المحاسبية").
+- [x] `test/milestone1.e2e-spec.ts`: 21 اختبارًا جديدًا (تقارير/ذمم/
+      أرصدة افتتاحية/فترات/نطاق فرع/IDOR/RBAC) — **112/112 إجمالًا بلا
+      أي تراجع** عن المراحل 1/2/2.1/3/4 (91 سابقًا)، مُتحقَّق فعليًا
+      بتشغيل `npx jest --config ./test/jest-e2e.json --runInBand`.
+- [x] Browser test (Playwright) يدوي حقيقي: تسجيل منشأة → زرع بيع/
+      مصروف/شراء عبر الـAPI → التقارير الأربعة → AR/AP → الأرصدة
+      الافتتاحية (إنشاء+عرض) → الفترات المحاسبية (إنشاء+عرض) — كل
+      الخطوات نجحت بلا أخطاء console. عِلّة تنسيق حقيقية اكتُشفت
+      وصُحِّحت: الأرقام كانت تُعرَض بأرقام هندية شرقية عبر
+      `toLocaleString('ar-SA', ...)`، صُحِّحت إلى `.toFixed(2)` (أرقام
+      غربية، متسقة مع كل صفحة أخرى بالتطبيق) في `ReportsPage.tsx` و
+      `ReceivablesPayablesPage.tsx`.
+- [x] توثيق مُحدَّث: `ACCOUNTING.md` (أقسام Milestone 1 كاملة + تحديث
+      "مؤجَّل")، `DATABASE.md`, `API.md`, `SECURITY.md`, `TESTING.md`,
+      `CHANGELOG.md`, `PROJECT_STATUS.md` (هذا الملف). لا ملف توثيق
+      جديد منفصل — كل شيء ضمن `ACCOUNTING.md` الموجود.
+
+## التقرير النهائي (بالصيغة المطلوبة)
+
+**Reporting**: PASS (4 تقارير تقرأ حيًا من دفتر الأستاذ، بلا حالة
+موازية؛ بند أرباح غير مقفلة محسوب وموسوم `computed: true` بوضوح)
+**AR/AP Subledger**: PASS (بنية عامة صحيحة؛ AR فارغ هيكليًا موثَّق
+كقيد وليس خللًا؛ AP مُعبَّأ فعليًا ومُختبَر)
+**Opening Balance**: PASS (قيد عادي عبر نقطة العبور الوحيدة؛ حارس
+تزامن بفهرس فريد جزئي؛ عِلّة ترتيب في `reverseJournalEntry` اكتُشفت
+وصُحِّحت)
+**Fiscal Periods**: PASS (إقفال يمنع قيودًا جديدة فقط، لا أثر على أي
+قيد سابق؛ تقاطع/مدى غير منطقي مرفوضان)
+**Double-Entry Integrity**: PASS (بلا أي تغيير — نفس الفرض من المرحلة 4)
+**Branch Scope**: PASS (التقارير تحترم `BranchScopeService` نفسه، مُختبَر
+صراحة بمحاسب مقيّد بفرع)
+**Tenant Isolation**: PASS (RLS على `fiscal_periods` + فحوصات IDOR
+صريحة على كل مورد جديد)
+**RLS**: PASS (`FORCE ROW LEVEL SECURITY` على `fiscal_periods`)
+**RBAC**: PASS (5 صلاحيات جديدة، مُختبَرة برفض 403 عند غيابها)
+**Concurrency**: PASS (طلبان متزامنان حقيقيان لرصيد افتتاحي — نجاح
+واحد فقط، تحقُّق مباشر عبر Prisma من صف واحد `posted`)
+**Frontend**: PASS (`/reports`, `/receivables-payables`، تبويبا
+الأرصدة الافتتاحية/الفترات داخل `/accounting`، متصلة بالكامل بالـAPI،
+بلا بيانات وهمية)
+**Browser Tests**: PASS (Playwright يدوي، مسار كامل، عِلّة تنسيق أرقام
+حقيقية اكتُشفت وصُحِّحت)
+**E2E**: PASS (112/112، `npx jest --config ./test/jest-e2e.json
+--runInBand`)
+**Build**: PASS (`nest build` + frontend `tsc --noEmit && vite build`،
+بلا أخطاء)
+**Documentation**: PASS (`ACCOUNTING.md` مُحدَّث بأقسام كاملة، 6 ملفات
+أخرى مُحدَّثة)
+
+**Tests**: 112/112 (91 سابقًا + 21 جديدة)
+
+### Files Changed
+- **Backend (جديد)**: `src/modules/accounting/accounting-reports
+  .service.ts`, `accounting-reports.controller.ts`,
+  `subledger.service.ts`, `subledger.controller.ts`,
+  `opening-balance.service.ts`, `opening-balance.controller.ts`,
+  `fiscal-periods.service.ts`, `fiscal-periods.controller.ts`، DTOs
+  المرتبطة، `prisma/migrations/
+  20260815220000_milestone1_accounting_completion/`, `prisma/
+  migrations/20260815223000_milestone1_opening_balance_concurrency
+  _guard/`, `test/milestone1.e2e-spec.ts`.
+- **Backend (معدَّل)**: `prisma/schema.prisma` (`fiscal_periods`)،
+  `src/modules/accounting/journal.service.ts` (استدعاء
+  `assertTodayNotLocked` + إصلاح ترتيب `reverseJournalEntry`)،
+  `src/modules/accounting/accounting.module.ts`،
+  `src/modules/iam/constants/permissions.ts`,
+  `src/modules/iam/constants/default-roles.ts`.
+- **Frontend (جديد)**: `src/pages/ReportsPage.tsx`,
+  `src/pages/ReceivablesPayablesPage.tsx`.
+- **Frontend (معدَّل)**: `src/pages/AccountingPage.tsx` (تبويبا الأرصدة
+  الافتتاحية/الفترات المحاسبية)، `src/App.tsx`,
+  `src/components/Layout.tsx` (مسارات `/reports`,
+  `/receivables-payables`).
+- **Docs (معدَّل)**: `ACCOUNTING.md`, `DATABASE.md`, `API.md`,
+  `SECURITY.md`, `TESTING.md`, `CHANGELOG.md`, `PROJECT_STATUS.md`
+  (هذا الملف). لا ملف توثيق جديد.
+
+### Database Changes
+جدول جديد واحد (`fiscal_periods`، RLS FORCE كاملة) + فهرس فريد جزئي
+جديد على `journal_entries` الموجودة أصلًا
+(`journal_entries_one_active_opening_balance`) — عبر migration-ين
+منفصلتين. لا تعديل ولا حذف لأي جدول من المراحل السابقة.
+
+### API Changes
+راجع `docs/API.md` قسم "Endpoints Milestone 1: Accounting Completion":
+4 مسارات تحت `/accounting/reports`، 4 تحت `/accounting/ar`+`/ap`، 3 تحت
+`/accounting/opening-balance`، 4 تحت `/accounting/fiscal-periods`. كلها
+خلف نفس سلسلة الحراسة، بالإضافة لنطاق الفرع على التقارير/الذمم.
+
+### Frontend Changes
+صفحتان جديدتان (`/reports`, `/receivables-payables`) وتبويبان جديدان
+داخل `/accounting` الموجودة — راجع `docs/ACCOUNTING.md` للتفصيل الكامل.
+عِلّة تنسيق أرقام حقيقية اكتُشفت وصُحِّحت أثناء اختبار المتصفح (راجع
+"ما تم إنجازه" أعلاه).
+
+### Architectural Decisions (قرارات مسجَّلة)
+- **طبقة استعلام مشتركة لكل التقارير**: `AccountingReportsService`
+  تقرأ من نفس مصدر البيانات (`JournalLine`/`JournalEntry`) لكل التقارير
+  الأربعة، فلا يمكن لأي تقرير أن ينحرف عن الآخر أو عن الدفتر.
+- **بند "أرباح مرحّلة غير مقفلة" محسوب لا مُرحَّل**: حل عرض معياري
+  ومُوسوم صراحة (`computed: true`)، وليس قيدًا مُختلَقًا — لا يُنشئ أي
+  صف `JournalEntry`/`JournalLine`.
+- **الرصيد الافتتاحي المحاسبي = `JournalEntry` عادي، لا جدول جديد**:
+  يعيد استخدام نقطة العبور الوحيدة `JournalService.postJournalEntry`
+  حرفيًا بدل بناء آلية ترحيل موازية.
+- **فهرس فريد جزئي بدل قفل تطبيقي** لضمان رصيد افتتاحي "نشط" واحد —
+  يعمل حتى تحت سباق تزامن حقيقي، لا فحص-ثم-كتابة يفتح نافذة سباق.
+- **إقفال الفترة يمنع قيودًا جديدة فقط، ولا يمس أي قيد سابق أبدًا**:
+  امتداد لمبدأ "عكس لا تعديل" الثابت منذ المرحلة 1، وليس استثناءً منه.
+- **لا صلاحية `accounting.opening_balance.manage`/`period.manage`
+  لـManager**: هاتان الصلاحيتان إداريتان بحتًا (تُغيّران سلوك ترحيل
+  القيود مستقبلًا)، محصورتان بالمحاسب/المالك عمدًا — بعكس صلاحيتَي
+  القراءة (`reports.view`/`ar.view`/`ap.view`) التشغيليتين المتاحتين
+  لـManager أيضًا.
+
+### Known Limitations (موثَّقة صراحة، وليست ثغرات مسكوت عنها)
+- **AR فارغ هيكليًا اليوم**: لا بيع آجل في هذا الكود على الإطلاق — بنية
+  Subledger صحيحة وعامة، لكن لا مصدر بيانات يملؤها حتى تُبنى قدرة بيع
+  آجل فعلية (قرار عمل منفصل).
+- **AP لا يتناقص أبدًا**: لا خطوة "دفع لمورد" — الرصيد يتراكم فقط مع كل
+  استلام شراء جديد.
+- **لا إجراء إقفال فترة فعلي**: إقفال فترة يمنع الترحيل فقط، ولا يُنشئ
+  قيدًا يكنس صافي الدخل إلى Equity حقيقي — بند الميزانية العمومية حل
+  عرض محسوب مؤقت.
+- **لا تغيير على قرار COGS**: لا يزال مفتوحًا تمامًا كما في نهاية
+  المرحلة 4.
+
+### What is intentionally deferred (مؤجَّل عمدًا — وليس نسيانًا)
+- تكلفة البضاعة المباعة (COGS) وتقييم المخزون (FIFO/متوسط مرجّح) — لم
+  يُلمَس في هذا الـMilestone، يحتاج قرارك أولًا.
+- بيع آجل (Credit Sale) فعلي — يحتاج قرار عمل قبل بناء أي قدرة، وهو ما
+  يجعل AR مفيدًا فعليًا.
+- خطوة "دفع لمورد" لتصفية/تقليل رصيد AP.
+- إجراء إقفال فترة فعلي (قيد يكنس صافي الدخل إلى Equity حقيقي).
+- مرتجعات المشتريات، التسوية البنكية/النقدية الكاملة، ZATCA الفعلي —
+  لا تزال خارج النطاق كما في نهاية المرحلة 4.
+
+### Commit
+commit منفصل ونظيف لهذا الـMilestone فقط — **pending final commit** (لم
+يُنفَّذ بعد وقت كتابة هذا التقرير).
+
+### Push
+NOT PUSHED
+
 ## ما لم يبدأ بعد (بانتظار إذنك للانتقال)
 
 المرحلة القادمة (وفق `ROADMAP.md`، بعد إعادة تجزئة نطاق المراحل الفعلي عن
@@ -268,3 +471,7 @@ Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعم
 - 2026-08-15: المرحلة 4 (Purchases/Expenses/Accounting Foundation) مكتملة
   ومُختبرة (91/91، build/lint/typecheck نظيفة في backend وfrontend، Playwright
   يدوي ناجح) — بانتظار موافقة صريحة لبدء المرحلة القادمة.
+- 2026-08-15: Milestone 1 (Accounting Completion — تقارير مالية/ذمم/أرصدة
+  افتتاحية/فترات محاسبية) مكتمل ومُختبر (112/112، Playwright يدوي ناجح مع
+  إصلاح عِلّة تنسيق أرقام حقيقية) — بانتظار موافقة صريحة لبدء المرحلة
+  القادمة.

@@ -15,6 +15,7 @@ import { BranchScopeService } from '../iam/branch-scope.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { AccountingService } from './accounting.service';
 import { QueryJournalEntriesDto } from './dto/query-journal-entries.dto';
+import { FiscalPeriodsService } from './fiscal-periods.service';
 
 export interface JournalLineInput {
   // Exactly one of these two - accountCode for the fixed, well-known
@@ -56,9 +57,12 @@ export class JournalService {
     private readonly accountingService: AccountingService,
     private readonly auditService: AuditService,
     private readonly branchScopeService: BranchScopeService,
+    private readonly fiscalPeriodsService: FiscalPeriodsService,
   ) {}
 
   async postJournalEntry(tx: TenantClient, companyId: string, params: PostJournalEntryParams) {
+    await this.fiscalPeriodsService.assertTodayNotLocked(tx, companyId);
+
     const totalDebit = round2(params.lines.reduce((sum, l) => sum + (l.debit ?? 0), 0));
     const totalCredit = round2(params.lines.reduce((sum, l) => sum + (l.credit ?? 0), 0));
 
@@ -146,6 +150,8 @@ export class JournalService {
       actorUserId?: string | null;
     },
   ) {
+    await this.fiscalPeriodsService.assertTodayNotLocked(tx, companyId);
+
     const original = await tx.journalEntry.findFirst({
       where: { id: params.originalEntryId, companyId },
       include: { lines: true },
@@ -154,6 +160,13 @@ export class JournalService {
     if (original.status === 'reversed') {
       throw new ConflictException('هذا القيد مُعكوس بالفعل');
     }
+
+    // Original flipped to 'reversed' BEFORE the new entry is created - a
+    // partial unique index (journal_entries_one_posted_opening_balance)
+    // enforces "at most one posted entry" for some reference types, so both
+    // rows must never be status='posted' at the same instant even
+    // transiently within this transaction.
+    await tx.journalEntry.update({ where: { id: original.id }, data: { status: 'reversed' } });
 
     const reversal = await tx.journalEntry.create({
       data: {
@@ -180,8 +193,6 @@ export class JournalService {
         },
       });
     }
-
-    await tx.journalEntry.update({ where: { id: original.id }, data: { status: 'reversed' } });
 
     await this.auditService.log(tx, {
       companyId,

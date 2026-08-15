@@ -122,6 +122,34 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'accounting',
     description: 'إدارة دليل الحسابات (إضافة/تعديل حساب) - القيود نفسها تُنشَأ آليًا فقط',
   },
+
+  // Milestone 1: Accounting Completion (reports, subledgers, periods, opening balances)
+  {
+    key: 'accounting.reports.view',
+    category: 'accounting',
+    description:
+      'عرض التقارير المحاسبية (ميزان المراجعة، دفتر الأستاذ، الأرباح والخسائر، الميزانية العمومية)',
+  },
+  {
+    key: 'accounting.ar.view',
+    category: 'accounting',
+    description: 'عرض أرصدة وكشوف حسابات العملاء (ذمم مدينة)',
+  },
+  {
+    key: 'accounting.ap.view',
+    category: 'accounting',
+    description: 'عرض أرصدة وكشوف حسابات الموردين (ذمم دائنة)',
+  },
+  {
+    key: 'accounting.opening_balance.manage',
+    category: 'accounting',
+    description: 'تسجيل الأرصدة الافتتاحية المحاسبية',
+  },
+  {
+    key: 'accounting.period.manage',
+    category: 'accounting',
+    description: 'إنشاء وإقفال وإعادة فتح الفترات المحاسبية',
+  },
 ];
 
 export const PERMISSION_KEYS = {
@@ -166,6 +194,11 @@ export const PERMISSION_KEYS = {
   EXPENSES_DELETE: 'expenses.delete',
   ACCOUNTING_READ: 'accounting.read',
   ACCOUNTING_MANAGE: 'accounting.manage',
+  ACCOUNTING_REPORTS_VIEW: 'accounting.reports.view',
+  ACCOUNTING_AR_VIEW: 'accounting.ar.view',
+  ACCOUNTING_AP_VIEW: 'accounting.ap.view',
+  ACCOUNTING_OPENING_BALANCE_MANAGE: 'accounting.opening_balance.manage',
+  ACCOUNTING_PERIOD_MANAGE: 'accounting.period.manage',
 } as const;
 
 export const ALL_PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);

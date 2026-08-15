@@ -359,6 +359,38 @@ Account (شجري عبر self-relation) ──has──> JournalLine[] ──bel
   `ExpensesService`) يحتاج معرفة "حساب النقدية لهذه المنشأة" دون معرفة
   UUID محدد سلفًا. راجع `docs/CHART_OF_ACCOUNTS.md` "Account Mapping".
 
+## Milestone 1 — Accounting Completion (بعد المرحلة 4 مباشرة، منفَّذ)
+
+راجع `docs/ACCOUNTING.md` "Milestone 1: Accounting Completion" للتفصيل
+الكامل. كيانان جديدان يمسّان نموذج الهوية/التفويض:
+
+```text
+FiscalPeriod (company_id-scoped، RLS) — start_date/end_date/status
+  ──يُستشار من──> JournalService.postJournalEntry/reverseJournalEntry
+                  (assertTodayNotLocked قبل أي ترحيل/عكس جديد)
+
+OpeningBalance — ليس كيانًا/جدولًا منفصلًا، بل JournalEntry عادي
+  (referenceType='OpeningBalance', referenceId=companyId) — لا نموذج
+  بيانات جديد، فقط استخدام آخر لنقطة العبور الوحيدة الموجودة أصلًا.
+```
+
+- **`FiscalPeriod` كيان جديد على مستوى المنشأة (بلا `branchId`)** —
+  نطاق الفروع (`BranchScopeService`) لا يمتد إليه؛ الفترات المحاسبية
+  وإقفالها قرار على مستوى المنشأة كاملة، وليس لكل فرع على حدة.
+  `closed_by_membership_id` يشير إلى `Membership` (وليس `User` مباشرة)
+  اتساقًا مع مبدأ الملف نفسه: كل إسناد/فعل حساس يُنسَب لعضوية محدَّدة
+  ضمن منشأة، لا لهوية عالمية مجردة.
+- **الأرصدة الافتتاحية المحاسبية ليست كيانًا جديدًا في نموذج البيانات
+  على الإطلاق** — عمدًا: بدل جدول `opening_balances` منفصل (كما افترض
+  التصميم المرجعي الأصلي، راجع `docs/DATABASE.md` §7 "انحراف موثَّق")،
+  هي `JournalEntry` عادي يمر عبر نفس القيود والتحقق (توازن مدين=دائن،
+  نطاق الفرع، الفترة المحاسبية غير المُقفلة) التي يمر بها أي قيد آخر —
+  لا نموذج تفويض موازٍ يحتاج توثيقًا منفصلًا هنا.
+- **مهم: هذا مفهوم مختلف تمامًا عن "الرصيد الافتتاحي" لكيان `StockLevel`
+  من المرحلة 2** (`InventoryService.setOpeningBalance`،
+  `StockMovementType.opening_balance`) — تشابه الاسم فقط، لا علاقة بين
+  الاثنين في نموذج البيانات أو التفويض.
+
 ## نقاط توسّع مستقبلية جاهزة بهذا التصميم
 
 - **Tenant/Company switcher في الواجهة**: `GET /auth/tenants` +

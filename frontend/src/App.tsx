@@ -11,7 +11,9 @@ import { LoginPage } from './pages/LoginPage';
 import { PosPage } from './pages/PosPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { PurchasesPage } from './pages/PurchasesPage';
+import { ReceivablesPayablesPage } from './pages/ReceivablesPayablesPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { SuppliersPage } from './pages/SuppliersPage';
 import { useAuth } from './state/auth';
 
@@ -45,6 +47,8 @@ export function App() {
         <Route path="/purchases" element={<PurchasesPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/accounting" element={<AccountingPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/receivables-payables" element={<ReceivablesPayablesPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

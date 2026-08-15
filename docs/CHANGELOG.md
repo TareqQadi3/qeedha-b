@@ -1,5 +1,91 @@
 # سجل التغييرات (Changelog)
 
+## [Milestone 1: Accounting Completion] - 2026-08-15
+
+طبقة قراءة/إدارة كاملة فوق أساس المرحلة 4 المحاسبي — 4 تقارير مالية
+حية، Subledger ذمم مدينة/دائنة، أرصدة افتتاحية محاسبية، وفترات محاسبية
+قابلة للإقفال — بلا أي تغيير على نقطة العبور الوحيدة لترحيل القيود
+(`JournalService.postJournalEntry`/`reverseJournalEntry`).
+
+### أُضيف
+- `AccountingReportsService` + `AccountingReportsController`
+  (`/accounting/reports/*`): ميزان مراجعة، دفتر أستاذ (برصيد افتتاحي
+  محسوب صحيحًا عند تمرير `dateFrom`)، أرباح وخسائر، ميزانية عمومية —
+  كلها تقرأ حيًا من `JournalLine`/`JournalEntry` المُرحَّلة، بلا أي رصيد
+  إجمالي مُخزَّن منفصل، وتحترم نطاق الفرع (`accounting.reports.view`).
+  الميزانية العمومية تضيف بند "أرباح مرحّلة غير مقفلة" **محسوب** (وسم
+  `computed: true` صريح) لأن لا إجراء إقفال فترة فعلي يكنس صافي الدخل
+  إلى Equity حقيقي بعد — حل عرض معياري في أدوات المحاسبة الصغيرة، وليس
+  اختراعًا خاصًا بهذا النظام. راجع `docs/ACCOUNTING.md`.
+- `SubledgerService` + `SubledgerController` (`/accounting/ar/customers`,
+  `/accounting/ap/suppliers`): بنية عامة تقرأ من نفس دفتر الأستاذ.
+  **AR يعود فارغًا هيكليًا اليوم دائمًا** (`accounting.ar.view`) — لا
+  بيع آجل في هذا الكود على الإطلاق (`CreateSaleDto` يرفض أي بيع لا
+  يساوي مجموع دفعاته الإجمالي بالضبط)، موثَّق صراحة كقيد وليس خطأ. AP
+  (`accounting.ap.view`) مُعبَّأة فعليًا (كل استلام شراء يُرحّل لذمم
+  دائنة) لكنها لا تتناقص — لا خطوة "دفع لمورد" بعد.
+- `OpeningBalanceService` + `OpeningBalanceController`
+  (`/accounting/opening-balance`، صلاحية `accounting
+  .opening_balance.manage`): رصيد افتتاحي محاسبي — مختلف تمامًا عن
+  الرصيد الافتتاحي للمخزون من المرحلة 2 — مُنفَّذ كـ`JournalEntry` عادي
+  (`referenceType: 'OpeningBalance'`) عبر `JournalService
+  .postJournalEntry` نفسها، لا جدول ولا آلية ترحيل موازية. حارس تزامن
+  بفهرس فريد جزئي على `journal_entries`
+  (`journal_entries_one_active_opening_balance`) يمنع أكثر من رصيد
+  "نشط" واحد لكل منشأة حتى تحت سباق تزامن حقيقي، مُختبَر بطلبين
+  متزامنين حقيقيين. عِلّة اكتُشفت وصُحِّحت: `JournalService
+  .reverseJournalEntry` كان يُنشئ قيد العكس قبل تعليم الأصلي `reversed`،
+  ما ينتهك هذا الفهرس عابرًا — صُحِّح بإعادة الترتيب.
+- `FiscalPeriodsService` + `FiscalPeriodsController`
+  (`/accounting/fiscal-periods`، جدول جديد `fiscal_periods` بـRLS FORCE
+  كاملة، صلاحية `accounting.period.manage`): إنشاء/إقفال/إعادة فتح فترة
+  محاسبية (رفض تقاطع الفترات بـ`409`، رفض مدى تاريخ غير منطقي بـ`400`).
+  `JournalService.postJournalEntry`/`reverseJournalEntry` يستدعيان
+  `assertTodayNotLocked` أول خطوة — يمنعان قيودًا **جديدة** فقط طالما
+  اليوم يقع داخل فترة `closed` (لا Backdating في هذا النظام)، بلا أي
+  أثر على قيد سابق مُرحَّل.
+- 5 صلاحيات RBAC جديدة (`accounting.reports.view`, `accounting.ar.view`,
+  `accounting.ap.view`, `accounting.opening_balance.manage`,
+  `accounting.period.manage`) وتحديث الأدوار الافتراضية (Manager:
+  تقارير+ذمم تشغيلية بلا الصلاحيتين الإداريتين؛ Accountant: الخمس
+  كاملة؛ Cashier/Inventory Manager: بلا أي منها).
+- واجهة أمامية: `/reports` (تبويبات التقارير الأربعة)،
+  `/receivables-payables` (تبويبا AR/AP، مع نص Empty State يشرح فراغ AR
+  البنيوي صراحة)، تبويبان جديدان ("الأرصدة الافتتاحية"، "الفترات
+  المحاسبية") داخل `/accounting` الموجودة.
+- `test/milestone1.e2e-spec.ts`: 21 اختبارًا (تقارير، ذمم، أرصدة
+  افتتاحية بما فيها تزامن حقيقي، فترات محاسبية، نطاق فرع، IDOR، RBAC) —
+  راجع `docs/TESTING.md`. المجموع الكلي 112/112 بلا أي تراجع.
+
+### أُصلِح
+- `JournalService.reverseJournalEntry`: ترتيب عمليتين كان يخلق لحظة
+  عابرة (ضمن نفس المعاملة) يكون فيها القيد الأصلي وقيد عكسه معًا
+  `status: 'posted'`، ما ينتهك عمليًا فهرس تزامن الرصيد الافتتاحي
+  الجديد — صُحِّح بتعليم الأصلي `reversed` قبل إنشاء قيد العكس.
+- الواجهة الأمامية: قيم مالية في `ReportsPage.tsx`/
+  `ReceivablesPayablesPage.tsx` كانت تُعرَض بـ`toLocaleString('ar-SA',
+  ...)` (أرقام هندية شرقية، مثل ٢٠٫٠٠) بدل الأرقام الغربية المستخدمة في
+  كل صفحة أخرى بالتطبيق — صُحِّحت إلى `.toFixed(2)`، اكتُشفت أثناء
+  اختبار Playwright يدوي حقيقي عبر متصفح.
+
+### قرارات معمارية مسجَّلة
+- **طبقة استعلام مشتركة لكل التقارير**: `AccountingReportsService` مصدر
+  بيانات واحد لكل التقارير الأربعة، فلا يمكن لأي تقرير أن ينحرف عن
+  الآخر أو عن الدفتر الفعلي.
+- **بند "أرباح مرحّلة غير مقفلة" محسوب وقت الاستجابة، ليس قيدًا
+  مُرحَّلًا**: لا صف `JournalEntry`/`JournalLine` جديد، موسوم `computed:
+  true` صراحة في استجابة الـAPI.
+- **الرصيد الافتتاحي المحاسبي = `JournalEntry` عادي، لا جدول جديد ولا
+  آلية ترحيل موازية**.
+- **فهرس فريد جزئي على مستوى Postgres بدل قفل تطبيقي** لضمان رصيد
+  افتتاحي "نشط" واحد — يعمل حتى تحت سباق تزامن حقيقي.
+- **إقفال الفترة يمنع قيودًا جديدة فقط، ولا يمس أي قيد سابق أبدًا** —
+  امتداد لمبدأ "عكس لا تعديل" الثابت منذ المرحلة 1.
+- **لا تغيير على قرار COGS/تقييم المخزون** — لا يزال مفتوحًا كما في
+  نهاية المرحلة 4، لم يُلمَس في هذا الـMilestone.
+- **AR بنية جاهزة لكن فارغة عمدًا حتى قرار عمل مستقبلي**: بناء بيع آجل
+  فعلي قرار منفصل تمامًا، لم يُطلَب في هذا الـMilestone.
+
 ## [Phase 4] - 2026-08-15
 
 Purchases + Expenses + Chart of Accounts + Journal Entries + تكامل محاسبي

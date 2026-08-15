@@ -182,7 +182,54 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 (`clientReferenceId`/`P2002` catch-and-refetch) المُستخدَمة في `Sales`
 منذ المرحلة 3.
 
+## Endpoints Milestone 1: Accounting Completion
+
+راجع `docs/ACCOUNTING.md` "Milestone 1: Accounting Completion" للتفصيل
+الكامل خلف كل قسم من هذه الأربعة.
+
+### التقارير المالية (`/api/v1/accounting/reports`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/accounting/reports/trial-balance` | ميزان المراجعة (`?dateFrom&dateTo`) — مجموع مدين/دائن لكل حساب + `isBalanced` | `accounting.reports.view` |
+| GET | `/accounting/reports/general-ledger` | دفتر الأستاذ لحساب واحد (`?accountId&dateFrom&dateTo`) — رصيد افتتاحي محسوب + رصيد جارٍ لكل سطر | `accounting.reports.view` |
+| GET | `/accounting/reports/profit-and-loss` | الأرباح والخسائر (`?dateFrom&dateTo`) — إيرادات/مصروفات + `netProfit` | `accounting.reports.view` |
+| GET | `/accounting/reports/balance-sheet` | الميزانية العمومية (`?asOfDate`) — أصول/خصوم/حقوق ملكية + بند "أرباح مرحّلة غير مقفلة" محسوب (`computed: true`) | `accounting.reports.view` |
+
+### الذمم المدينة/الدائنة (`/api/v1/accounting/ar`, `/ap`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/accounting/ar/customers` | أرصدة ذمم كل العملاء — تُعيد قائمة فارغة اليوم دائمًا (لا بيع آجل في النظام، راجع `docs/ACCOUNTING.md`) | `accounting.ar.view` |
+| GET | `/accounting/ar/customers/:customerId` | كشف حساب عميل مفصَّل | `accounting.ar.view` |
+| GET | `/accounting/ap/suppliers` | أرصدة ذمم كل الموردين (مُعبَّأة فعليًا — لا خطوة "دفع لمورد" بعد فتتراكم فقط) | `accounting.ap.view` |
+| GET | `/accounting/ap/suppliers/:supplierId` | كشف حساب مورد مفصَّل | `accounting.ap.view` |
+
+### الأرصدة الافتتاحية المحاسبية (`/api/v1/accounting/opening-balance`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/accounting/opening-balance` | الرصيد الافتتاحي النشط الحالي، أو `null` | `accounting.read` |
+| POST | `/accounting/opening-balance` | تسجيل رصيد افتتاحي جديد (قيد متوازن) — `409` إن وُجد رصيد نشط بالفعل | `accounting.opening_balance.manage` |
+| POST | `/accounting/opening-balance/reverse` | عكس الرصيد النشط — `404` إن لم يوجد | `accounting.opening_balance.manage` |
+
+مختلف تمامًا عن `POST /inventory/opening-balance` (رصيد افتتاحي مخزون،
+منذ المرحلة 2) — راجع `docs/ACCOUNTING.md` "الأرصدة الافتتاحية
+المحاسبية" لتوضيح الفرق.
+
+### الفترات المحاسبية (`/api/v1/accounting/fiscal-periods`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/accounting/fiscal-periods` | قائمة الفترات المحاسبية | `accounting.read` |
+| POST | `/accounting/fiscal-periods` | إنشاء فترة — `409` لفترة متقاطعة، `400` إن كان `startDate > endDate` | `accounting.period.manage` |
+| POST | `/accounting/fiscal-periods/:id/close` | إقفال فترة — يمنع ترحيل/عكس أي قيد جديد طالما اليوم يقع ضمنها؛ `409` إن كانت مُقفلة بالفعل | `accounting.period.manage` |
+| POST | `/accounting/fiscal-periods/:id/reopen` | إعادة فتح فترة — `409` إن كانت مفتوحة بالفعل | `accounting.period.manage` |
+
+كل endpoints Milestone 1 تخضع لنفس سلسلة الحراسة
+(`JwtAuthGuard → MembershipGuard → PermissionsGuard`) + طبقة نطاق الفرع
+(`BranchScopeService`) على التقارير والذمم. لا `POST`/`PATCH`/`DELETE`
+جديد على `/accounting/journal-entries` — الرصيد الافتتاحي وإقفال الفترة
+كلاهما يمران عبر `JournalService` الموجودة أصلًا، وليس عبر أي مسار جديد
+للتلاعب المباشر بقيد.
+
 ## Endpoints المراحل القادمة
 
-تُضاف تدريجيًا: `/reports`, `/import`, `/zatca` — كل منها يوثَّق في ملف
-الوحدة الخاص بها عند البناء الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.
+تُضاف تدريجيًا: `/import`, `/zatca` — كل منها يوثَّق في ملف الوحدة
+الخاص بها عند البناء الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.
