@@ -9,7 +9,7 @@
 | ORM | Prisma | Type-safety، Migrations واضحة، سهولة كتابة Middleware لفرض tenant scoping تلقائيًا |
 | المصادقة | JWT (access قصير الأجل + refresh قابل للتدوير) | مناسب لـ API عام يخدم Web وPOS وموبايل لاحقًا، ولا يتطلب حالة مركزية للجلسة |
 | كلمات المرور | Argon2id | معيار حديث موصى به أمنيًا |
-| الواجهة الأمامية | React + TypeScript + Tailwind CSS (RTL أولًا) | تبدأ من المرحلة الثانية/الثالثة مع POS، ليست جزءًا من هذا التسليم |
+| الواجهة الأمامية | React 18 + Vite + TypeScript + Tailwind CSS (RTL أولًا) | بدأت فعليًا في المرحلة 2 (`/frontend`) — متصلة حقيقيًا بواجهات Products/Catalog/Inventory/Customers/Suppliers، لا بيانات وهمية |
 | قائمة الانتظار/الأحداث (لاحقًا) | Redis / BullMQ | لمزامنة POS offline، إعادة محاولة Webhooks، مهام الاستيراد الثقيلة — تُضاف عند الحاجة الفعلية وليست جزءًا من المرحلة الأولى |
 
 القرار بين NestJS/Express وPrisma/TypeORM اعتُمد افتراضيًا من معايير المشروع
@@ -56,14 +56,21 @@
       /integrations     # Integration Layer الأساسية (ports, registry, connections)
         /core            # Interfaces عامة (PaymentIntegrationPort ...)
         /webhooks        # استقبال أحداث خارجية عامة (generic inbox)
+      /catalog          # المنتجات، التصنيفات، العلامات، الوحدات، الباركود (مرحلة 2)
+      /inventory        # أرصدة المخزون، الحركات، التحويلات، الجرد (مرحلة 2)
+      /parties          # العملاء، الموردون (مرحلة 2)
       # الوحدات التالية تُضاف بالمراحل القادمة:
-      # /catalog /inventory /parties /sales /purchasing
-      # /expenses /accounting /reports /import /zatca
+      # /sales /purchasing /expenses /accounting /reports /import /zatca
     /prisma
       schema.prisma
       /migrations
   /test
-/frontend                # يبدأ لاحقًا (React + Tailwind RTL)
+/frontend                # React + Vite + TypeScript + Tailwind RTL (منفَّذ من المرحلة 2)
+  /src
+    /api                 # عميل HTTP + إدارة التوكن + إعادة المحاولة عند 401
+    /state               # AuthProvider/useAuth
+    /components           # مكوّنات UI عامة + Layout (RTL sidebar)
+    /pages                # Login/Register/Dashboard/Products/Catalog/Inventory/Customers/Suppliers
 /docs
 ```
 

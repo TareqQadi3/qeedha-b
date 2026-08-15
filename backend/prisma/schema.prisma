@@ -39,6 +39,18 @@ model Company {
   membershipRoles        MembershipRole[]
   auditLogs              AuditLog[]
   integrationConnections IntegrationConnection[]
+  units                  Unit[]
+  productCategories      ProductCategory[]
+  brands                 Brand[]
+  products               Product[]
+  productBarcodes        ProductBarcode[]
+  stockLevels            StockLevel[]
+  stockMovements         StockMovement[]
+  stockAdjustments       StockAdjustment[]
+  stockCounts            StockCount[]
+  stockCountLines        StockCountLine[]
+  customers              Customer[]
+  suppliers              Supplier[]
 
   @@map("companies")
 }
@@ -76,6 +88,11 @@ model Warehouse {
   deletedAt DateTime? @map("deleted_at")
 
   branch Branch @relation(fields: [branchId], references: [id])
+
+  stockLevels      StockLevel[]
+  stockMovements   StockMovement[]
+  stockAdjustments StockAdjustment[]
+  stockCounts      StockCount[]
 
   @@unique([companyId, code])
   @@index([companyId, branchId, deletedAt])
@@ -350,4 +367,309 @@ model WebhookEvent {
 
   @@index([providerKey, processingStatus])
   @@map("webhook_events")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: Catalog (Products, Categories, Brands, Units)
+// ---------------------------------------------------------------------------
+//
+// Uniqueness rules (see docs/DOMAIN_MODEL.md "Phase 2 identifiers"):
+//   - SKU: unique per company, never globally - two tenants selling
+//     unrelated things may reuse the same short code.
+//   - Barcode: unique per company, never globally - the same GS1 barcode
+//     legitimately exists in many unrelated tenants' catalogs.
+//   - Category/Brand name: NOT DB-unique (duplicate display names are a
+//     real merchant scenario); cross-tenant reference integrity is
+//     enforced at the application layer (every service verifies a
+//     referenced category/brand/unit's companyId matches before use),
+//     because a bare FK alone cannot express "same tenant AND same row".
+
+model Unit {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  name      String
+  symbol    String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  products Product[]
+
+  @@unique([companyId, name])
+  @@index([companyId, deletedAt])
+  @@map("units")
+}
+
+model ProductCategory {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  parentId  String?   @map("parent_id") @db.Uuid
+  name      String
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company  Company           @relation(fields: [companyId], references: [id])
+  parent   ProductCategory?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children ProductCategory[] @relation("CategoryChildren")
+  products Product[]
+
+  @@index([companyId, parentId, deletedAt])
+  @@map("product_categories")
+}
+
+model Brand {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  name      String
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  products Product[]
+
+  @@unique([companyId, name])
+  @@index([companyId, deletedAt])
+  @@map("brands")
+}
+
+model Product {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  sku               String
+  name              String
+  description       String?
+  categoryId        String?   @map("category_id") @db.Uuid
+  brandId           String?   @map("brand_id") @db.Uuid
+  unitId            String?   @map("unit_id") @db.Uuid
+  costPrice         Decimal   @map("cost_price") @db.Decimal(14, 2)
+  sellingPrice      Decimal   @map("selling_price") @db.Decimal(14, 2)
+  vatRate           Decimal   @default(15) @map("vat_rate") @db.Decimal(5, 2)
+  isActive          Boolean   @default(true) @map("is_active")
+  minStockThreshold Decimal   @default(0) @map("min_stock_threshold") @db.Decimal(14, 3)
+  // Storage key only (e.g. "products/<companyId>/<productId>/<file>"), never
+  // a public URL - see docs/SECURITY.md "Product images" once image upload
+  // ships. Column exists now so it never needs a later migration.
+  imageKey          String?   @map("image_key")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  company          Company           @relation(fields: [companyId], references: [id])
+  category         ProductCategory?  @relation(fields: [categoryId], references: [id])
+  brand            Brand?            @relation(fields: [brandId], references: [id])
+  unit             Unit?             @relation(fields: [unitId], references: [id])
+  barcodes         ProductBarcode[]
+  stockLevels      StockLevel[]
+  stockMovements   StockMovement[]
+  stockAdjustments StockAdjustment[]
+  stockCountLines  StockCountLine[]
+
+  @@unique([companyId, sku])
+  @@index([companyId, deletedAt])
+  @@index([companyId, isActive])
+  @@index([companyId, name])
+  @@index([companyId, categoryId])
+  @@map("products")
+}
+
+model ProductBarcode {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  barcode   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, barcode])
+  @@index([companyId, productId])
+  @@map("product_barcodes")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: Inventory
+// ---------------------------------------------------------------------------
+//
+// stock_levels is a materialized cache, never written directly except by
+// InventoryService.recordMovement() inside the same transaction as the
+// stock_movements row that justifies the change - see docs/INVENTORY.md
+// "Concurrency strategy" for the atomic guarded UPDATE that makes this safe
+// under concurrent requests without explicit row locking.
+
+model StockLevel {
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  warehouseId      String   @map("warehouse_id") @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
+  quantityOnHand   Decimal  @default(0) @map("quantity_on_hand") @db.Decimal(14, 3)
+  // Foundation for Phase 3 POS/Sales (held carts reserving stock before
+  // payment) - always 0 in Phase 2, nothing writes to it yet.
+  // availableQuantity = quantityOnHand - reservedQuantity, computed at read
+  // time (never stored, to avoid drift).
+  reservedQuantity Decimal  @default(0) @map("reserved_quantity") @db.Decimal(14, 3)
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@unique([companyId, warehouseId, productId])
+  @@index([companyId, productId])
+  @@map("stock_levels")
+}
+
+enum StockMovementType {
+  opening_balance
+  purchase
+  sale
+  return
+  adjustment
+  transfer_in
+  transfer_out
+  damage
+  expiry
+  manual_correction
+}
+
+model StockMovement {
+  id                String            @id @default(uuid()) @db.Uuid
+  companyId         String            @map("company_id") @db.Uuid
+  warehouseId       String            @map("warehouse_id") @db.Uuid
+  productId         String            @map("product_id") @db.Uuid
+  type              StockMovementType
+  // Signed: positive = stock in, negative = stock out. Lets a plain SUM()
+  // per (warehouse, product) double as an independent reconciliation check
+  // against stock_levels.quantity_on_hand.
+  quantity          Decimal           @db.Decimal(14, 3)
+  referenceType     String?           @map("reference_type")
+  referenceId       String?           @map("reference_id")
+  actorMembershipId String?           @map("actor_membership_id") @db.Uuid
+  notes             String?
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@index([companyId, warehouseId, productId, createdAt])
+  @@index([companyId, referenceType, referenceId])
+  @@map("stock_movements")
+}
+
+model StockAdjustment {
+  id                String   @id @default(uuid()) @db.Uuid
+  companyId         String   @map("company_id") @db.Uuid
+  warehouseId       String   @map("warehouse_id") @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  quantityDelta     Decimal  @map("quantity_delta") @db.Decimal(14, 3)
+  reason            String
+  notes             String?
+  actorMembershipId String   @map("actor_membership_id") @db.Uuid
+  stockMovementId   String   @unique @map("stock_movement_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@index([companyId, warehouseId, productId])
+  @@map("stock_adjustments")
+}
+
+enum StockCountStatus {
+  draft
+  completed
+  cancelled
+}
+
+model StockCount {
+  id                String           @id @default(uuid()) @db.Uuid
+  companyId         String           @map("company_id") @db.Uuid
+  warehouseId       String           @map("warehouse_id") @db.Uuid
+  status            StockCountStatus @default(draft)
+  actorMembershipId String           @map("actor_membership_id") @db.Uuid
+  notes             String?
+  startedAt         DateTime         @default(now()) @map("started_at")
+  completedAt       DateTime?        @map("completed_at")
+
+  company   Company          @relation(fields: [companyId], references: [id])
+  warehouse Warehouse        @relation(fields: [warehouseId], references: [id])
+  lines     StockCountLine[]
+
+  @@index([companyId, warehouseId, status])
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  stockCountId     String   @map("stock_count_id") @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
+  expectedQuantity Decimal  @map("expected_quantity") @db.Decimal(14, 3)
+  // NULL = not counted yet. difference = countedQuantity - expectedQuantity,
+  // computed at read time, never stored.
+  countedQuantity  Decimal? @map("counted_quantity") @db.Decimal(14, 3)
+
+  company    Company    @relation(fields: [companyId], references: [id])
+  stockCount StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@unique([stockCountId, productId])
+  @@index([companyId, stockCountId])
+  @@map("stock_count_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: Parties (Customers, Suppliers)
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  taxNumber String?   @map("tax_number")
+  reference String?
+  notes     String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, reference])
+  @@index([companyId, deletedAt])
+  @@index([companyId, name])
+  @@map("customers")
+}
+
+model Supplier {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  name          String
+  contactPerson String?   @map("contact_person")
+  phone         String?
+  email         String?
+  address       String?
+  taxNumber     String?   @map("tax_number")
+  reference     String?
+  notes         String?
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, reference])
+  @@index([companyId, deletedAt])
+  @@index([companyId, name])
+  @@map("suppliers")
 }

@@ -10,9 +10,12 @@ import { PrismaModule } from './common/prisma/prisma.module';
 import { validateEnv } from './config/env.validation';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 import { HealthModule } from './modules/health/health.module';
 import { IamModule } from './modules/iam/iam.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { PartiesModule } from './modules/parties/parties.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
 
 @Module({
@@ -26,6 +29,9 @@ import { TenancyModule } from './modules/tenancy/tenancy.module';
     AuthModule,
     TenancyModule,
     IntegrationsModule,
+    CatalogModule,
+    InventoryModule,
+    PartiesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

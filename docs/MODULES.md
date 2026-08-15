@@ -7,13 +7,13 @@
 | Module | المسؤولية | المرحلة |
 |---|---|---|
 | `tenancy` | Company, Branch, Warehouse, PosDevice | 1 |
-| `iam` | Users, Roles, Permissions, UserRoles (RBAC) | 1 |
+| `iam` | Users, Memberships, Roles, Permissions, MembershipRoles (RBAC) | 1 |
 | `auth` | تسجيل الدخول، JWT access/refresh، تسجيل منشأة جديدة | 1 |
 | `audit` | سجل العمليات الحساسة | 1 |
 | `integrations` (core) | Ports عامة، IntegrationConnection، Webhook Inbox عام | 1 |
-| `catalog` | المنتجات، التصنيفات، العلامات، الوحدات، الباركود | 2 |
-| `inventory` | رصيد المخزون، الحركات، التحويلات، الجرد | 2 |
-| `parties` | العملاء، الموردون | 2 |
+| `catalog` | المنتجات، التصنيفات، العلامات، الوحدات، الباركود | 2 — منفَّذ |
+| `inventory` | رصيد المخزون، الحركات، التحويلات، الجرد | 2 — منفَّذ |
+| `parties` | العملاء، الموردون | 2 — منفَّذ |
 | `sales` / `pos` | الفاتورة، الدفع، المرتجعات، السلات المعلّقة، الوردية | 3 |
 | `purchasing` | أوامر الشراء، الاستلام، فواتير الموردين | 3 |
 | `expenses` | المصروفات وفئاتها | 3 |

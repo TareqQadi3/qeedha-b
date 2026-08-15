@@ -1,5 +1,46 @@
 # سجل التغييرات (Changelog)
 
+## [Phase 2] - 2026-08-15
+
+Products + Inventory + Customers + Suppliers، كوحدات SaaS كاملة (tenant-scoped
++ RLS + RBAC + Audit من اليوم الأول)، مع واجهة أمامية حقيقية متصلة.
+
+### أُضيف
+- Prisma schema: `units, product_categories, brands, products,
+  product_barcodes, stock_levels, stock_movements, stock_adjustments,
+  stock_counts, stock_count_lines, customers, suppliers` — كل جدول بـRLS
+  (`FORCE ROW LEVEL SECURITY` + policy `tenant_isolation`) مستقل.
+- 16 صلاحية RBAC جديدة (`products.*`, `inventory.*`, `customers.*`,
+  `suppliers.*`) وتحديث الأدوار الافتراضية الخمسة لتشملها بشكل مناسب لكل دور.
+- وحدة `catalog`: Products + Categories (شجرية) + Brands + Units، مع تحقق
+  صريح من ملكية المراجع عبر المنشآت (category/brand/unit) وSKU/باركود فريدين
+  لكل منشأة، وأحداث Audit منفصلة لتغيّر السعر وتغيّر SKU.
+- وحدة `inventory`: `InventoryService.recordMovement` كمسار الكتابة الوحيد
+  لرصيد المخزون، بنمط ذرّي (`INSERT ... ON CONFLICT DO NOTHING` + `UPDATE`
+  محروس يمنع الأرصدة السالبة) مُختبَر بـ10 طلبات متزامنة حقيقية؛ رصيد
+  افتتاحي، تسوية، تحويل فوري بين مستودعين، ودورة جرد مخزون كاملة
+  (draft → تحديث سطور → اعتماد ينتج حركات تسوية تلقائيًا → تجميد).
+- وحدة `parties`: Customers/Suppliers ككيانين منفصلين عمدًا، مرجع
+  (`reference`) فريد اختياري لكل منشأة، بلا حقول Qeedha مُخترَعة.
+- واجهة أمامية جديدة (`/frontend`, React + Vite + TypeScript + Tailwind RTL):
+  تسجيل دخول/تسجيل منشأة (بما فيه اختيار المنشأة متعدد العضويات)، لوحة تحكم
+  بمؤشرات من بيانات حقيقية، شاشات المنتجات/الكتالوج/المخزون/العملاء/الموردين
+  متصلة فعليًا بالـAPI — لا بيانات وهمية. اختُبرت يدويًا عبر Playwright بتشغيل
+  فعلي للـbackend/frontend معًا (9 سيناريوهات مستخدم حقيقية).
+- `test/phase2.e2e-spec.ts`: 33 اختبارًا (وظيفية + أمنية عبر-المنشآت) — راجع
+  `docs/TESTING.md`.
+
+### قرارات معمارية مسجَّلة
+- سلامة المراجع عبر المنشآت (category/brand/unit/warehouse) تُفرض في طبقة
+  التطبيق صراحة، لأن FK وحده لا يعبّر عن "نفس الصف وفي نفس المنشأة".
+- التحويل بين المستودعين مُنفَّذ كخطوة واحدة فورية فقط؛ التحويل متعدد المراحل
+  (طلب → شحن → استلام) مؤجَّل لمرحلة لاحقة.
+- **نطاق الفروع/المستودعات في تفويض الصلاحيات لم يُفعَّل بعد**:
+  `MembershipRole.branchId` موجود في المخطط لكن `PermissionsGuard` لا يقرأه
+  في هذه المرحلة — موثَّق صراحة في `docs/DOMAIN_MODEL.md` و`docs/SECURITY.md`
+  كسلوك حالي معروف، وليس ثغرة مسكوت عنها.
+- لا حقول ائتمان/رصيد للعملاء/الموردين بعد (تنتمي لمرحلة المحاسبة).
+
 ## [Auth/IAM Identity Refactor] - 2026-08-15
 
 قبل بدء المرحلة 2، بناءً على طلب صريح: Qeedha Accounting منتج SaaS متعدد

@@ -85,28 +85,70 @@ audit_logs              سجل العمليات الحساسة
 `docs/DOMAIN_MODEL.md` والملف نفسه للتفاصيل). لا تعتمد على `UserRole` أو
 `users.company_id` في أي كود جديد — هذان الاسمان لم يعودا موجودين.
 
-## 2. Catalog & Inventory (المرحلة 2)
+## 2. Catalog & Inventory (المرحلة 2 — منفَّذ)
 
 ```text
-product_categories, brands, units
-products                الاسم، SKU، Barcode أساسي، تصنيف، علامة تجارية، وحدة،
-                        سعر تكلفة، سعر بيع، نسبة VAT، حد أدنى للمخزون، صورة
-product_barcodes         باركود إضافي (يدعم أكثر من باركود لكل منتج)
-stock_levels             رصيد صنف لكل (مستودع)
-stock_movements           كل حركة IN/OUT (مصدرها: بيع/شراء/تحويل/تسوية/جرد)
+units                   وحدة قياس (اسم + رمز اختياري)، tenant-scoped
+product_categories       تصنيف هرمي (parent_id اختياري، ذاتي العلاقة)
+brands                  علامة تجارية، tenant-scoped
+products                sku (فريد لكل منشأة)، الاسم، الوصف، تصنيف/علامة/وحدة
+                        اختيارية، سعر تكلفة، سعر بيع، نسبة VAT، الحد الأدنى
+                        للمخزون، isActive، image_key (مفتاح تخزين فقط)
+product_barcodes         باركود إضافي (فريد لكل منشأة، وليس عالميًا)
+stock_levels             رصيد صنف لكل (مستودع) - عمودا quantity_on_hand
+                        وreserved_quantity (الأخير غير مُستخدَم بعد، أساس
+                        لحجز POS في المرحلة 3)
+stock_movements           سجل append-only لكل حركة (IN موجب/OUT سالب):
+                        opening_balance/purchase/sale/return/adjustment/
+                        transfer_in/transfer_out/damage/expiry/manual_correction
                         — لا يُعدَّل stock_levels مباشرة أبدًا بدون سجل حركة
-stock_transfers, stock_transfer_items    تحويل بين فروع/مستودعات
-stocktakes, stocktake_lines               الجرد الدوري والفروقات
+stock_adjustments         تسوية مخزون (سبب + مرجع لحركة المخزون الناتجة)
+stock_counts, stock_count_lines           جرد (draft/completed/cancelled)،
+                        كل سطر يقارن الكمية المتوقعة بالمعدودة
 ```
 
-## 3. Parties (المرحلة 2)
+**قواعد التفرّد** (Uniqueness rules، حُسمت صراحة عند التصميم):
+`sku` و`barcode` فريدان **لكل منشأة**، وليس عالميًا — منشأتان مختلفتان قد
+تستخدمان نفس الـSKU أو نفس الباركود دون أي تعارض، ومُختبَر صراحة
+(`test/phase2.e2e-spec.ts`). `product_categories.name`/`brands.name` غير
+فريدين حتى داخل نفس المنشأة عمدًا (تكرار الاسم سيناريو تجاري حقيقي)؛ سلامة
+الإشارة بين منتج وتصنيف/علامة/وحدة من نفس المنشأة تُفرض على مستوى التطبيق
+(كل خدمة تتحقق من `companyId` للسجل المُشار إليه قبل الاستخدام) لأن الـFK
+وحده لا يمنع الإشارة إلى صف من منشأة أخرى.
+
+**استراتيجية التزامن** (Concurrency): `stock_levels` لا يُكتب إليه مباشرة إلا
+عبر `InventoryService.recordMovement()`، الذي يستخدم:
+1. `INSERT ... ON CONFLICT (company_id, warehouse_id, product_id) DO NOTHING`
+   خام لإنشاء الصف أول مرة بأمان تحت التزامن (upsert العادي لـPrisma **ليس**
+   ذريًا ضد upsert متزامن على نفس المفتاح في Postgres).
+2. `UPDATE stock_levels SET quantity_on_hand = quantity_on_hand + $delta
+   WHERE ... AND quantity_on_hand + $delta >= 0` — تحديث ذري واحد يمنع الرصيد
+   السالب ضمن نفس الجملة، دون فجوة قراءة-ثم-كتابة يمكن استغلالها. مُختبَر
+   صراحة بإرسال 10 طلبات تسوية متزامنة والتحقق من أن النتيجة النهائية صحيحة
+   رياضيًا (`test/phase2.e2e-spec.ts` "Concurrency").
+
+**التحويل بين المستودعات**: عملية واحدة الخطوة (ذرّية ضمن معاملة واحدة) تُنشئ
+حركتي `transfer_out`/`transfer_in` مرتبطتين بـ`reference_id` مشترك. نموذج
+تحويل "قيد النقل" متعدد المراحل (شحن ثم استلام) مؤجَّل لمرحلة لاحقة، وموثَّق
+هنا كتحسين مستقبلي وليس نسيانًا.
+
+## 3. Parties (المرحلة 2 — منفَّذ)
 
 ```text
-customers    الاسم، رقم الجوال، السجل الضريبي (إن وجد)، حد الائتمان، ملاحظات
-suppliers    الاسم، جهة الاتصال، الشروط، الرصيد
+customers    الاسم، الجوال، البريد، العنوان، الرقم الضريبي، مرجع (فريد لكل
+             منشأة)، ملاحظات، isActive
+suppliers    الاسم، جهة الاتصال، الجوال، البريد، العنوان، الرقم الضريبي،
+             مرجع (فريد لكل منشأة)، ملاحظات، isActive
 ```
 تصميم بجدولين منفصلين (وليس Party موحّد) لأن نشاط بقالة/سوبرماركت لا يحتاج
 عادةً كيانًا واحدًا يعمل كعميل ومورد معًا؛ الفصل أبسط وأوضح للتاجر.
+
+**رقم الجوال ليس فريدًا** (لا على مستوى المنشأة ولا عالميًا) — عملاء حقيقيون
+قد يتشاركون رقمًا (أسرة واحدة)، والتاجر قد يُدخل بيانات ناقصة لعميل عابر؛
+`reference` (رقم مرجعي اختياري يُدخله التاجر) هو الحقل الفريد لكل منشأة إن
+استُخدم، مُختبَر صراحة أن نفس الرقم المرجعي مسموح في منشأتين مختلفتين.
+حد الائتمان والرصيد (ذمم مدينة/دائنة) مؤجَّلان لمرحلة المحاسبة (4) حيث
+تُبنى الذمم من حركات فعلية (مبيعات آجلة، مدفوعات) وليس كحقل ثابت الآن.
 
 ## 4. Sales / POS (المرحلة 3)
 
@@ -200,16 +242,21 @@ webhook_events               صندوق وارد عام لأي Webhook خارج�
 
 ---
 
-## الحالة الحالية (Phase 1 — منفّذ في Prisma فعليًا)
+## الحالة الحالية (منفّذ فعليًا في Prisma حتى نهاية المرحلة 2)
 
-الجداول المنفَّذة في `backend/prisma/schema.prisma` في هذا التسليم:
+الجداول المنفَّذة في `backend/prisma/schema.prisma`:
 
-`companies, branches, warehouses, pos_devices, users, memberships, roles,
-permissions, role_permissions, membership_roles, refresh_tokens, audit_logs,
-integration_providers, integration_connections, webhook_events`
+**المرحلة 1**: `companies, branches, warehouses, pos_devices, users,
+memberships, roles, permissions, role_permissions, membership_roles,
+refresh_tokens, audit_logs, integration_providers, integration_connections,
+webhook_events`
+
+**المرحلة 2**: `units, product_categories, brands, products, product_barcodes,
+stock_levels, stock_movements, stock_adjustments, stock_counts,
+stock_count_lines, customers, suppliers`
 
 `integration_transactions` مؤجَّل حتى وجود Use-Case فعلي يستهلكه (مرحلة POS/
 Sales) — تعريفه موثّق هنا لكنه لن يُضاف للـSchema فارغًا بلا استخدام.
 
-باقي الجداول (Catalog, Inventory, Sales, Purchasing, Accounting, Import,
-ZATCA) ستُضاف عبر Migrations جديدة في مراحلها، وليس دفعة واحدة الآن.
+باقي الجداول (Sales, Purchasing, Accounting, Import, ZATCA) ستُضاف عبر
+Migrations جديدة في مراحلها، وليس دفعة واحدة الآن.

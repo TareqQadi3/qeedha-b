@@ -69,8 +69,54 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 |---|---|---|
 | GET | `/api/v1/health` | فحص حالة الخدمة وقاعدة البيانات |
 
+## Endpoints المرحلة الثانية
+
+### Catalog (`/api/v1/catalog`, `/api/v1/products`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET/POST | `/catalog/units` | وحدات القياس | `products.read` / `products.create` |
+| PATCH/DELETE | `/catalog/units/:id` | تعديل/حذف وحدة | `products.update` / `products.delete` |
+| GET/POST | `/catalog/brands` | العلامات التجارية | `products.read` / `products.create` |
+| PATCH/DELETE | `/catalog/brands/:id` | تعديل/حذف علامة | `products.update` / `products.delete` |
+| GET/POST | `/catalog/categories` | التصنيفات (شجرية) | `products.read` / `products.create` |
+| PATCH/DELETE | `/catalog/categories/:id` | تعديل/حذف تصنيف | `products.update` / `products.delete` |
+| GET | `/products` | قائمة المنتجات (بحث/صفحات/فلاتر تصنيف-علامة-نشاط) | `products.read` |
+| POST | `/products` | إنشاء منتج (+ باركود مبدئي اختياري) | `products.create` |
+| GET/PATCH/DELETE | `/products/:id` | عرض/تعديل/حذف ناعم لمنتج | `products.read` / `update` / `delete` |
+| POST | `/products/:id/barcodes` | إضافة باركود لمنتج | `products.update` |
+| DELETE | `/products/:id/barcodes/:barcodeId` | إزالة باركود | `products.update` |
+
+### Inventory (`/api/v1/inventory`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/inventory/stock-levels` | أرصدة المخزون حسب المستودع (فلتر `lowStockOnly`) | `inventory.read` |
+| GET | `/inventory/movements` | سجل حركات المخزون (فلاتر منتج/مستودع/نوع) | `inventory.read` |
+| POST | `/inventory/opening-balance` | تسجيل رصيد افتتاحي لمنتج في مستودع | `inventory.adjust` |
+| POST | `/inventory/adjustments` | تسوية مخزون (زيادة/نقصان يدوي) | `inventory.adjust` |
+| POST | `/inventory/transfers` | تحويل بين مستودعين (فوري، ذرّي) | `inventory.transfer` |
+| GET/POST | `/inventory/stock-counts` | قوائم/إنشاء جرد مخزون | `inventory.count` |
+| GET | `/inventory/stock-counts/:id` | تفاصيل جرد وسطوره | `inventory.count` |
+| PATCH | `/inventory/stock-counts/:id/lines` | تحديث الكميات الفعلية المعدودة (طالما الجرد `draft`) | `inventory.count` |
+| POST | `/inventory/stock-counts/:id/complete` | اعتماد الجرد (يُنشئ حركات تسوية تلقائيًا للفروقات) | `inventory.count` |
+| POST | `/inventory/stock-counts/:id/cancel` | إلغاء جرد | `inventory.count` |
+
+### Parties (`/api/v1/customers`, `/api/v1/suppliers`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET/POST | `/customers` | قائمة/إنشاء عميل (بحث اسم/جوال/مرجع) | `customers.read` / `customers.create` |
+| GET/PATCH/DELETE | `/customers/:id` | عرض/تعديل/حذف ناعم لعميل | `customers.read` / `update` / `delete` |
+| GET/POST | `/suppliers` | قائمة/إنشاء مورد | `suppliers.read` / `suppliers.create` |
+| GET/PATCH/DELETE | `/suppliers/:id` | عرض/تعديل/حذف ناعم لمورد | `suppliers.read` / `update` / `delete` |
+
+جميع endpoints المرحلة الثانية تخضع لنفس سلسلة الحراسة
+(`JwtAuthGuard → MembershipGuard → PermissionsGuard`) ولنفس قاعدة اشتقاق
+`companyId` من الـJWT فقط — لا فرق معماري عن endpoints المرحلة الأولى.
+مراجع عبر-كيانات (`categoryId`, `brandId`, `unitId`, `warehouseId`) تُتحقق
+دائمًا من ملكيتها لنفس المنشأة في طبقة الخدمة قبل أي كتابة (راجع
+`SECURITY.md`).
+
 ## Endpoints المراحل القادمة
 
-تُضاف تدريجيًا: `/catalog`, `/inventory`, `/sales`, `/pos`, `/purchasing`,
-`/expenses`, `/accounting`, `/reports`, `/import`, `/zatca` — كل منها يوثَّق
-في ملف الوحدة الخاص بها عند البناء الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.
+تُضاف تدريجيًا: `/sales`, `/pos`, `/purchasing`, `/expenses`, `/accounting`,
+`/reports`, `/import`, `/zatca` — كل منها يوثَّق في ملف الوحدة الخاص بها عند
+البناء الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.

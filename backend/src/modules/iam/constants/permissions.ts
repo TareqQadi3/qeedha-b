@@ -43,6 +43,46 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'ربط/فصل التكاملات',
   },
   { key: 'audit.view', category: 'audit', description: 'عرض سجل العمليات (Audit Log)' },
+
+  // Phase 2: Catalog (products/categories/brands/units)
+  {
+    key: 'products.read',
+    category: 'products',
+    description: 'عرض المنتجات والتصنيفات والعلامات والوحدات',
+  },
+  {
+    key: 'products.create',
+    category: 'products',
+    description: 'إضافة منتجات/تصنيفات/علامات/وحدات',
+  },
+  {
+    key: 'products.update',
+    category: 'products',
+    description: 'تعديل منتجات/تصنيفات/علامات/وحدات',
+  },
+  {
+    key: 'products.delete',
+    category: 'products',
+    description: 'حذف/تعطيل منتجات/تصنيفات/علامات/وحدات',
+  },
+
+  // Phase 2: Inventory
+  { key: 'inventory.read', category: 'inventory', description: 'عرض أرصدة المخزون وسجل الحركات' },
+  { key: 'inventory.adjust', category: 'inventory', description: 'إجراء تسويات مخزون' },
+  { key: 'inventory.count', category: 'inventory', description: 'إجراء وإتمام الجرد' },
+  { key: 'inventory.transfer', category: 'inventory', description: 'تحويل مخزون بين المستودعات' },
+
+  // Phase 2: Customers
+  { key: 'customers.read', category: 'customers', description: 'عرض العملاء' },
+  { key: 'customers.create', category: 'customers', description: 'إضافة عملاء' },
+  { key: 'customers.update', category: 'customers', description: 'تعديل بيانات عملاء' },
+  { key: 'customers.delete', category: 'customers', description: 'حذف/تعطيل عملاء' },
+
+  // Phase 2: Suppliers
+  { key: 'suppliers.read', category: 'suppliers', description: 'عرض الموردين' },
+  { key: 'suppliers.create', category: 'suppliers', description: 'إضافة موردين' },
+  { key: 'suppliers.update', category: 'suppliers', description: 'تعديل بيانات موردين' },
+  { key: 'suppliers.delete', category: 'suppliers', description: 'حذف/تعطيل موردين' },
 ];
 
 export const PERMISSION_KEYS = {
@@ -58,6 +98,22 @@ export const PERMISSION_KEYS = {
   SETTINGS_INTEGRATIONS_VIEW: 'settings.integrations.view',
   SETTINGS_INTEGRATIONS_MANAGE: 'settings.integrations.manage',
   AUDIT_VIEW: 'audit.view',
+  PRODUCTS_READ: 'products.read',
+  PRODUCTS_CREATE: 'products.create',
+  PRODUCTS_UPDATE: 'products.update',
+  PRODUCTS_DELETE: 'products.delete',
+  INVENTORY_READ: 'inventory.read',
+  INVENTORY_ADJUST: 'inventory.adjust',
+  INVENTORY_COUNT: 'inventory.count',
+  INVENTORY_TRANSFER: 'inventory.transfer',
+  CUSTOMERS_READ: 'customers.read',
+  CUSTOMERS_CREATE: 'customers.create',
+  CUSTOMERS_UPDATE: 'customers.update',
+  CUSTOMERS_DELETE: 'customers.delete',
+  SUPPLIERS_READ: 'suppliers.read',
+  SUPPLIERS_CREATE: 'suppliers.create',
+  SUPPLIERS_UPDATE: 'suppliers.update',
+  SUPPLIERS_DELETE: 'suppliers.delete',
 } as const;
 
 export const ALL_PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);

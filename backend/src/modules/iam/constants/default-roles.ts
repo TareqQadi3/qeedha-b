@@ -8,10 +8,10 @@ export interface SystemRoleDefinition {
 
 /**
  * System roles (company_id = NULL) seeded once, shared by every tenant.
- * Cashier/Accountant/Inventory Manager carry no permissions yet because
- * their real permission set (sales.*, accounting.*, inventory.*) doesn't
- * exist until phases 2-4 - seeding them now (empty) means role assignment
- * and RBAC UI can be built and tested in Phase 1 without waiting.
+ * Cashier/Accountant carry a minimal permission set as of Phase 2 - their
+ * full set (sales.*, accounting.*) doesn't exist until phases 3-4. Seeding
+ * roles now (even sparse) means role assignment and RBAC UI can be built
+ * and tested without waiting for every future phase's permissions to exist.
  */
 export const SYSTEM_ROLES: SystemRoleDefinition[] = [
   {
@@ -30,21 +30,55 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
       PERMISSION_KEYS.TENANCY_WAREHOUSES_MANAGE,
       PERMISSION_KEYS.TENANCY_POS_DEVICES_VIEW,
       PERMISSION_KEYS.TENANCY_POS_DEVICES_MANAGE,
+      PERMISSION_KEYS.PRODUCTS_READ,
+      PERMISSION_KEYS.PRODUCTS_CREATE,
+      PERMISSION_KEYS.PRODUCTS_UPDATE,
+      PERMISSION_KEYS.PRODUCTS_DELETE,
+      PERMISSION_KEYS.INVENTORY_READ,
+      PERMISSION_KEYS.INVENTORY_ADJUST,
+      PERMISSION_KEYS.INVENTORY_COUNT,
+      PERMISSION_KEYS.INVENTORY_TRANSFER,
+      PERMISSION_KEYS.CUSTOMERS_READ,
+      PERMISSION_KEYS.CUSTOMERS_CREATE,
+      PERMISSION_KEYS.CUSTOMERS_UPDATE,
+      PERMISSION_KEYS.CUSTOMERS_DELETE,
+      PERMISSION_KEYS.SUPPLIERS_READ,
+      PERMISSION_KEYS.SUPPLIERS_CREATE,
+      PERMISSION_KEYS.SUPPLIERS_UPDATE,
+      PERMISSION_KEYS.SUPPLIERS_DELETE,
     ],
   },
   {
     name: 'Cashier',
-    description: 'كاشير - صلاحيات نقطة البيع تُضاف في المرحلة 3',
-    permissions: [],
+    description:
+      'كاشير - صلاحيات نقطة البيع الكاملة تُضاف في المرحلة 3، يحتاج الآن فقط البحث عن المنتجات والعملاء',
+    permissions: [PERMISSION_KEYS.PRODUCTS_READ, PERMISSION_KEYS.CUSTOMERS_READ],
   },
   {
     name: 'Accountant',
-    description: 'محاسب - صلاحيات المحاسبة والتقارير تُضاف في المرحلة 4',
-    permissions: [PERMISSION_KEYS.AUDIT_VIEW],
+    description:
+      'محاسب - صلاحيات المحاسبة الكاملة تُضاف في المرحلة 4، يحتاج الآن رؤية العملاء/الموردين/المنتجات للتقارير',
+    permissions: [
+      PERMISSION_KEYS.AUDIT_VIEW,
+      PERMISSION_KEYS.PRODUCTS_READ,
+      PERMISSION_KEYS.INVENTORY_READ,
+      PERMISSION_KEYS.CUSTOMERS_READ,
+      PERMISSION_KEYS.SUPPLIERS_READ,
+    ],
   },
   {
     name: 'Inventory Manager',
-    description: 'مسؤول المخزون - صلاحيات المخزون التفصيلية تُضاف في المرحلة 2',
-    permissions: [PERMISSION_KEYS.TENANCY_WAREHOUSES_VIEW],
+    description: 'مسؤول المخزون - صلاحيات المخزون والمنتجات الكاملة',
+    permissions: [
+      PERMISSION_KEYS.TENANCY_WAREHOUSES_VIEW,
+      PERMISSION_KEYS.PRODUCTS_READ,
+      PERMISSION_KEYS.PRODUCTS_CREATE,
+      PERMISSION_KEYS.PRODUCTS_UPDATE,
+      PERMISSION_KEYS.INVENTORY_READ,
+      PERMISSION_KEYS.INVENTORY_ADJUST,
+      PERMISSION_KEYS.INVENTORY_COUNT,
+      PERMISSION_KEYS.INVENTORY_TRANSFER,
+      PERMISSION_KEYS.SUPPLIERS_READ,
+    ],
   },
 ];
