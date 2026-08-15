@@ -1,0 +1,63 @@
+# Milestone 2 "Docker" / "Demo-Staging Environment": full-stack orchestration
+# for a Demo/Staging deployment - Postgres, the NestJS API, and the static
+# frontend as three separate containers/services (never Postgres bundled
+# into the app image). See docs/DEPLOYMENT.md for the full setup sequence
+# (this file alone does not run migrations or the auth-lookup role grants -
+# those remain explicit, documented one-time steps, same as local dev).
+#
+# Requires a `.env` file at the repo root (git-ignored) providing
+# POSTGRES_PASSWORD - see .env.example. `backend/.env` (also git-ignored)
+# must be filled in separately with matching DATABASE_URL/AUTH_LOOKUP_DATABASE_URL
+# credentials - the two are not auto-synced, see docs/DEPLOYMENT.md.
+#
+# NOTE: prepared but not verified with `docker compose up` in the
+# development sandbox this was written in (no Docker daemon access there).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: qeedha_accounting
+      POSTGRES_USER: qeedha_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set - see .env.example}
+    ports:
+      - '5432:5432'
+    volumes:
+      - qeedha_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U qeedha_app -d qeedha_accounting']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '3000:3000'
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('http').get('http://localhost:3000/api/v1/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api/v1}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '8080:80'
+
+volumes:
+  qeedha_postgres_data:

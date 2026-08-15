@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { api, clearSession, getAccessToken, setSession } from '../api/client';
+import { api, clearSession, getAccessToken, SESSION_EXPIRED_EVENT, setSession } from '../api/client';
 
 export interface Me {
   id: string;
@@ -57,6 +57,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshMe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A failed token refresh anywhere in the app (client.ts) means the
+  // session is truly gone server-side - drop `me` immediately so
+  // RequireAuth (App.tsx) redirects to /login instead of leaving a stale
+  // authenticated view up with every subsequent request silently failing.
+  useEffect(() => {
+    const onSessionExpired = () => setMe(null);
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
   }, []);
 
   const login = async (identifier: string, password: string): Promise<LoginResult> => {

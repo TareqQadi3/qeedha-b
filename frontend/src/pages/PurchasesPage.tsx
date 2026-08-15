@@ -75,6 +75,8 @@ export function PurchasesPage() {
   const [meta, setMeta] = useState({ page: 1, pageSize: 20, total: 0 });
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [warehouseId, setWarehouseId] = useState('');
@@ -85,9 +87,17 @@ export function PurchasesPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const load = async (page = meta.page) => {
-    const res = await api.get('/purchases', { page, pageSize: meta.pageSize });
-    setData(res.data);
-    setMeta(res.meta);
+    setListLoading(true);
+    setListError(null);
+    try {
+      const res = await api.get('/purchases', { page, pageSize: meta.pageSize });
+      setData(res.data);
+      setMeta(res.meta);
+    } catch (err) {
+      setListError(err instanceof ApiError ? err.message : 'تعذّر تحميل أوامر الشراء');
+    } finally {
+      setListLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -95,9 +105,9 @@ export function PurchasesPage() {
     api.get('/tenancy/warehouses').then((wh) => {
       setWarehouses(wh);
       setWarehouseId(wh[0]?.id ?? '');
-    });
-    api.get('/suppliers', { pageSize: 100 }).then((r) => setSuppliers(r.data));
-    api.get('/products', { pageSize: 100 }).then((r) => setProducts(r.data));
+    }).catch(() => undefined);
+    api.get('/suppliers', { pageSize: 100 }).then((r) => setSuppliers(r.data)).catch(() => undefined);
+    api.get('/products', { pageSize: 100 }).then((r) => setProducts(r.data)).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -201,8 +211,11 @@ export function PurchasesPage() {
       />
 
       <ErrorBanner message={actionError} />
-
+      <ErrorBanner message={listError} />
+      {listLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {!listLoading && (
       <Card>
+        <div className="overflow-x-auto">
         <table className="w-full text-right text-sm">
           <thead>
             <tr className="border-b text-slate-500">
@@ -275,8 +288,10 @@ export function PurchasesPage() {
             )}
           </tbody>
         </table>
+        </div>
         <Pagination page={meta.page} pageSize={meta.pageSize} total={meta.total} onChange={load} />
       </Card>
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="أمر شراء جديد">
         <form onSubmit={onSubmit} className="space-y-3">
@@ -320,6 +335,7 @@ export function PurchasesPage() {
             </div>
 
             {items.length > 0 && (
+              <div className="overflow-x-auto">
               <table className="mt-3 w-full text-right text-sm">
                 <thead>
                   <tr className="border-b text-slate-500">
@@ -367,6 +383,7 @@ export function PurchasesPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
 

@@ -365,7 +365,7 @@ describe('Phase 1 foundation + identity refactor (e2e)', () => {
         .get('/api/v1/iam/users')
         .set('Authorization', `Bearer ${owner.accessToken}`)
         .expect(200);
-      for (const user of res.body) {
+      for (const user of res.body.data) {
         expect(user.passwordHash).toBeUndefined();
       }
     });

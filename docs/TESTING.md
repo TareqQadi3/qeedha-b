@@ -247,9 +247,124 @@ Sheet)**: ميزان مراجعة متوازن (مدين = دائن) بعد بي
 بدل الأرقام الغربية المستخدمة في كل صفحة أخرى بالتطبيق — صُحِّحت إلى
 `.toFixed(2)` في `ReportsPage.tsx` و`ReceivablesPayablesPage.tsx`.
 
+## اختبارات Milestone 2: Production Hardening + Demo/Staging Readiness
+
+لا منطق أعمال جديد في هذا الـMilestone (CORS/Logging/Health/Docker/CI
+بنية تحتية، لا Endpoints جديدة) — لذا لا مجموعة `milestone2.e2e-spec.ts`
+جديدة. التغيير الوحيد على مجموعة الاختبارات الخلفية الحالية: تصحيح واحد
+في `test/app.e2e-spec.ts` (اختبار "لا يُرجع passwordHash أبدًا في
+استجابات المستخدمين") ليقرأ `res.body.data` بدل `res.body` مباشرة، بعد
+أن أصبح `GET /iam/users` مُرقَّمًا (`{data, meta}`) بدل مصفوفة مسطّحة —
+راجع `docs/API.md`/`docs/PROJECT_STATUS.md` قسم Milestone 2. **112/112
+لا تزال تنجح بالكامل**، مُتحقَّق فعليًا بتشغيل
+`npx jest --config ./test/jest-e2e.json --runInBand`.
+
+### اختبارات الواجهة الأمامية الآلية (Vitest) — جديدة في هذا الـMilestone
+
+قبل هذا الـMilestone، الواجهة الأمامية لم تملك أي اختبار آلي على
+الإطلاق — كل تحقق كان Playwright يدويًا فقط (راجع أقسام "Browser test"
+أعلاه). الآن `vitest` + `@testing-library/react` +
+`@testing-library/user-event` مُهيّأة عبر `frontend/vite.config.ts`
+(قسم `test`، `environment: 'jsdom'`) و`frontend/src/test/setup.ts`
+(`@testing-library/jest-dom/vitest`).
+
+**7 اختبارات في 3 ملفات**، كلها تحت `frontend/src/pages/__tests__/`،
+**مُتحقَّقة فعليًا بتشغيل `npx vitest run` (7/7 ناجحة)**:
+- `LoginPage.test.tsx` (3 اختبارات): إرسال identifier/password والتنقل
+  عند نجاح دخول عضوية واحدة، ومسارات أخرى ذات صلة بشاشة الدخول.
+- `RegisterPage.test.tsx` (2 اختبارًا): إرسال بيانات المنشأة/المالك
+  وإتمام التسجيل عند النجاح.
+- `DashboardPage.test.tsx` (2 اختبارًا): جلب وعرض البطاقات (tiles) التي
+  يملك العضو صلاحيتها فقط — يثبت مباشرة إصلاح فجوة RBAC الموصوفة أدناه.
+
+تشغيل محلي: `cd frontend && npm run test` (مرة واحدة) أو
+`npm run test:watch` (مراقبة).
+
+### RBAC وحالات التحميل/الخطأ في الواجهة الأمامية — إصلاحات هذا الـMilestone
+
+اكتُشف بتدقيق مخصص قرأ كل صفحات الواجهة الأمامية الـ16:
+- `DashboardPage.tsx` لم تكن تُطبِّق أي بوابة صلاحية على الإطلاق، وكانت
+  تجلب كل البطاقات عبر `Promise.all` (فشل جلب واحد يُفرغ اللوحة بالكامل).
+  الآن كل بطاقة مُقيَّدة بصلاحيتها الخاصة وتُجلَب عبر `Promise.allSettled`
+  (فشل جزئي يعرض البطاقات التي نجحت فقط، لا شاشة فارغة) — مُختبَر آليًا
+  في `DashboardPage.test.tsx` أعلاه.
+- `InvoicesPage.tsx` لم تكن تتحقق من `hasPermission` إطلاقًا — الآن
+  مُقيَّدة بـ`invoices.read`.
+- 9+ صفحات كان جلب التحميل الأساسي (mount fetch) فيها بلا `try/catch` أو
+  مؤشر تحميل (أزرار الإنشاء/التعديل/الحذف فقط كانت مُجهَّزة سابقًا):
+  `ProductsPage.tsx`, `PartyPage.tsx` (العملاء/الموردون),
+  `CatalogPage.tsx`, `InventoryPage.tsx`, `PurchasesPage.tsx`,
+  `ExpensesPage.tsx`, `AccountingPage.tsx` (تبويبا الحسابات/القيود
+  تحديدًا)، `PosPage.tsx` (جلب البدء + بحث المنتج)، `ReportsPage.tsx`
+  (قائمة الحسابات المنسدلة في تبويب دفتر الأستاذ)، `InvoicesPage.tsx`.
+  الآن كل واحدة تستخدم زوج حالة `listLoading`/`listError` (أو اسم حالة
+  موجود مكافئ)، تعرض "...جارٍ التحميل" أثناء الجلب و`ErrorBanner` عند
+  الفشل.
+- **معالجة انتهاء الجلسة (401)**: `SESSION_EXPIRED_EVENT`
+  (`frontend/src/api/client.ts`) يُطلَق عبر `window.dispatchEvent` عندما
+  يفشل تجديد التوكن (الجلسة منتهية فعليًا من طرف الخادم).
+  `AuthProvider` (`frontend/src/state/auth.tsx`) يستمع له الآن ويُفرغ
+  `me`، فيعيد `RequireAuth` (`App.tsx`) التوجيه إلى `/login` بدل ترك
+  شاشة مُصادَق عليها باليات تفشل فيها كل الطلبات التالية صامتة.
+- **حد معروف موثَّق، وليس مكتملًا**: `403` (Forbidden) لا يزال يُعرَض
+  كرسالة خطأ عامة عبر حالة الخطأ الخاصة بكل صفحة — لا واجهة "غير مخوَّل"
+  مخصصة ومنفصلة عن أي خطأ آخر أُضيفت.
+
+## Playwright — الآن مجموعة مُلتزَمة (committed) وليست سكربتات مؤقتة
+
+**تصحيح إطار سابق**: أقسام "Browser test (Playwright)" أعلاه (المرحلة
+3/4/Milestone 1) وصفت تشغيلًا **يدويًا** لسكربتات مؤقتة (scratchpad) لم
+تُحفظ في المستودع. هذا الوصف كان دقيقًا وقتها. **في Milestone 2 هذا لم
+يعد الحال**: توجد الآن مجموعة Playwright **مُلتزَمة فعليًا في المستودع**
+وقابلة للتكرار من أي شخص، لا سكربتات مؤقتة تُكتب وتُشغَّل يدويًا في كل
+مرة.
+
+`frontend/playwright.config.ts`: يفترض أن الـbackend API يعمل ومتاح
+مسبقًا (نفس افتراض مجموعة e2e الخلفية — Postgres مُهاجَر ومزروع)، ويبدأ
+خادم تطوير الواجهة الأمامية فقط بنفسه عبر `webServer` (`npm run dev`).
+
+**الملفات**:
+- `frontend/e2e/helpers.ts`: مساعدات مشتركة (تسجيل منشأة، دخول، خروج،
+  توليد معرّف فريد).
+- `frontend/e2e/golden-path.spec.ts`: الرحلة الكاملة عبر الواجهة الحقيقية
+  ضد الـbackend الحقيقي (لا طلبات مُقلَّدة) — تسجيل → منتج → مخزون (رصيد
+  افتتاحي) → عميل → مورد → شراء → استلام → بيع POS → دفعة → فاتورة →
+  مصروف → محاسبة (القيود تُظهر البيع/الشراء/المصروف) → تقارير (ميزان
+  المراجعة متوازن) → الذمم (AP يُظهر المورد) → تسجيل خروج → دخول مجددًا.
+- `frontend/e2e/tenant-isolation.spec.ts`: تسجيل منشأتين منفصلتين
+  والتحقق أن منتجًا أنشأته المنشأة الأولى غير مرئي للثانية عبر الواجهة
+  الحقيقية.
+
+**نُفِّذت المجموعتان فعليًا ضد الحزمة الحقيقية الكاملة (backend + Postgres
+مُهاجَر ومزروع + frontend) خلال هذه الجلسة ونجحتا (2/2)** — ليس وصف نيّة،
+تشغيل متصفح آلي حقيقي وموثَّق.
+
+تشغيل محلي: `cd frontend && npm run test:e2e` (يتطلب backend يعمل ومهاجَر
+ومزروع مسبقًا، تمامًا مثل `backend`'s `npm run test:e2e`).
+
 ## قاعدة بيانات الاختبار
 قاعدة Postgres منفصلة (`qeedha_accounting_test`)، تُصفَّر (migrate reset) قبل
 كل تشغيل لمجموعة الاختبارات في CI، ولا تُشارَك مع بيانات التطوير.
+
+## CI (GitHub Actions) — Milestone 2
+
+`.github/workflows/ci.yml` (جديد): ثلاث jobs مستقلة —
+1. **`backend`**: حاوية خدمة Postgres، `npm ci`، `prisma generate`،
+   `lint`، `tsc --noEmit`، `build`، `prisma migrate deploy`، إنشاء دور
+   `qeedha_auth_lookup` عبر سكربتات `manual-sql` الموجودة أصلًا، بذر
+   الصلاحيات/الأدوار، ثم مجموعة e2e الخلفية كاملة.
+2. **`frontend`**: `npm ci`، `lint`، `build`، `npm run test` (Vitest).
+3. **`e2e`**: Postgres خدمة منفصلة، يبني ويشغّل الـbackend الحقيقي، يثبّت
+   متصفحات Playwright (`npx playwright install --with-deps chromium`)،
+   يشغّل مجموعة Playwright المُلتزَمة ضده، ويرفع تقرير HTML كـartifact
+   عند الفشل.
+
+**تنبيه صريح مهم**: مِلفّ الـYAML تحقَّق من صحته النحوية فقط
+(`python3 -c "import yaml; yaml.safe_load(...)"` نجح) — **لم يُشغَّل فعليًا
+على أي GitHub Actions runner حقيقي على الإطلاق**، لأن بيئة التطوير هذه لا
+تملك وصولًا لتشغيله. لا يُدَّعى أنه "ينجح على CI" — هو جاهز وصحيح
+نحويًا، والتنفيذ الفعلي غير مُتحقَّق منه. راجع `docs/DEPLOYMENT.md`
+"القيود المعروفة".
 
 ## معيار قبول كل مرحلة
 لا تُعتبر مرحلة مكتملة إلا إذا: (1) الكود يبني بدون أخطاء TypeScript، (2) كل

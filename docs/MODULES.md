@@ -7,6 +7,7 @@
 
 | Module | المسؤولية | المرحلة |
 |---|---|---|
+| `health` | فحص حالة التطبيق + قاعدة البيانات (`GET /health`، `503` عند فشل الفحص — Milestone 2) | 1 — موسَّع في Milestone 2 |
 | `tenancy` | Company, Branch, Warehouse, PosDevice | 1 |
 | `iam` | Users, Memberships, Roles, Permissions, MembershipRoles (RBAC)، `BranchScopeService` (نطاق الفروع — 2.1) | 1 |
 | `auth` | تسجيل الدخول، JWT access/refresh، تسجيل منشأة جديدة | 1 |
@@ -46,6 +47,17 @@
 محددًا. راجع `docs/SECURITY.md` و`docs/DOMAIN_MODEL.md` للتفاصيل الكاملة —
 لا وحدة جديدة، ولا جدول جديد، فقط تفعيل عمود `MembershipRole.branchId`
 الموجود أصلًا منذ إعادة هيكلة Auth/IAM.
+
+## Milestone 2 — بنية تحتية مشتركة عابرة للوحدات (Cross-Cutting)
+
+لا وحدة أعمال جديدة في هذا الـMilestone. ثلاثة أجزاء بنية تحتية مُسجَّلة
+على مستوى `AppModule` نفسه (لا تنتمي لأي `modules/*` بعينه):
+`RequestIdMiddleware` (`src/common/middleware`، مُطبَّق على كل مسار عبر
+`NestModule.configure()`)، `LoggingInterceptor`
+(`src/common/interceptors`، `APP_INTERCEPTOR` عام)، و`buildCorsOptions`/
+`assertCorsConfiguredForProduction` (`src/config/cors.config.ts`،
+يُستدعيان من `main.ts` عند الإقلاع). راجع `docs/SECURITY.md` "CORS" و
+"Logging المهيكل" للتفاصيل الكاملة.
 
 ## المرحلة 3 — وحدة `sales` الجديدة
 

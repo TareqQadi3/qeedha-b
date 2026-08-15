@@ -38,7 +38,17 @@ npm run start:dev
 ```
 
 الـAPI يعمل على `http://localhost:3000/api/v1`. جرّب:
-`GET /api/v1/health`.
+`GET /api/v1/health` (يُرجع `{status, timestamp, checks: {app,
+database}}`، أو `503` إن فشل فحص قاعدة البيانات — راجع `docs/API.md`).
+
+**تنبيه CORS (Milestone 2)**: في `NODE_ENV=production`،
+`CORS_ALLOWED_ORIGINS` **إلزامي** — التطبيق يرفض الإقلاع بالكامل بدونه
+(fail-closed، راجع `docs/SECURITY.md` "CORS"). في development/test هو
+اختياري (افتراضي: منافذ Vite المحلية). راجع التعليق في `.env.example`.
+
+كل طلب يُسجَّل بسطر JSON واحد (`requestId`, `method`, `path`, `status`,
+`durationMs`) — لا رؤوس/query/body تصل إلى الـLog أبدًا، فلا سرّ يمكن أن
+يتسرب إليه (راجع `docs/SECURITY.md` "Logging المهيكل").
 
 ## لماذا يوجد دوران لقاعدة البيانات (roles)؟
 
@@ -72,7 +82,30 @@ DATABASE_URL="postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accoun
 npm run test:e2e
 ```
 
-راجع `docs/TESTING.md` لما تغطيه مجموعة اختبارات كل مرحلة.
+راجع `docs/TESTING.md` لما تغطيه مجموعة اختبارات كل مرحلة. **112/112**
+تنجح حاليًا (`npx jest --config ./test/jest-e2e.json --runInBand`).
+
+## Docker + النشر (Milestone 2)
+
+`Dockerfile` (multi-stage، `node:20-slim`) و`.dockerignore` جاهزان لبناء
+صورة إنتاج للـAPI فقط — لا قاعدة بيانات مُدمَجة، والـMigrations **لا**
+تُشغَّل تلقائيًا عند بدء الحاوية (خطوة منفصلة صريحة دائمًا). للتسلسل
+الكامل (بناء + `docker-compose.yml` الجذري + Postgres + الأدوار +
+البذر) راجع `docs/DEPLOYMENT.md`.
+
+**تنبيه صريح**: `docker build` لم يُختبَر فعليًا في بيئة التطوير (لا
+Docker daemon متاح هناك) — راجع `docs/DEPLOYMENT.md` "القيود المعروفة"
+قبل الاعتماد عليه دون تحقق.
+
+## بيانات تجريبية (Demo Seed)
+
+```bash
+npm run demo:seed   # ضد backend يعمل ومهاجَر ومزروع، BASE_URL اختياري
+```
+
+يُنشئ منشأة تجريبية واحدة عبر Endpoints الحقيقية (منتجات/عملاء/موردين/
+شراء مُستلَم/بيع POS مكتمل) — لا بيانات شخصية حقيقية، آمن لإعادة
+التشغيل. راجع `docs/DEMO.md` للتفصيل الكامل.
 
 ## بنية المشروع
 

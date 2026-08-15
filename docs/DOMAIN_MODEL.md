@@ -403,3 +403,11 @@ OpeningBalance — ليس كيانًا/جدولًا منفصلًا، بل Journa
   هذا الآن جزئيًا (بدون بريد دعوة فعلي بعد — التاجر يُدخل بيانات الشخص
   مباشرة). إرسال بريد/رابط دعوة حقيقي يبقى تحسينًا مستقبليًا موثَّقًا هنا،
   وليس افتراضًا خفيًا.
+
+## Milestone 2 (Production Hardening + Demo/Staging Readiness)
+
+**لا تغييرات على نموذج الهوية/المنشآت في هذا الـMilestone.** التغيير
+الوحيد ذو الصلة بهذا الملف هو تشغيلي بحت: `IamService.listUsers`
+(`GET /iam/users`) أصبح مُرقَّمًا (`{data, meta}`) بدل مصفوفة مسطّحة غير
+محدودة — لا تغيير على `Membership`/`Role`/`Permission` نفسها، راجع
+`docs/API.md` و`docs/PROJECT_STATUS.md` قسم Milestone 2.

@@ -396,3 +396,9 @@ migration `20260815220000_milestone1_accounting_completion`) — بالإضاف�
 
 باقي الجداول (Import, ZATCA) ستُضاف عبر Migrations جديدة في مراحلها، وليس
 دفعة واحدة الآن.
+
+**Milestone 2 (Production Hardening + Demo/Staging Readiness)**: **لا
+تغييرات على المخطط إطلاقًا** — لا Migration جديدة، لا جدول جديد، لا عمود
+جديد. كل عمل هذا الـMilestone (CORS، Health check، Logging، Docker، CI،
+اختبارات، بذر بيانات تجريبية) بنية تحتية/تشغيلية بحتة فوق نفس المخطط
+الموجود من نهاية Milestone 1.

@@ -33,18 +33,28 @@ export function ProductsPage() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
 
   const load = async (page = meta.page) => {
-    const res = await api.get('/products', { page, pageSize: meta.pageSize, search: search || undefined });
-    setData(res.data);
-    setMeta(res.meta);
+    setListLoading(true);
+    setListError(null);
+    try {
+      const res = await api.get('/products', { page, pageSize: meta.pageSize, search: search || undefined });
+      setData(res.data);
+      setMeta(res.meta);
+    } catch (err) {
+      setListError(err instanceof ApiError ? err.message : 'تعذّر تحميل المنتجات');
+    } finally {
+      setListLoading(false);
+    }
   };
 
   useEffect(() => {
     load(1);
-    api.get('/catalog/categories').then((r) => setCategories(r));
-    api.get('/catalog/brands').then((r) => setBrands(r));
-    api.get('/catalog/units').then((r) => setUnits(r));
+    api.get('/catalog/categories').then((r) => setCategories(r)).catch(() => undefined);
+    api.get('/catalog/brands').then((r) => setBrands(r)).catch(() => undefined);
+    api.get('/catalog/units').then((r) => setUnits(r)).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -98,44 +108,50 @@ export function ProductsPage() {
         <Button type="submit" variant="secondary">بحث</Button>
       </form>
 
-      <Card>
-        <table className="w-full text-right text-sm">
-          <thead>
-            <tr className="border-b text-slate-500">
-              <th className="py-2">SKU</th>
-              <th className="py-2">الاسم</th>
-              <th className="py-2">التصنيف</th>
-              <th className="py-2">العلامة</th>
-              <th className="py-2">سعر البيع</th>
-              <th className="py-2">الحالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((p) => (
-              <tr key={p.id} className="border-b last:border-0">
-                <td className="py-2 font-mono text-xs">{p.sku}</td>
-                <td className="py-2">{p.name}</td>
-                <td className="py-2 text-slate-500">{p.category?.name ?? '—'}</td>
-                <td className="py-2 text-slate-500">{p.brand?.name ?? '—'}</td>
-                <td className="py-2">{p.sellingPrice} ر.س</td>
-                <td className="py-2">
-                  <span className={p.isActive ? 'text-emerald-600' : 'text-slate-400'}>
-                    {p.isActive ? 'نشط' : 'معطّل'}
-                  </span>
-                </td>
+      <ErrorBanner message={listError} />
+      {listLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {!listLoading && (
+        <Card>
+          <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm">
+            <thead>
+              <tr className="border-b text-slate-500">
+                <th className="py-2">SKU</th>
+                <th className="py-2">الاسم</th>
+                <th className="py-2">التصنيف</th>
+                <th className="py-2">العلامة</th>
+                <th className="py-2">سعر البيع</th>
+                <th className="py-2">الحالة</th>
               </tr>
-            ))}
-            {data.length === 0 && (
-              <tr>
-                <td colSpan={6} className="py-6 text-center text-slate-400">
-                  لا توجد منتجات بعد
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        <Pagination page={meta.page} pageSize={meta.pageSize} total={meta.total} onChange={load} />
-      </Card>
+            </thead>
+            <tbody>
+              {data.map((p) => (
+                <tr key={p.id} className="border-b last:border-0">
+                  <td className="py-2 font-mono text-xs">{p.sku}</td>
+                  <td className="py-2">{p.name}</td>
+                  <td className="py-2 text-slate-500">{p.category?.name ?? '—'}</td>
+                  <td className="py-2 text-slate-500">{p.brand?.name ?? '—'}</td>
+                  <td className="py-2">{p.sellingPrice} ر.س</td>
+                  <td className="py-2">
+                    <span className={p.isActive ? 'text-emerald-600' : 'text-slate-400'}>
+                      {p.isActive ? 'نشط' : 'معطّل'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {data.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-slate-400">
+                    لا توجد منتجات بعد
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          </div>
+          <Pagination page={meta.page} pageSize={meta.pageSize} total={meta.total} onChange={load} />
+        </Card>
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="منتج جديد">
         <form onSubmit={onCreate} className="space-y-3">

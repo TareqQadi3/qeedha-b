@@ -67,6 +67,8 @@ export function ExpensesPage() {
   const [meta, setMeta] = useState({ page: 1, pageSize: 20, total: 0 });
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -75,15 +77,23 @@ export function ExpensesPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const load = async (page = meta.page) => {
-    const res = await api.get('/expenses', { page, pageSize: meta.pageSize });
-    setData(res.data);
-    setMeta(res.meta);
+    setListLoading(true);
+    setListError(null);
+    try {
+      const res = await api.get('/expenses', { page, pageSize: meta.pageSize });
+      setData(res.data);
+      setMeta(res.meta);
+    } catch (err) {
+      setListError(err instanceof ApiError ? err.message : 'تعذّر تحميل المصروفات');
+    } finally {
+      setListLoading(false);
+    }
   };
 
   useEffect(() => {
     load(1);
-    api.get('/tenancy/branches').then((r) => setBranches(r));
-    api.get('/expenses/categories').then((r) => setCategories(r));
+    api.get('/tenancy/branches').then((r) => setBranches(r)).catch(() => undefined);
+    api.get('/expenses/categories').then((r) => setCategories(r)).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -165,8 +175,11 @@ export function ExpensesPage() {
       />
 
       <ErrorBanner message={actionError} />
-
+      <ErrorBanner message={listError} />
+      {listLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {!listLoading && (
       <Card>
+        <div className="overflow-x-auto">
         <table className="w-full text-right text-sm">
           <thead>
             <tr className="border-b text-slate-500">
@@ -232,8 +245,10 @@ export function ExpensesPage() {
             )}
           </tbody>
         </table>
+        </div>
         <Pagination page={meta.page} pageSize={meta.pageSize} total={meta.total} onChange={load} />
       </Card>
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'تعديل مصروف' : 'مصروف جديد'}>
         <form onSubmit={onSubmit} className="space-y-3">

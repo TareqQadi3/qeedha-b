@@ -60,6 +60,97 @@ tenant context لتفعيل RLS العادي:
   `users` بعد أن أصبحت غير ضرورية، ويضيف الصلاحية الجديدة على
   `memberships`/`companies`).
 
+## قرار Milestone 2: لماذا `refresh_tokens` لا يزال الاستثناء الوحيد من RLS
+
+راجَعنا صراحة (لا تخمين) إمكانية إضافة RLS لـ`refresh_tokens` في هذه
+المرحلة، وقررنا **الإبقاء على الاستثناء الموثَّق مسبقًا**، لسبب معماري
+حقيقي وليس تكاسلًا:
+
+**المشكلة**: كل عملية على `refresh_tokens` اليوم (`AuthService.issueTokens`
+عند الإصدار، `AuthService.refresh` عند القراءة/التدوير، `AuthService.logout`
+عند الإبطال) تُنفَّذ عبر `this.prisma.refreshToken.*` مباشرة — **خارج أي
+معاملة `withTenant(...)`** — لأن `companyId` ليس معروفًا دائمًا قبل تنفيذ
+الاستعلام:
+
+- `POST /auth/refresh` يستقبل من العميل **رمز التحديث الخام فقط**، لا
+  `companyId`. الخطوة الأولى داخل `AuthService.refresh` هي استعلام
+  `tx.refreshToken.findUnique({ where: { tokenHash } })` **لاكتشاف** أي
+  `companyId`/`membershipId`/`userId` يخص هذا الرمز. لو طُبِّق RLS إجباريًا
+  (`FORCE ROW LEVEL SECURITY`) هنا، لتوجَّب معرفة `app.tenant_id` **قبل**
+  تنفيذ الاستعلام الذي يكشفه أصلًا — تناقض دائري (نفس مشكلة "auth bootstrap"
+  أعلاه بالضبط، لكن لعملية refresh لا login).
+
+**الخيار الآمن الوحيد المتاح لحلّه** يطابق تمامًا النمط المستخدم فعليًا
+لمشكلة login المطابقة: توسيع دور `qeedha_auth_lookup` (`BYPASSRLS`، ضيق
+جدًا) ليشمل `SELECT`/`UPDATE` محدودين على `refresh_tokens` لخطوة
+"العثور على الرمز بمعرفة الـhash فقط" حصرًا، ثم إعادة كل عملية أخرى
+(الإصدار عند login/select-tenant/switch-tenant، الإبطال عند logout، تحديث
+`revoked_at`/`replaced_by_token_id` بعد التدوير) عبر `withTenant(companyId, ...)`
+الآن بعد معرفة الـcompanyId فعليًا.
+
+**قرار عدم التنفيذ في Milestone 2 (موثَّق، وليس تخمينًا أو تكاسلًا)**:
+- هذا تعديل مباشر على **أكثر مسار حسّاسًا في كامل النظام** (تسجيل
+  الدخول/التحديث/الإبطال) — دمجه بأمان يحتاج إعادة كتابة `AuthService`
+  الفعلية وتوسيع دور DB إضافي عبر ملف SQL يدوي ثالث (`003_...sql`)، وهو
+  بالضبط نوع الخطوة اليدوية غير الآلية التي هذه المرحلة (Production
+  Hardening) يجب أن تُقلِّلها لا تُضاعِفها.
+- **الفجوة الأمنية الفعلية التي تسدّها RLS هنا محدودة جدًا اليوم**: كل
+  استعلام حالي على `refresh_tokens` مُقيَّد إما بـ`tokenHash` (قيمة سرّية
+  عشوائية 48 بايت، غير قابلة للتخمين، يملكها العميل الشرعي فقط) أو بـ
+  `userId` مُستخرَج من JWT مُصادَق عليه بالفعل — **لا يوجد أي مسار كود اليوم
+  يُعيد صفوف refresh_tokens عبر منشآت مختلفة لطلب مستخدم واحد**، وليس هناك
+  Endpoint لعرض/سرد جلسات المستخدم بعد (`GET /auth/sessions` أو ما شابه لم
+  يُبنَ). RLS هنا ستكون طبقة دفاع إضافي ضد **علّة مستقبلية محتملة** (مثل
+  Endpoint سرد جلسات يُبنى لاحقًا بلا فلترة صحيحة)، وليست إغلاقًا لثغرة
+  IDOR قابلة للاستغلال فعليًا اليوم.
+- الأمان الفعلي لهذا الجدول اليوم يعتمد على: (1) الرمز نفسه هو السرّ (نفس
+  مبدأ أي Session Token في أي نظام مصادقة تقريبًا — امتلاك الرمز هو التفويض
+  بحد ذاته)، (2) `token_hash` فريد ومفهرَس، (3) كل استعلام مُقيَّد صراحة
+  بـ`userId`/`tokenHash` في كود `AuthService` (مُراجَع بالكامل، بلا أي
+  `findMany` غير مُقيَّد على هذا الجدول).
+
+**القرار**: الاستثناء يبقى كما هو موثَّق في `prisma/schema.prisma` (تعليق
+`RefreshToken` model) وأعلى هذا القسم. **مُرشَّح واضح لمرحلة مستقبلية** إن
+أُضيفت ميزة "إدارة الجلسات النشطة" (`GET/DELETE /auth/sessions`) — عندها
+تصبح إضافة RLS + توسيع `qeedha_auth_lookup` مبرَّرة عمليًا لا نظريًا فقط.
+
+## CORS — سياسة مبنية على البيئة (Milestone 2)
+
+قبل Milestone 2، كان `app.enableCors()` يُستدعى بلا أي خيارات في
+`main.ts` — يعكس/يقبل أي origin طالب بلا قيد. الآن `buildCorsOptions`
+(`src/config/cors.config.ts`) يبني قائمة origins مسموحة صراحة من متغيّر
+بيئة `CORS_ALLOWED_ORIGINS` (مفصول بفواصل) — **لا `"*"` أبدًا في أي
+بيئة**:
+
+- **production**: `CORS_ALLOWED_ORIGINS` **إلزامي**.
+  `assertCorsConfiguredForProduction` (تُستدعى في `main.ts` قبل أي شيء
+  آخر عند الإقلاع) ترفض بدء التطبيق بالكامل إن كان غائبًا أو فارغًا —
+  **Fail-closed**: خطأ إقلاع صريح، وليس فتح CORS بصمت كسلوك احتياطي.
+- **development/test**: إن كان غير معرَّف، تُستخدم منافذ Vite المحلية
+  الافتراضية (`http://localhost:5173`, `http://localhost:4173`) — لا
+  احتكاك في التطوير المحلي، وتبقى قائمة صريحة أيضًا وليست `"*"`.
+
+`CORS_ALLOWED_ORIGINS` أُضيف كحقل اختياري في `env.validation.ts`
+(`@IsOptional() @IsString()`) — القيمة الفعلية تُحلَّل/تُنظَّف
+(`trim`, تصفية الفراغات) داخل `cors.config.ts` نفسه. راجع
+`backend/.env.example` للتوثيق الكامل والمثال.
+
+## Logging المهيكل — لا يُسجَّل أي سرّ أبدًا (Milestone 2)
+
+`RequestIdMiddleware` (`src/common/middleware/request-id.middleware.ts`)
+يُلحق معرّف ارتباط (`requestId`) بكل طلب — يعيد استخدام رأس
+`x-request-id` الوارد إن وُجد، وإلا يولّد UUID جديدًا، ويُرجعه دائمًا في
+رأس الاستجابة. `LoggingInterceptor`
+(`src/common/interceptors/logging.interceptor.ts`، مُسجَّل كـ
+`APP_INTERCEPTOR` عام في `app.module.ts`) يكتب سطر JSON واحد لكل طلب:
+`requestId`, `method`, `path`, `status`, `durationMs` فقط.
+
+**لا رؤوس (headers)، لا معاملات استعلام (query params)، ولا جسم
+الطلب/الاستجابة (body) تصل إلى هذا الـinterceptor على الإطلاق** — الحقول
+التي قد تحمل كلمة مرور، JWT، refresh token، أو مفتاح API لا تُقرأ منها
+أبدًا، لا أن تُقرأ ثم تُخفى (masking). ليست منصة Observability كاملة —
+فقط ما يكفي لتشخيص "ماذا حدث" في Demo/Staging.
+
 ## حماية أسرار التكامل
 - بيانات اعتماد أي `integration_connection` (رموز API، مفاتيح) تُشفَّر عند
   التخزين (encryption at rest) بمفتاح مُدار خارج قاعدة البيانات (متغير بيئة/

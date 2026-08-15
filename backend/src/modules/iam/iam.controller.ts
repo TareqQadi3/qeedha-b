@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PERMISSION_KEYS } from './constants/permissions';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { CreateUserDto } from './dto/create-user.dto';
+import { QueryUsersDto } from './dto/query-users.dto';
 import { IamService } from './iam.service';
 
 @Controller('iam')
@@ -30,9 +31,9 @@ export class IamController {
 
   @RequirePermissions(PERMISSION_KEYS.IAM_USERS_VIEW)
   @Get('users')
-  listUsers(@CurrentUser() user: AuthenticatedUser) {
+  listUsers(@CurrentUser() user: AuthenticatedUser, @Query() query: QueryUsersDto) {
     return this.prisma.withTenant(user.companyId, (tx) =>
-      this.iamService.listUsers(tx, user.companyId),
+      this.iamService.listUsers(tx, user.companyId, query),
     );
   }
 

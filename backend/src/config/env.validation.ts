@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsIn, IsInt, IsString, Max, Min, validateSync } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
 
 class EnvironmentVariables {
   @IsIn(['development', 'test', 'production'])
@@ -40,6 +40,15 @@ class EnvironmentVariables {
 
   @IsString()
   INTEGRATION_CREDENTIALS_ENCRYPTION_KEY: string;
+
+  // Comma-separated allowlist of origins the API accepts CORS requests
+  // from (docs/SECURITY.md "CORS"). Optional in development/test (falls
+  // back to the local Vite ports - see config/cors.config.ts); a missing
+  // or empty value is a hard startup failure in production
+  // (assertCorsConfiguredForProduction), never a silent wildcard.
+  @IsOptional()
+  @IsString()
+  CORS_ALLOWED_ORIGINS?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

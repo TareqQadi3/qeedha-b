@@ -84,15 +84,25 @@ export function PosPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completedSale, setCompletedSale] = useState<any | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const wh = await api.get('/tenancy/warehouses');
-      setWarehouses(wh);
-      setWarehouseId(wh[0]?.id ?? '');
-      if (hasPermission('customers.read')) {
-        const cust = await api.get('/customers', { pageSize: 100 });
-        setCustomers(cust.data);
+      setPageLoading(true);
+      setPageError(null);
+      try {
+        const wh = await api.get('/tenancy/warehouses');
+        setWarehouses(wh);
+        setWarehouseId(wh[0]?.id ?? '');
+        if (hasPermission('customers.read')) {
+          const cust = await api.get('/customers', { pageSize: 100 });
+          setCustomers(cust.data);
+        }
+      } catch (err) {
+        setPageError(err instanceof ApiError ? err.message : 'تعذّر تحميل بيانات نقطة البيع');
+      } finally {
+        setPageLoading(false);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,6 +129,8 @@ export function PosPage() {
     try {
       const res = await api.get('/products', { search: term, pageSize: 8 });
       setSearchResults(res.data.filter((p: ProductResult) => p.isActive));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّر البحث عن المنتجات');
     } finally {
       setSearching(false);
     }
@@ -155,9 +167,13 @@ export function PosPage() {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     if (!searchTerm.trim()) return;
-    const res = await api.get('/products', { search: searchTerm, pageSize: 8 });
-    const active = res.data.filter((p: ProductResult) => p.isActive);
-    if (active.length >= 1) addToCart(active[0]);
+    try {
+      const res = await api.get('/products', { search: searchTerm, pageSize: 8 });
+      const active = res.data.filter((p: ProductResult) => p.isActive);
+      if (active.length >= 1) addToCart(active[0]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّر البحث عن المنتجات');
+    }
   };
 
   const updateLine = (productId: string, patch: Partial<CartLine>) => {
@@ -219,6 +235,14 @@ export function PosPage() {
 
   if (!hasPermission('sales.create')) {
     return <ErrorBanner message="لا تملك صلاحية إتمام عمليات البيع" />;
+  }
+
+  if (pageLoading) {
+    return <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>;
+  }
+
+  if (pageError) {
+    return <ErrorBanner message={pageError} />;
   }
 
   if (completedSale) {
@@ -325,6 +349,7 @@ export function PosPage() {
           {cart.length === 0 ? (
             <div className="py-10 text-center text-slate-400">السلة فارغة - ابحث عن منتج لإضافته</div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
@@ -388,6 +413,7 @@ export function PosPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
       </div>

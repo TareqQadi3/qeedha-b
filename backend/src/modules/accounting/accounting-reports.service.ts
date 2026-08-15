@@ -35,6 +35,9 @@ function branchScopeWhere(scope: BranchScope): Prisma.JournalEntryWhereInput {
     : { OR: [{ branchId: null }, { branchId: { in: Array.from(scope.branchIds) } }] };
 }
 
+/** Hard cap for General Ledger lines per request - see the comment at the query site. */
+export const MAX_LEDGER_LINES = 1000;
+
 function isDebitNormal(type: AccountType): boolean {
   return type === 'asset' || type === 'expense';
 }
@@ -143,6 +146,11 @@ export class AccountingReportsService {
       openingBalance = debitNormal ? debitSum - creditSum : creditSum - debitSum;
     }
 
+    // Hard cap, not full pagination (Milestone 2 "Performance"): a ledger
+    // view is read as one continuous statement, not paged like a list table
+    // - narrowing dateFrom/dateTo is the intended way to see more than this
+    // many lines, same as real accounting software. This only bounds the
+    // query; it doesn't change the response shape or break any caller.
     const lines = await tx.journalLine.findMany({
       where: {
         companyId,
@@ -155,6 +163,7 @@ export class AccountingReportsService {
       },
       include: { journalEntry: true },
       orderBy: [{ journalEntry: { postedAt: 'asc' } }, { id: 'asc' }],
+      take: MAX_LEDGER_LINES,
     });
 
     let running = round2(openingBalance);

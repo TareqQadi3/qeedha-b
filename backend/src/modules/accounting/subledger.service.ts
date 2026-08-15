@@ -13,6 +13,9 @@ function branchScopeWhere(scope: BranchScope): Prisma.JournalEntryWhereInput {
     : { OR: [{ branchId: null }, { branchId: { in: Array.from(scope.branchIds) } }] };
 }
 
+/** Hard cap for a single customer/supplier statement - see MAX_LEDGER_LINES in accounting-reports.service.ts for the same rationale. */
+const MAX_STATEMENT_LINES = 1000;
+
 /**
  * AR/AP subledgers, derived live from the same JournalLine/JournalEntry
  * source as every other report (docs/ACCOUNTING.md "AR/AP subledger") -
@@ -123,6 +126,9 @@ export class SubledgerService {
             },
             include: { journalEntry: true },
             orderBy: { journalEntry: { postedAt: 'asc' } },
+            // Hard cap, not full pagination - same rationale as the General
+            // Ledger report (accounting-reports.service.ts MAX_LEDGER_LINES).
+            take: MAX_STATEMENT_LINES,
           });
 
     let running = 0;
@@ -238,6 +244,9 @@ export class SubledgerService {
             },
             include: { journalEntry: true },
             orderBy: { journalEntry: { postedAt: 'asc' } },
+            // Hard cap, not full pagination - same rationale as the General
+            // Ledger report (accounting-reports.service.ts MAX_LEDGER_LINES).
+            take: MAX_STATEMENT_LINES,
           });
 
     let running = 0;

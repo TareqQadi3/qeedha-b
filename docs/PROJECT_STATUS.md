@@ -1,9 +1,10 @@
 # حالة المشروع (Project Status)
 
 **آخر تحديث**: 2026-08-15
-**المرحلة الحالية**: Milestone 1 — Accounting Completion (تقارير مالية +
-ذمم + أرصدة افتتاحية + فترات محاسبية) — **مكتملة ومُختبرة**، بانتظار
-موافقتك الصريحة لبدء المرحلة القادمة
+**المرحلة الحالية**: Milestone 2 — Production Hardening + Demo/Staging
+Readiness (CORS/Health/Logging + إصلاحات أداء + Docker/CI + بذر بيانات
+تجريبية + إصلاحات RBAC/استجابة/اختبارات آلية في الواجهة الأمامية) —
+**مكتملة ومُختبرة**، بانتظار موافقتك الصريحة لبدء المرحلة القادمة
 
 ## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة القادمة
 
@@ -427,6 +428,343 @@ commit منفصل ونظيف لهذا الـMilestone فقط — **pending final
 ### Push
 NOT PUSHED
 
+---
+
+# Milestone 2 — Production Hardening + Demo/Staging Readiness
+
+**Status**: Completed
+
+## ملخص: ما هذا الـMilestone وما ليس
+
+تصليب تشغيلي/أمني للنظام الموجود من نهاية Milestone 1، وتجهيز التهيئة
+اللازمة لـDemo/Staging — **بلا أي منطق أعمال جديد وبلا أي تغيير على
+المخطط**: CORS مبني على البيئة (fail-closed في production بدل مفتوح
+دائمًا)، فحص صحة يُرجع `503` صحيحًا عند فشل قاعدة البيانات، Logging
+مهيكل لا يُسجّل أي سرّ، إصلاح فجوتَي أداء حقيقيتين (ترقيم
+`iam.listUsers`، حد أقصى لدفتر الأستاذ/كشوف الحسابات)، Dockerfiles +
+docker-compose جذري (backend/frontend/postgres كخدمات منفصلة)، CI
+(GitHub Actions)، سكربت بذر بيانات تجريبية آمن، وفي الواجهة الأمامية:
+إصلاح فجوتَي RBAC حقيقيتين، إضافة حالات تحميل/خطأ لكل صفحة كانت تفتقدها،
+معالجة انتهاء جلسة (401)، استجابة (Responsive) للشاشات الضيقة، قائمة
+Onboarding مختصرة، وأول اختبارات آلية (Vitest) + أول مجموعة Playwright
+مُلتزَمة في المستودع. **لم يُبنَ في هذا الـMilestone**: نشر Demo/Staging
+فعلي (لا حساب استضافة/اعتمادات متاحة)، تنفيذ فعلي لـ`docker build`/
+`docker compose up` أو تشغيل CI على runner حقيقي (كلاهما جاهز وغير
+مُتحقَّق منه فعليًا)، واجهة "غير مخوَّل" مخصصة لأخطاء 403 — كلها موثَّقة
+صراحة أدناه تحت "Known Limitations".
+
+## ما تم إنجازه في هذه الدورة (Milestone 2)
+
+- [x] **CORS مبني على البيئة**: `src/config/cors.config.ts`
+      (`buildCorsOptions`/`assertCorsConfiguredForProduction`) يستبدل
+      `app.enableCors()` بلا خيارات (كان يقبل/يعكس أي origin). متغيّر
+      بيئة `CORS_ALLOWED_ORIGINS` (قائمة صريحة مفصولة بفواصل، لا `"*"`
+      أبدًا في أي بيئة) — إلزامي في production (رفض إقلاع صريح بدونه،
+      Fail-closed)، افتراضي لمنافذ Vite المحلية في development/test.
+      `backend/.env.example`/`.env`/`.env.test` مُحدَّثة.
+- [x] **Health check مُوسَّع**: `HealthController` يُرجع الآن
+      `{status, timestamp, checks: {app, database}}` عند النجاح، ويُرجع
+      **HTTP 503** (لا 200) عبر `ServiceUnavailableException` عند فشل
+      فحص قاعدة البيانات — فحوص الحاوية/المنسّق التي تعتمد على status
+      code فقط تعمل بشكل صحيح الآن. لا تسريب connection strings/تفاصيل
+      داخلية.
+- [x] **Logging مهيكل**: `RequestIdMiddleware` (معرّف ارتباط UUID لكل
+      طلب، يعيد استخدام `x-request-id` الوارد إن وُجد، يُرجعه في رأس
+      الاستجابة) + `LoggingInterceptor` (`APP_INTERCEPTOR` عام — سطر
+      JSON واحد لكل طلب: `requestId`, `method`, `path`, `status`,
+      `durationMs` فقط). لا رؤوس/معاملات استعلام/جسم طلب أو استجابة
+      تصل إليه أبدًا — لا سرّ (كلمة مرور/JWT/refresh token/مفتاح API)
+      يصل إلى Log عن طريق الخطأ.
+- [x] **قرار موثَّق: `refresh_tokens` يبقى الاستثناء الوحيد من RLS** —
+      راجَعنا صراحة إمكانية إضافة RLS له في هذا الـMilestone وقررنا
+      الإبقاء على الاستثناء، لسبب معماري حقيقي (تناقض دائري "اكتشاف
+      companyId قبل معرفته" لـ`POST /auth/refresh`، مطابق لمشكلة auth
+      bootstrap عند login) وليس تكاسلًا. التفصيل الكامل في
+      `docs/SECURITY.md` "قرار Milestone 2".
+- [x] **إصلاحات أداء (بتدقيق backend مخصص)**: `IamService.listUsers`
+      (`GET /iam/users`) كان `findMany` بلا `take` (غير محدود) — أصبح
+      مُرقَّمًا كباقي كل Endpoint قائمة آخر في النظام
+      (`QueryUsersDto` جديد، `IamController` يقبل `@Query()`)،
+      الاستجابة تغيّرت من مصفوفة مسطّحة إلى `{data, meta}` القياسية —
+      اختبار واحد في `test/app.e2e-spec.ts` عُدِّل ليطابق
+      (`res.body.data`). دفتر الأستاذ العام
+      (`AccountingReportsService`) وكشوف حساب العميل/المورد
+      (`SubledgerService`) كانا بلا حد أعلى — أصبح لهما حد أقصى 1000
+      سطر (`MAX_LEDGER_LINES`/`MAX_STATEMENT_LINES`، **حد وليس
+      Pagination كاملة** — تُقرَأ كعرض مستمر واحد، تضييق مدى التاريخ هو
+      الطريقة المقصودة لرؤية أكثر، تمامًا كأي برنامج محاسبي حقيقي). نفس
+      التدقيق أكّد أن كل Endpoint قائمة آخر مُرقَّم أصلًا بشكل صحيح، أن
+      استعلامات الحساب/العميل/المورد في التقارير/Subledger مُجمَّعة
+      (batched) بلا N+1، وأنه لا يوجد أي حلقة N+1 حقيقية في النظام
+      (حلقات سطور البيع/الشراء/القيد محدودة بحجم المصفوفة داخل المعاملة
+      الواحدة، لا بحجم بيانات المنشأة).
+- [x] **Docker**: `backend/Dockerfile` (multi-stage: deps → build →
+      prod-deps → runtime، `node:20-slim` عمدًا بدل alpine — بنيات
+      argon2/Prisma query engine الجاهزة أوثق على glibc)،
+      `backend/.dockerignore`، `frontend/Dockerfile` (multi-stage: بناء
+      Vite بـ`VITE_API_BASE_URL` مُضمَّن وقت البناء عبر build arg، ثم
+      nginx لخدمة الملفات الثابتة)، `frontend/nginx.conf` (SPA fallback
+      routing). لا قاعدة بيانات داخل أي صورة. Migrations **لا** تُشغَّل
+      تلقائيًا عند بدء الحاوية في أي مكان — خطوة منفصلة صريحة دائمًا
+      (`prisma migrate deploy`).
+- [x] **سكربت بذر بيانات تجريبية**: `backend/scripts/demo-seed.ts` —
+      يُنشئ منشأة تجريبية واحدة عبر Endpoints الحقيقية فقط (لا إدخال DB
+      مباشر، فيمر بكل قيد فعلي: بذر دليل الحسابات، الأدوار الافتراضية،
+      إلخ): 4 منتجات برصيد افتتاحي، عميلان، موردان، شراء واحد مُستلَم،
+      بيع POS واحد مكتمل. كل اسم مُعلَّم صراحة "(Demo)" وكل بريد
+      `@qeedha-demo.local` — لا بيانات شخصية حقيقية. آمن لإعادة التشغيل
+      (كل تشغيل يُنشئ منشأة جديدة بلاحقة عشوائية، لا يمس تشغيلات سابقة).
+      سكربت `demo:seed` جديد في `package.json`؛ `tsconfig.build.json`
+      يستثني `scripts/` من بناء الإنتاج الآن. **نُفِّذ فعليًا ضد backend
+      حقيقي خلال هذه الجلسة ونجح** (`✔ Demo company created`، 4 منتجات،
+      عميلان، موردان، شراء مُستلَم، بيع POS مكتمل، بيانات دخول
+      تجريبية مطبوعة).
+- [x] **إصلاحات RBAC في الواجهة الأمامية (بتدقيق frontend مخصص قرأ كل
+      الصفحات الـ16)**: `DashboardPage.tsx` لم تكن مُقيَّدة بأي صلاحية
+      على الإطلاق وكانت تجلب بطاقاتها عبر `Promise.all` (فشل صلاحية
+      واحدة يُفرغ اللوحة بالكامل) — أصبحت كل بطاقة مُقيَّدة بصلاحيتها
+      الخاصة وتُجلَب عبر `Promise.allSettled` (فشل جزئي يعرض ما نجح
+      فقط). `InvoicesPage.tsx` لم تكن تتحقق من `hasPermission` إطلاقًا —
+      أصبحت مُقيَّدة بـ`invoices.read`.
+- [x] **حالات تحميل/خطأ جديدة**: 9+ صفحات كان جلب البدء (mount fetch)
+      فيها بلا `try/catch` أو مؤشر تحميل (أزرار الإنشاء/التعديل/الحذف
+      فقط كانت مُجهَّزة سابقًا) — `ProductsPage.tsx`, `PartyPage.tsx`
+      (العملاء/الموردون)، `CatalogPage.tsx`, `InventoryPage.tsx`,
+      `PurchasesPage.tsx`, `ExpensesPage.tsx`, `AccountingPage.tsx`
+      (تبويبا الحسابات/القيود)، `PosPage.tsx` (جلب البدء + بحث
+      المنتج)، `ReportsPage.tsx` (قائمة الحسابات في تبويب دفتر
+      الأستاذ)، `InvoicesPage.tsx` — كلها أصبحت تعرض "...جارٍ التحميل"
+      أثناء الجلب و`ErrorBanner` عند الفشل.
+- [x] **معالجة انتهاء الجلسة (401)**: `SESSION_EXPIRED_EVENT`
+      (`frontend/src/api/client.ts`) يُطلَق عبر `window.dispatchEvent`
+      عندما يفشل تجديد التوكن (الجلسة منتهية فعليًا من طرف الخادم).
+      `AuthProvider` (`frontend/src/state/auth.tsx`) يستمع له الآن
+      ويُفرغ `me`، فيعيد `RequireAuth` (`App.tsx`) التوجيه إلى `/login`
+      بدل ترك شاشة مُصادَق عليها باليات تفشل فيها كل الطلبات التالية
+      صامتة.
+- [x] **استجابة (Responsive)**: `Layout.tsx` أُعيدت كتابته بالكامل —
+      الشريط الجانبي أصبح درج off-canvas تحت حد `md` (زر همبرغر في
+      شريط علوي)، بلا تغيير على الشريط الجانبي الدائم الظهور فوق `md`.
+      نحو 20 جدول بيانات عبر التطبيق (Products, Inventory,
+      Customers/Suppliers, Purchases×2, Expenses, Accounting×5,
+      Reports×5, Receivables/Payables×2, POS, Invoices) لُفَّت بـ
+      `<div className="overflow-x-auto">` — تمرير أفقي بدل كسر تخطيط
+      الصفحة. ليست إعادة تصميم — نفس المكوّنات، نفس التنسيق، مجرد لفّ.
+- [x] **Onboarding**: `OnboardingChecklist.tsx` (جديد) — قائمة من 8
+      خطوات على لوحة التحكم (منشأة/فرع/مستودع تظهر مكتملة دائمًا لأن
+      `registerCompany` تُنشئها ذرّيًا؛ منتج/مخزون/عميل/مورد/أول بيع
+      تُتحقَّق عبر استدعاءات API حقيقية)، مُقيَّدة بصلاحية كل خطوة على
+      حدة، قابلة للإخفاء (تُحفظ في `localStorage`)، تختفي تلقائيًا عند
+      اكتمال كل خطوة ظاهرة. **ليست** معالج (wizard) متعدد الشاشات — نطاق
+      مُصغَّر عمدًا حسب توجيه المرحلة.
+- [x] **أول اختبارات آلية للواجهة الأمامية (Vitest)**: `vite.config.ts`
+      (قسم `test`، `environment: 'jsdom'`)، `src/test/setup.ts`، وثلاثة
+      ملفات تحت `src/pages/__tests__/` (`LoginPage.test.tsx`,
+      `RegisterPage.test.tsx`, `DashboardPage.test.tsx`) — **7
+      اختبارات، مُتحقَّقة فعليًا بتشغيل `npx vitest run`: 7/7 ناجحة**.
+      سكربتا `test`/`test:watch` جديدان. تستخدم `@testing-library/react`
+      + `@testing-library/user-event` + `vitest`.
+- [x] **مجموعة Playwright مُلتزَمة (تستبدل السكربتات المؤقتة اليدوية من
+      المراحل السابقة)**: `playwright.config.ts`, `e2e/helpers.ts`,
+      `e2e/golden-path.spec.ts` (الرحلة الكاملة: تسجيل → منتج → مخزون →
+      عميل → مورد → شراء → استلام → بيع POS → دفعة → فاتورة → مصروف →
+      محاسبة → تقارير → ذمم → خروج → دخول مجددًا)،
+      `e2e/tenant-isolation.spec.ts` (تسجيل منشأتين والتحقق أن منتج
+      المنشأة الأولى غير مرئي للثانية عبر الواجهة الحقيقية). سكربت
+      `test:e2e` جديد. **نُفِّذت المجموعتان فعليًا ضد الحزمة الحقيقية
+      الكاملة خلال هذه الجلسة ونجحتا (2/2)** — تشغيل متصفح آلي حقيقي،
+      وليس وصف نيّة.
+- [x] **Docker Compose جذري**: `docker-compose.yml` (جديد، جذر
+      المستودع — منفصل تمامًا عن `backend/docker-compose.yml` الموجود
+      أصلًا الذي لا يزال يُشغِّل Postgres للتطوير المحلي فقط دون تغيير)
+      ينسّق ثلاث خدمات منفصلة: `postgres`, `backend` (يُبنى من
+      `backend/Dockerfile`), `frontend` (يُبنى من `frontend/Dockerfile`،
+      يُخدَم عبر nginx) — Postgres لا يُدمَج أبدًا داخل صورة التطبيق.
+      يتطلب `.env` جذري جديد (`POSTGRES_PASSWORD`, `VITE_API_BASE_URL`)
+      — **منفصل عن `backend/.env` ولا يتزامن معه تلقائيًا**، موثَّق
+      صراحة كشيء يجب أن يبقيه من ينشر متسقًا يدويًا (اسم المستخدم
+      `qeedha_app` في خدمة Postgres بملف compose مقابل أيًا كان في
+      `DATABASE_URL` الخاص بـ`backend/.env`).
+- [x] **CI/CD**: `.github/workflows/ci.yml` (جديد) — ثلاث jobs:
+      `backend` (حاوية خدمة Postgres، تثبيت، lint، typecheck، build،
+      migrate، إنشاء دور `qeedha_auth_lookup` عبر سكربتات manual-sql
+      الموجودة أصلًا، بذر، تشغيل مجموعة e2e الخلفية كاملة)، `frontend`
+      (تثبيت، lint، build، vitest)، `e2e` (حاوية Postgres منفصلة، يبني
+      ويشغّل backend الحقيقي، يثبّت متصفحات Playwright عبر `npx
+      playwright install --with-deps chromium`، يشغّل مجموعة Playwright
+      المُلتزَمة ضده، يرفع تقرير HTML كـartifact عند الفشل).
+      **تنبيه صريح**: تحقَّق من صحة الـYAML نحويًا فقط
+      (`python3 -c "import yaml; yaml.safe_load(...)"` نجح) — **لم
+      يُشغَّل فعليًا على أي GitHub Actions runner حقيقي على الإطلاق**
+      (بيئة التطوير هذه لا تملك وصولًا لتشغيله). لا يُدَّعى أنه "ينجح
+      على CI".
+- [x] **Docker لم يُبنَ فعليًا في هذه الجلسة**: بيئة التطوير هذه تملك
+      أداة `docker` CLI لكن بلا daemon يعمل، وتشغيل واحد محظور بصلاحيات
+      الـsandbox (`dockerd` يفشل بـ"Operation not permitted" عند
+      `ulimit`، مُتحقَّق منه). كل Dockerfile وملف compose كُتبا بعناية
+      باتّباع أنماط معروفة وموثَّقة، لكن **`docker build`/`docker
+      compose up` لم يُنفَّذا أو يُتحقَّق منهما فعليًا في هذه الجلسة**.
+      مذكور صراحة في تعليقات كل Dockerfile وفي `docs/DEPLOYMENT.md`
+      "القيود المعروفة".
+- [x] **housekeeping على مستوى الجذر**: `.gitignore` جذري جديد (لم يكن
+      موجودًا قبله — فقط `backend/.gitignore`/`frontend/.gitignore`
+      كانا موجودين)، `.env.example` جذري جديد.
+- [x] توثيق جديد: `docs/DEPLOYMENT.md`, `docs/DEMO.md`؛ توثيق مُحدَّث:
+      `SECURITY.md`, `API.md`, `TESTING.md`, `MODULES.md`,
+      `DATABASE.md`, `DOMAIN_MODEL.md` (ملاحظة "لا تغييرات" في
+      الأخيرين)، `CHANGELOG.md`, `PROJECT_STATUS.md` (هذا الملف)،
+      `backend/README.md`, `frontend/README.md`.
+
+## التقرير النهائي (بالصيغة المطلوبة)
+
+**CORS**: PASS (مبني على البيئة، Fail-closed في production، لا `"*"`
+في أي بيئة)
+**Health Check**: PASS (`503` صحيح عند فشل قاعدة البيانات، لا تسريب
+تفاصيل داخلية)
+**Structured Logging**: PASS (سطر JSON واحد لكل طلب، لا رؤوس/query/body
+تصل إليه أبدًا)
+**Refresh Token RLS Decision**: PASS (قرار موثَّق صراحة بعدم التنفيذ،
+سبب معماري حقيقي — راجع `docs/SECURITY.md`)
+**Performance Fixes**: PASS (`iam.listUsers` مُرقَّم، حد أقصى لدفتر
+الأستاذ/كشوف الحسابات، تأكيد عدم وجود N+1 حقيقي في أي مكان آخر)
+**Docker**: PASS كتهيئة (Dockerfiles + compose مكتوبة بعناية) — **غير
+مُختبَرة فعليًا** (`docker build`/`docker compose up` لم يُنفَّذا، لا
+daemon في بيئة التطوير)
+**CI/CD**: PASS كتهيئة (YAML صحيح نحويًا، ثلاث jobs كاملة) — **غير
+مُشغَّل فعليًا** على أي GitHub Actions runner حقيقي
+**Demo Seed Script**: PASS (نُفِّذ فعليًا ضد backend حقيقي ونجح، بيانات
+Demo واضحة، آمن لإعادة التشغيل)
+**Frontend RBAC Fixes**: PASS (`DashboardPage`/`InvoicesPage`، مُختبَر
+آليًا عبر Vitest)
+**Frontend Loading/Error States**: PASS (9+ صفحة، نمط موحّد)
+**Frontend Session Expiry (401)**: PASS (`SESSION_EXPIRED_EVENT` →
+تسجيل خروج تلقائي)
+**Frontend Responsive**: PASS (درج off-canvas تحت `md`، ~20 جدول
+بـ`overflow-x-auto`)
+**Frontend Onboarding**: PASS (قائمة 8 خطوات مُصغَّرة، مُقيَّدة
+بالصلاحيات، قابلة للإخفاء)
+**Frontend Unit/Component Tests (Vitest)**: PASS (7/7، مُتحقَّق فعليًا)
+**Playwright Suite**: PASS (مُلتزَمة في المستودع، 2/2 نجحت فعليًا ضد
+الحزمة الحقيقية)
+**E2E الخلفية**: PASS (112/112، بلا تراجع، `npx jest --config
+./test/jest-e2e.json --runInBand`)
+**Build**: PASS (`nest build` + frontend `tsc --noEmit && vite build`،
+بلا أخطاء)
+**Lint**: PASS (`eslint . --ext .ts` / `--ext ts,tsx` — 0 أخطاء في
+الطرفين)
+**Typecheck**: PASS (`tsc --noEmit` — 0 أخطاء في الطرفين)
+**Database Changes**: PASS (لا شيء — لا Migration جديدة، تأكيد صريح)
+**Documentation**: PASS (ملفان جديدان، 7 ملفات مُحدَّثة، الـREADMEان
+مُحدَّثان)
+**Honesty on Unverified Items**: PASS (Docker/CI/Demo-Staging الفعلي
+موثَّقة صراحة كغير مُنفَّذة/مُختبَرة، لا ادّعاء زائف في أي مكان)
+
+**Tests**: 112/112 خلفية (بلا تراجع) + 7/7 Vitest جديدة + Playwright
+2/2 (golden-path + tenant-isolation) — كلها مُتحقَّقة فعليًا بالتشغيل
+خلال هذه الجلسة.
+
+### Files Changed
+- **Backend (جديد)**: `src/config/cors.config.ts`,
+  `src/common/middleware/request-id.middleware.ts`,
+  `src/common/interceptors/logging.interceptor.ts`,
+  `src/modules/iam/dto/query-users.dto.ts`, `Dockerfile`,
+  `.dockerignore`, `scripts/demo-seed.ts`.
+- **Backend (معدَّل)**: `src/main.ts`, `src/config/env.validation.ts`
+  (`CORS_ALLOWED_ORIGINS`)، `src/modules/health/health.controller.ts`,
+  `src/app.module.ts`, `src/modules/iam/iam.service.ts`,
+  `src/modules/iam/iam.controller.ts`,
+  `src/modules/accounting/accounting-reports.service.ts`
+  (`MAX_LEDGER_LINES`)، `src/modules/accounting/subledger.service.ts`
+  (`MAX_STATEMENT_LINES`)، `test/app.e2e-spec.ts` (اختبار واحد)،
+  `package.json` (`demo:seed`)، `tsconfig.build.json` (استثناء
+  `scripts/`)، `.env.example`, `.env`, `.env.test`
+  (`CORS_ALLOWED_ORIGINS`).
+- **Frontend (جديد)**: `src/components/OnboardingChecklist.tsx`,
+  `src/test/setup.ts`, `src/pages/__tests__/LoginPage.test.tsx`,
+  `src/pages/__tests__/RegisterPage.test.tsx`,
+  `src/pages/__tests__/DashboardPage.test.tsx`, `playwright.config.ts`,
+  `e2e/helpers.ts`, `e2e/golden-path.spec.ts`,
+  `e2e/tenant-isolation.spec.ts`, `Dockerfile`, `nginx.conf`.
+- **Frontend (معدَّل)**: `src/api/client.ts`
+  (`SESSION_EXPIRED_EVENT`)، `src/state/auth.tsx` (الاستماع للحدث)،
+  `src/components/Layout.tsx` (إعادة كتابة كاملة — درج off-canvas)،
+  `src/pages/DashboardPage.tsx` (RBAC + `Promise.allSettled` +
+  Onboarding)، `src/pages/InvoicesPage.tsx`,
+  `src/pages/ProductsPage.tsx`, `src/pages/PartyPage.tsx`,
+  `src/pages/CatalogPage.tsx`, `src/pages/InventoryPage.tsx`,
+  `src/pages/PurchasesPage.tsx`, `src/pages/ExpensesPage.tsx`,
+  `src/pages/AccountingPage.tsx`, `src/pages/PosPage.tsx`,
+  `src/pages/ReportsPage.tsx` (حالات تحميل/خطأ + جداول
+  `overflow-x-auto` عبر ~20 جدولًا إضافيًا في صفحات أخرى)،
+  `vite.config.ts` (قسم `test`)، `package.json` (`test`,
+  `test:watch`, `test:e2e`).
+- **جذر المستودع (جديد)**: `docker-compose.yml`, `.env.example`,
+  `.gitignore`, `.github/workflows/ci.yml`.
+- **Docs (جديد)**: `DEPLOYMENT.md`, `DEMO.md`.
+- **Docs (معدَّل)**: `SECURITY.md`, `API.md`, `TESTING.md`,
+  `MODULES.md`, `DATABASE.md`, `DOMAIN_MODEL.md`, `CHANGELOG.md`,
+  `PROJECT_STATUS.md` (هذا الملف)، `backend/README.md`,
+  `frontend/README.md`.
+
+### Database Changes
+**لا شيء** — لا Migration جديدة، لا جدول جديد، لا عمود جديد. تأكيد
+صريح مطلوب حسب نطاق هذا الـMilestone (بنية تحتية/تشغيلية بحتة).
+
+### API Changes
+لا Endpoint جديد. تغييران على صيغة استجابة موجودة فقط:
+`GET /api/v1/iam/users` أصبح `{data, meta}` مُرقَّم بدل مصفوفة مسطّحة؛
+`GET /api/v1/health` يُرجع الآن `checks` ويُرجع `503` عند فشل قاعدة
+البيانات بدل `200` دائمًا. راجع `docs/API.md`.
+
+### Frontend Changes
+لا صفحة جديدة (باستثناء `OnboardingChecklist` كمكوّن، لا صفحة/مسار
+جديد). كل التغيير على صفحات موجودة: RBAC، حالات تحميل/خطأ، استجابة
+للشاشات الضيقة، معالجة انتهاء جلسة. راجع "ما تم إنجازه" أعلاه للقائمة
+الكاملة.
+
+### Architectural Decisions (قرارات مسجَّلة)
+- **`refresh_tokens` يبقى الاستثناء الوحيد من RLS** — راجَعنا صراحة
+  وقررنا الإبقاء، سبب معماري حقيقي (تناقض دائري)، مُرشَّح واضح لمرحلة
+  "إدارة الجلسات النشطة" مستقبلية. التفصيل الكامل في `docs/SECURITY.md`.
+- **`node:20-slim` لا alpine** في كل Dockerfile عمدًا — argon2 (native
+  module) وPrisma query engine أوثق على glibc من musl بلا أدوات بناء
+  إضافية.
+- **Migrations لا تُشغَّل تلقائيًا عند بدء أي حاوية** — خطوة منفصلة
+  صريحة دائمًا (`prisma migrate deploy`)، تمامًا كالتطوير المحلي.
+- **حد أقصى (1000 سطر)، لا Pagination كاملة**، لدفتر الأستاذ/كشوف
+  الحسابات — تُقرَأ كعرض مستمر واحد؛ تضييق مدى التاريخ هو الطريقة
+  المقصودة لرؤية أكثر، تمامًا كأي برنامج محاسبي حقيقي.
+- **`VITE_API_BASE_URL` يُضمَّن وقت بناء صورة الواجهة الأمامية، لا وقت
+  التشغيل** — Vite يُضمِّن متغيرات البيئة داخل الحزمة، فلا يمكن تغييره
+  بعد بناء الصورة دون إعادة بناء.
+- **`.env` الجذري و`backend/.env` ملفان منفصلان لا يتزامنان تلقائيًا**
+  — قرار متعمَّد لإبقاء `docker-compose.yml` بسيطًا، موثَّق صراحة كمسؤولية
+  يدوية على من ينشر في `docs/DEPLOYMENT.md`.
+- **403 يبقى بلا واجهة "غير مخوَّل" مخصصة** — يُعرَض كرسالة خطأ عامة
+  ضمن حالة الخطأ الموجودة لكل صفحة، قرار نطاق لهذا الـMilestone وليس
+  إغفالًا.
+
+### Known Limitations (موثَّقة صراحة، وليست ثغرات مسكوت عنها)
+- **Docker لم يُبنَ/يُختبَر فعليًا**: لا daemon Docker متاح في بيئة
+  التطوير هذه (`dockerd` يفشل بـ"Operation not permitted"). كل ملف
+  مكتوب بعناية باتّباع أنماط معروفة، لكن `docker build`/`docker compose
+  up` غير مُتحقَّق منهما فعليًا.
+- **CI لم يُشغَّل فعليًا على GitHub Actions**: تحقُّق من صحة YAML
+  النحوية فقط.
+- **لا نشر Demo/Staging فعلي موجود**: لا حساب استضافة/اعتمادات كانت
+  متاحة في هذه الجلسة — كل ما هو موجود تهيئة جاهزة (Dockerfiles،
+  compose، CI)، وليس نشرًا فعليًا. لا ادّعاء بخلاف ذلك في أي مكان.
+- **403 بلا واجهة مخصصة**: يُعرَض كخطأ عام، لا تمييز بصري عن أخطاء أخرى.
+- **`refresh_tokens` لا يزال بلا RLS**: قرار موثَّق، ليس نسيانًا — راجع
+  `docs/SECURITY.md`.
+
+### Commit
+commit منفصل ونظيف لهذا الـMilestone فقط — **pending final commit** (لم
+يُنفَّذ بعد وقت كتابة هذا التقرير).
+
+### Push
+NOT PUSHED
+
 ## ما لم يبدأ بعد (بانتظار إذنك للانتقال)
 
 المرحلة القادمة (وفق `ROADMAP.md`، بعد إعادة تجزئة نطاق المراحل الفعلي عن
@@ -449,9 +787,12 @@ NOT PUSHED
 ## كيف تتحقق من الحالة الحالية محليًا
 
 Backend: `cd backend && npm install && npx prisma migrate deploy && npm run
-prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (91/91 حاليًا).
+prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (**112/112** حاليًا).
 Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعمل
-على `http://localhost:3000`).
+على `http://localhost:3000`)، ثم `npm run test` (**7/7** Vitest) و
+`npm run test:e2e` (Playwright — يتطلب backend يعمل ومهاجَر ومزروع).
+Docker/Demo/DEPLOYMENT: راجع `docs/DEPLOYMENT.md` و`docs/DEMO.md`
+(Milestone 2) — تذكَّر أن Docker/CI جاهزان لكن غير مُختبَرين فعليًا بعد.
 
 ## سجل تحديثات هذا الملف
 
@@ -475,3 +816,9 @@ Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعم
   افتتاحية/فترات محاسبية) مكتمل ومُختبر (112/112، Playwright يدوي ناجح مع
   إصلاح عِلّة تنسيق أرقام حقيقية) — بانتظار موافقة صريحة لبدء المرحلة
   القادمة.
+- 2026-08-15: Milestone 2 (Production Hardening + Demo/Staging Readiness —
+  CORS/Health/Logging + إصلاحات أداء + Docker/CI (تهيئة، غير مُختبَرة فعليًا)
+  + بذر بيانات تجريبية (نُفِّذ فعليًا ونجح) + إصلاحات RBAC/استجابة/اختبارات
+  آلية في الواجهة الأمامية) مكتمل ومُختبر (112/112 خلفية بلا تراجع + 7/7
+  Vitest جديدة + Playwright 2/2 مُلتزَمة، بلا أي تغيير على المخطط) —
+  بانتظار موافقة صريحة لبدء المرحلة القادمة.

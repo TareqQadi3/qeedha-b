@@ -1,5 +1,133 @@
 # سجل التغييرات (Changelog)
 
+## [Milestone 2: Production Hardening + Demo/Staging Readiness] - 2026-08-15
+
+لا منطق أعمال جديد ولا تغيير على المخطط — تصليب تشغيلي/أمني للنظام
+الموجود وتجهيز Demo/Staging: CORS مبني على البيئة (fail-closed في
+production)، فحص صحة (health check) يُرجع `503` عند فشل قاعدة البيانات،
+Logging مهيكل بلا أي سرّ، إصلاح فجوات أداء (ترقيم `iam.listUsers`، حد
+أقصى لدفتر الأستاذ/كشوف الحسابات)، Docker (backend + frontend + root
+compose)، CI (GitHub Actions، جاهز وغير مُشغَّل فعليًا على runner حقيقي)،
+سكربت بذر بيانات تجريبية، وإصلاحات RBAC/حالات تحميل-خطأ/استجابة/جلسة
+منتهية في الواجهة الأمامية + أول اختبارات آلية (Vitest) ومجموعة
+Playwright مُلتزَمة.
+
+### أُضيف
+- **CORS مبني على البيئة**: `src/config/cors.config.ts`
+  (`buildCorsOptions`, `assertCorsConfiguredForProduction`) — متغيّر بيئة
+  `CORS_ALLOWED_ORIGINS` (قائمة صريحة، لا `"*"` أبدًا). إلزامي في
+  production (رفض إقلاع صريح بدونه)، افتراضي لمنافذ Vite المحلية في
+  development/test. يستبدل `app.enableCors()` بلا خيارات (كان يقبل/يعكس
+  أي origin). راجع `docs/SECURITY.md` "CORS".
+- **Health check مُوسَّع**: `HealthController` يُرجع الآن
+  `{status, timestamp, checks: {app, database}}` ويُرجع **`503`** (لا
+  `200`) عند فشل فحص قاعدة البيانات، بحيث فحوص الحاوية/المنسّق التي
+  تعتمد على status code فقط تعمل بشكل صحيح.
+- **Logging مهيكل**: `RequestIdMiddleware` (معرّف ارتباط لكل طلب، يعيد
+  استخدام `x-request-id` الوارد أو يولّد UUID جديد) +
+  `LoggingInterceptor` (سطر JSON واحد لكل طلب: `requestId`, `method`,
+  `path`, `status`, `durationMs`) — لا رؤوس/معاملات استعلام/جسم طلب أو
+  استجابة تصل إليه أبدًا، فلا سرّ يصل إلى Log عن طريق الخطأ.
+- **إصلاحات أداء (بتدقيق مخصص)**: `IamService.listUsers` (`GET
+  /iam/users`) كان `findMany` بلا حد أعلى — أصبح مُرقَّمًا (`QueryUsersDto`
+  الجديد)، صيغة الاستجابة تغيّرت من مصفوفة مسطّحة إلى `{data, meta}`
+  القياسية. دفتر الأستاذ العام (`AccountingReportsService`) وكشوف حساب
+  العميل/المورد (`SubledgerService`) كانا بلا حد أعلى — الآن بحد أقصى
+  1000 سطر (`MAX_LEDGER_LINES`/`MAX_STATEMENT_LINES`، حد وليس Pagination
+  كاملة — تضييق مدى التاريخ هو الطريقة المقصودة لرؤية أكثر). باقي نقاط
+  القائمة في النظام كانت مُرقَّمة أصلًا بالفعل — تأكيد لا إصلاح.
+- **Docker**: `backend/Dockerfile` (multi-stage: deps → build →
+  prod-deps → runtime، `node:20-slim` عمدًا بدل alpine — بنيات argon2/
+  Prisma engine الجاهزة أوثق على glibc)، `backend/.dockerignore`،
+  `frontend/Dockerfile` (multi-stage: بناء Vite بـ`VITE_API_BASE_URL`
+  مُضمَّن وقت البناء، ثم nginx لخدمة الملفات الثابتة)،
+  `frontend/nginx.conf` (SPA fallback routing). Migrations **لا** تُشغَّل
+  تلقائيًا عند بدء الحاوية — خطوة منفصلة صريحة دائمًا.
+- **`docker-compose.yml` (جذر المستودع، جديد)**: تنسيق ثلاث خدمات منفصلة
+  (`postgres`, `backend`, `frontend`) — Postgres لا يُدمَج أبدًا داخل
+  صورة التطبيق. يتطلب `.env` جذري جديد (`POSTGRES_PASSWORD`) منفصل عن
+  `backend/.env` (غير مُتزامنَين تلقائيًا — راجع `docs/DEPLOYMENT.md`).
+- **CI**: `.github/workflows/ci.yml` (جديد) — ثلاث jobs (`backend`,
+  `frontend`, `e2e`) تغطي lint/typecheck/build/tests الخلفية والأمامية
+  بالإضافة لمجموعة Playwright كاملة ضد الحزمة الحقيقية.
+- **سكربت بذر بيانات تجريبية**: `backend/scripts/demo-seed.ts` (سكربت
+  `npm run demo:seed` الجديد) — يُنشئ منشأة تجريبية واحدة عبر
+  Endpoints الحقيقية (لا إدخال DB مباشر): 4 منتجات، 2 عميل، 2 مورد، شراء
+  واحد مُستلَم، بيع POS واحد مكتمل. كل اسم مُعلَّم صراحة "(Demo)" وكل بريد
+  `@qeedha-demo.local` — لا بيانات شخصية حقيقية. **نُفِّذ فعليًا ضد
+  backend حقيقي خلال هذه الجلسة ونجح.** راجع `docs/DEMO.md`.
+- **إصلاحات RBAC/تحميل-خطأ في الواجهة الأمامية**: `DashboardPage.tsx`
+  لم تكن مُقيَّدة بأي صلاحية وتجلب عبر `Promise.all` (فشل واحد يُفرغ
+  اللوحة) — أصبحت كل بطاقة مُقيَّدة بصلاحيتها وتُجلَب عبر
+  `Promise.allSettled`. `InvoicesPage.tsx` لم تكن تتحقق من `hasPermission`
+  إطلاقًا — أصبحت مُقيَّدة بـ`invoices.read`. 9+ صفحات أخرى أُضيف لها
+  زوج حالة تحميل/خطأ لجلب البدء (كان مقتصرًا على أزرار الإنشاء/التعديل/
+  الحذف فقط سابقًا). راجع `docs/TESTING.md` للقائمة الكاملة.
+- **معالجة انتهاء الجلسة (401)**: `SESSION_EXPIRED_EVENT`
+  (`frontend/src/api/client.ts`) يُطلَق عند فشل تجديد التوكن؛
+  `AuthProvider` يستمع له ويُفرغ `me` فيعيد التوجيه لـ`/login` بدل شاشة
+  مُصادَق عليها باليات.
+- **استجابة (Responsive)**: `Layout.tsx` أُعيدت كتابته — الشريط الجانبي
+  أصبح درج off-canvas تحت `md` (زر همبرغر في شريط علوي)، بلا تغيير فوق
+  `md`. نحو 20 جدول بيانات عبر التطبيق (Products, Inventory, Customers/
+  Suppliers, Purchases×2, Expenses, Accounting×5, Reports×5,
+  Receivables/Payables×2, POS, Invoices) لُفَّت بـ`overflow-x-auto` —
+  تمرير أفقي بدل كسر تخطيط الصفحة، بلا إعادة تصميم.
+- **Onboarding**: `OnboardingChecklist.tsx` (جديد) — قائمة من 8 خطوات
+  على لوحة التحكم (منشأة/فرع/مستودع تظهر مكتملة دائمًا لأن
+  `registerCompany` تُنشئها ذرّيًا؛ منتج/مخزون/عميل/مورد/أول بيع تُتحقَّق
+  عبر الـAPI الحقيقي)، مُقيَّدة بصلاحية كل خطوة، قابلة للإخفاء (تُحفظ في
+  localStorage)، تختفي تلقائيًا عند اكتمال كل خطوة ظاهرة. ليست معالج
+  متعدد الشاشات — نطاق مُصغَّر عمدًا.
+- **أول اختبارات آلية للواجهة الأمامية (Vitest)**: `vite.config.ts`
+  (قسم `test`)، `src/test/setup.ts`، وثلاثة ملفات تحت
+  `src/pages/__tests__/` (`LoginPage.test.tsx`, `RegisterPage.test.tsx`,
+  `DashboardPage.test.tsx`) — **7 اختبارات، 7/7 ناجحة**، مُتحقَّق فعليًا.
+  سكربتا `test`/`test:watch` جديدان.
+- **مجموعة Playwright مُلتزَمة**: `playwright.config.ts`, `e2e/helpers.ts`,
+  `e2e/golden-path.spec.ts` (الرحلة الكاملة تسجيل→...→تقارير→ذمم→خروج/
+  دخول)، `e2e/tenant-isolation.spec.ts` (عزل منشأتين عبر الواجهة
+  الحقيقية) — تستبدل السكربتات المؤقتة (scratchpad) اليدوية غير
+  المُلتزَمة من المراحل السابقة. سكربت `test:e2e` جديد. **نُفِّذت فعليًا
+  ضد الحزمة الحقيقية ونجحت (2/2)**.
+- توثيق جديد: `docs/DEPLOYMENT.md`, `docs/DEMO.md`؛ توثيق مُحدَّث:
+  `SECURITY.md`, `API.md`, `TESTING.md`, `PROJECT_STATUS.md`,
+  `MODULES.md`, `DATABASE.md`, `DOMAIN_MODEL.md` (ملاحظة "لا تغييرات"
+  في الأخيرين)، `backend/README.md`, `frontend/README.md`.
+
+### قرارات معمارية مسجَّلة
+- **`refresh_tokens` يبقى الاستثناء الوحيد من RLS**: راجَعنا صراحة إضافة
+  RLS له في هذا الـMilestone وقررنا الإبقاء على الاستثناء الموثَّق —
+  سبب معماري حقيقي (تناقض دائري "auth bootstrap" لـ`POST /auth/refresh`)
+  وليس تكاسلًا. التفصيل الكامل في `docs/SECURITY.md`.
+- **`node:20-slim` لا alpine** في كل Dockerfile عمدًا — argon2 (native
+  module) وPrisma query engine أوثق على glibc.
+- **Migrations لا تُشغَّل تلقائيًا عند بدء الحاوية** في أي مكان (Dockerfile
+  ولا docker-compose) — خطوة منفصلة صريحة دائمًا، تمامًا كما في التطوير
+  المحلي.
+- **حد أقصى (1000 سطر) لا Pagination كاملة** لدفتر الأستاذ/كشوف
+  الحسابات — تُقرَأ كعرض مستمر واحد، تضييق مدى التاريخ هو الطريقة
+  المقصودة لرؤية أكثر، تمامًا كأي برنامج محاسبي حقيقي.
+- **`403` لا يزال بلا واجهة مخصصة منفصلة** عن أي خطأ آخر — حد معروف
+  موثَّق، وليس اكتمالًا مزعومًا.
+
+### القيود المعروفة (موثَّقة صراحة، وليست ثغرات مسكوت عنها)
+- **Docker لم يُبنَ فعليًا في هذه الجلسة**: بيئة التطوير هذه لا تملك
+  daemon Docker يعمل (`dockerd` يفشل بـ"Operation not permitted") — كل
+  Dockerfile وملف compose كُتبا بعناية باتّباع أنماط معروفة، لكن `docker
+  build`/`docker compose up` لم يُنفَّذا أو يُتحقَّق منهما فعليًا.
+- **CI لم يُشغَّل فعليًا على GitHub Actions runner حقيقي** — تحقُّق من
+  صحة YAML النحوية فقط.
+- **لا نشر Demo/Staging فعلي موجود** — لا حساب استضافة/اعتمادات كانت
+  متاحة؛ كل ما هو موجود هو التهيئة الجاهزة (Dockerfiles، compose، CI)،
+  وليس نشرًا فعليًا. راجع `docs/DEPLOYMENT.md` "القيود المعروفة".
+
+### Tests
+**112/112** (بلا تراجع — نفس عدد نهاية Milestone 1، لا منطق أعمال جديد؛
+اختبار واحد فقط عُدِّل ليقرأ `res.body.data` بعد ترقيم `iam.listUsers`)
++ **7/7** Vitest جديدة + Playwright **2/2** (golden-path +
+tenant-isolation) — كلها مُتحقَّقة فعليًا بالتشغيل، لا أرقام منسوخة.
+
 ## [Milestone 1: Accounting Completion] - 2026-08-15
 
 طبقة قراءة/إدارة كاملة فوق أساس المرحلة 4 المحاسبي — 4 تقارير مالية

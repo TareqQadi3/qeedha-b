@@ -17,6 +17,11 @@
   لتحديد نطاق الوصول (تُستخدم فقط لتحديد كيان مستهدف ضمن نطاق المستخدم نفسه).
   حتى Endpoints تبديل المنشأة التي تستقبل `companyId` بالطلب تتحقق من
   Membership فعلية قبل أي تصرف — راجع `SECURITY.md` وDOMAIN_MODEL.md`.
+- **CORS (Milestone 2)**: الـAPI لا يقبل طلبات متصفح من أي origin —
+  `CORS_ALLOWED_ORIGINS` (متغيّر بيئة، قائمة origins مفصولة بفواصل) إلزامي
+  في production (رفض إقلاع صريح بدونه)، واختياري في development/test
+  (افتراضي: منافذ Vite المحلية). راجع `docs/SECURITY.md` "CORS" و
+  `backend/.env.example`.
 
 ## Endpoints المرحلة الأولى
 
@@ -43,7 +48,7 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 |---|---|---|---|
 | GET | `/roles` | قائمة الأدوار المتاحة للمنشأة | `iam.roles.view` |
 | GET | `/permissions` | قائمة الصلاحيات المتاحة في النظام | `iam.roles.view` |
-| GET | `/users` | أعضاء المنشأة (Memberships) وأدوارهم ضمنها | `iam.users.view` |
+| GET | `/users` | أعضاء المنشأة (Memberships) وأدوارهم ضمنها — مُرقَّم (`?page&pageSize`)، صيغة `{data, meta}` القياسية أعلاه منذ Milestone 2 (كانت مصفوفة مسطّحة غير محدودة قبلها) | `iam.users.view` |
 | POST | `/users` | إضافة عضوية جديدة — تُنشئ مستخدمًا جديدًا، أو تُرفق مستخدمًا موجودًا بالفعل (بدون لمس كلمة مروره) إن تطابق البريد/الجوال | `iam.users.manage` |
 | POST | `/users/:id/roles` | إسناد دور لمستخدم ضمن هذه المنشأة (مع نطاق فرع اختياري) | `iam.users.manage` |
 | DELETE | `/users/:id/roles/:membershipRoleId` | إلغاء إسناد دور | `iam.users.manage` |
@@ -68,6 +73,16 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 | Method | Path | الوصف |
 |---|---|---|
 | GET | `/api/v1/health` | فحص حالة الخدمة وقاعدة البيانات |
+
+**Milestone 2**: عند النجاح (`200`) يُرجع
+`{ status: "ok", timestamp, checks: { app: "ok", database: "ok" } }`.
+عند فشل فحص قاعدة البيانات يُرجع **`503`** (لا `200`) عبر
+`ServiceUnavailableException`، بحيث أي فحص صحة على مستوى الحاوية/
+المنسّق (orchestrator) يعتمد فقط على HTTP status code يعمل بشكل صحيح —
+راجع `HttpExceptionFilter`: جسم الخطأ يتّبع صيغة `{error:{...}}`
+الموحّدة أعلاه، وأسماء الفحوص الفاشلة تُدمَج داخل `message` بدل حقل
+`checks` منفصل في حالة الفشل. لا يُسرَّب أي connection string أو تفصيل
+داخلي آخر.
 
 ## Endpoints المرحلة الثانية
 
@@ -191,7 +206,7 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 | Method | Path | الوصف | صلاحية |
 |---|---|---|---|
 | GET | `/accounting/reports/trial-balance` | ميزان المراجعة (`?dateFrom&dateTo`) — مجموع مدين/دائن لكل حساب + `isBalanced` | `accounting.reports.view` |
-| GET | `/accounting/reports/general-ledger` | دفتر الأستاذ لحساب واحد (`?accountId&dateFrom&dateTo`) — رصيد افتتاحي محسوب + رصيد جارٍ لكل سطر | `accounting.reports.view` |
+| GET | `/accounting/reports/general-ledger` | دفتر الأستاذ لحساب واحد (`?accountId&dateFrom&dateTo`) — رصيد افتتاحي محسوب + رصيد جارٍ لكل سطر، بحد أقصى 1000 سطر لكل طلب (Milestone 2 — راجع الملاحظة أدناه) | `accounting.reports.view` |
 | GET | `/accounting/reports/profit-and-loss` | الأرباح والخسائر (`?dateFrom&dateTo`) — إيرادات/مصروفات + `netProfit` | `accounting.reports.view` |
 | GET | `/accounting/reports/balance-sheet` | الميزانية العمومية (`?asOfDate`) — أصول/خصوم/حقوق ملكية + بند "أرباح مرحّلة غير مقفلة" محسوب (`computed: true`) | `accounting.reports.view` |
 
@@ -199,9 +214,17 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 | Method | Path | الوصف | صلاحية |
 |---|---|---|---|
 | GET | `/accounting/ar/customers` | أرصدة ذمم كل العملاء — تُعيد قائمة فارغة اليوم دائمًا (لا بيع آجل في النظام، راجع `docs/ACCOUNTING.md`) | `accounting.ar.view` |
-| GET | `/accounting/ar/customers/:customerId` | كشف حساب عميل مفصَّل | `accounting.ar.view` |
+| GET | `/accounting/ar/customers/:customerId` | كشف حساب عميل مفصَّل، بحد أقصى 1000 سطر (Milestone 2 — راجع الملاحظة أدناه) | `accounting.ar.view` |
 | GET | `/accounting/ap/suppliers` | أرصدة ذمم كل الموردين (مُعبَّأة فعليًا — لا خطوة "دفع لمورد" بعد فتتراكم فقط) | `accounting.ap.view` |
-| GET | `/accounting/ap/suppliers/:supplierId` | كشف حساب مورد مفصَّل | `accounting.ap.view` |
+| GET | `/accounting/ap/suppliers/:supplierId` | كشف حساب مورد مفصَّل، بحد أقصى 1000 سطر (Milestone 2 — راجع الملاحظة أدناه) | `accounting.ap.view` |
+
+**ملاحظة Milestone 2 (حد أقصى، وليس Pagination كامل)**: دفتر الأستاذ
+وكشوف الحسابات تُقرَأ كـ"عرض مستمر" واحد (مثل أي برنامج محاسبي حقيقي)،
+لا كقائمة تُقلَّب صفحة بصفحة — الحد الأقصى 1000 سطر
+(`MAX_LEDGER_LINES`/`MAX_STATEMENT_LINES` في `accounting-reports.service.ts`/
+`subledger.service.ts`) يحمي الاستعلام فقط؛ الطريقة المقصودة لرؤية أكثر
+من ذلك هي تضييق مدى التاريخ (`dateFrom`/`dateTo`)، لا صفحة تالية. لا
+تغيير على صيغة الاستجابة.
 
 ### الأرصدة الافتتاحية المحاسبية (`/api/v1/accounting/opening-balance`)
 | Method | Path | الوصف | صلاحية |

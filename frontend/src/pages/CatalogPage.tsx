@@ -24,8 +24,20 @@ function EntitySection({
   const [name, setName] = useState('');
   const [extra, setExtra] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
 
-  const load = () => api.get(endpoint).then(setItems);
+  const load = async () => {
+    setListLoading(true);
+    setListError(null);
+    try {
+      setItems(await api.get(endpoint));
+    } catch (err) {
+      setListError(err instanceof ApiError ? err.message : 'تعذّر تحميل القائمة');
+    } finally {
+      setListLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -49,15 +61,20 @@ function EntitySection({
     <Card>
       <h2 className="mb-3 font-bold text-slate-700">{title}</h2>
       <ErrorBanner message={error} />
-      <ul className="mb-3 max-h-48 space-y-1 overflow-y-auto text-sm">
-        {items.map((item) => (
-          <li key={item.id} className="rounded bg-slate-50 px-2 py-1">
-            {item.name}
-            {item.symbol ? ` (${item.symbol})` : ''}
-          </li>
-        ))}
-        {items.length === 0 && <li className="text-slate-400">لا يوجد عناصر بعد</li>}
-      </ul>
+      <ErrorBanner message={listError} />
+      {listLoading ? (
+        <div className="mb-3 text-sm text-slate-400">...جارٍ التحميل</div>
+      ) : (
+        <ul className="mb-3 max-h-48 space-y-1 overflow-y-auto text-sm">
+          {items.map((item) => (
+            <li key={item.id} className="rounded bg-slate-50 px-2 py-1">
+              {item.name}
+              {item.symbol ? ` (${item.symbol})` : ''}
+            </li>
+          ))}
+          {items.length === 0 && <li className="text-slate-400">لا يوجد عناصر بعد</li>}
+        </ul>
+      )}
       {canCreate && (
         <form onSubmit={onSubmit} className="flex gap-2">
           <Input placeholder="الاسم" value={name} onChange={(e) => setName(e.target.value)} required />

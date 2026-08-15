@@ -92,10 +92,14 @@ export function AccountingPage() {
   const [accountForm, setAccountForm] = useState(emptyAccountForm);
   const [accountFormError, setAccountFormError] = useState<string | null>(null);
   const [accountSubmitting, setAccountSubmitting] = useState(false);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
 
   const [entries, setEntries] = useState<JournalEntryRow[]>([]);
   const [entryMeta, setEntryMeta] = useState({ page: 1, pageSize: 20, total: 0 });
   const [selectedEntry, setSelectedEntry] = useState<JournalEntryRow | null>(null);
+  const [entriesLoading, setEntriesLoading] = useState(true);
+  const [entriesError, setEntriesError] = useState<string | null>(null);
 
   const [openingBalance, setOpeningBalance] = useState<OpeningBalanceEntry | null>(null);
   const [obLoading, setObLoading] = useState(false);
@@ -114,14 +118,29 @@ export function AccountingPage() {
   const [periodSubmitting, setPeriodSubmitting] = useState(false);
 
   const loadAccounts = async () => {
-    const res = await api.get('/accounting/accounts');
-    setAccounts(res);
+    setAccountsLoading(true);
+    setAccountsError(null);
+    try {
+      setAccounts(await api.get('/accounting/accounts'));
+    } catch (err) {
+      setAccountsError(err instanceof ApiError ? err.message : 'تعذّر تحميل دليل الحسابات');
+    } finally {
+      setAccountsLoading(false);
+    }
   };
 
   const loadEntries = async (page = entryMeta.page) => {
-    const res = await api.get('/accounting/journal-entries', { page, pageSize: entryMeta.pageSize });
-    setEntries(res.data);
-    setEntryMeta(res.meta);
+    setEntriesLoading(true);
+    setEntriesError(null);
+    try {
+      const res = await api.get('/accounting/journal-entries', { page, pageSize: entryMeta.pageSize });
+      setEntries(res.data);
+      setEntryMeta(res.meta);
+    } catch (err) {
+      setEntriesError(err instanceof ApiError ? err.message : 'تعذّر تحميل القيود المحاسبية');
+    } finally {
+      setEntriesLoading(false);
+    }
   };
 
   const loadOpeningBalance = async () => {
@@ -325,7 +344,11 @@ export function AccountingPage() {
               <Button onClick={openAccountModal}>+ حساب جديد</Button>
             </div>
           )}
+          <ErrorBanner message={accountsError} />
+          {accountsLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+          {!accountsLoading && (
           <Card>
+            <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
@@ -359,64 +382,74 @@ export function AccountingPage() {
                 )}
               </tbody>
             </table>
+            </div>
           </Card>
+          )}
         </div>
       )}
 
       {tab === 'journal' && (
-        <Card>
-          <table className="w-full text-right text-sm">
-            <thead>
-              <tr className="border-b text-slate-500">
-                <th className="py-2">التاريخ</th>
-                <th className="py-2">المصدر</th>
-                <th className="py-2">الوصف</th>
-                <th className="py-2">مدين</th>
-                <th className="py-2">دائن</th>
-                <th className="py-2">الحالة</th>
-                <th className="py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className="border-b last:border-0">
-                  <td className="py-2 text-slate-500">{new Date(entry.postedAt).toLocaleString('ar-SA')}</td>
-                  <td className="py-2 text-slate-500">{entry.referenceType}</td>
-                  <td className="py-2">{entry.description ?? '—'}</td>
-                  <td className="py-2">{lineTotal(entry.lines, 'debit')}</td>
-                  <td className="py-2">{lineTotal(entry.lines, 'credit')}</td>
-                  <td className="py-2">
-                    <span className={entry.status === 'posted' ? 'text-emerald-600' : 'text-slate-400'}>
-                      {entry.status === 'posted' ? 'مُرحَّل' : 'مُعكوس'}
-                    </span>
-                  </td>
-                  <td className="py-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedEntry(entry)}
-                      className="text-xs text-brand-600 hover:underline"
-                    >
-                      عرض التفاصيل
-                    </button>
-                  </td>
+        <div>
+          <ErrorBanner message={entriesError} />
+          {entriesLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+          {!entriesLoading && (
+          <Card>
+            <div className="overflow-x-auto">
+            <table className="w-full text-right text-sm">
+              <thead>
+                <tr className="border-b text-slate-500">
+                  <th className="py-2">التاريخ</th>
+                  <th className="py-2">المصدر</th>
+                  <th className="py-2">الوصف</th>
+                  <th className="py-2">مدين</th>
+                  <th className="py-2">دائن</th>
+                  <th className="py-2">الحالة</th>
+                  <th className="py-2"></th>
                 </tr>
-              ))}
-              {entries.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-6 text-center text-slate-400">
-                    لا توجد قيود محاسبية بعد
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          <Pagination
-            page={entryMeta.page}
-            pageSize={entryMeta.pageSize}
-            total={entryMeta.total}
-            onChange={loadEntries}
-          />
-        </Card>
+              </thead>
+              <tbody>
+                {entries.map((entry) => (
+                  <tr key={entry.id} className="border-b last:border-0">
+                    <td className="py-2 text-slate-500">{new Date(entry.postedAt).toLocaleString('ar-SA')}</td>
+                    <td className="py-2 text-slate-500">{entry.referenceType}</td>
+                    <td className="py-2">{entry.description ?? '—'}</td>
+                    <td className="py-2">{lineTotal(entry.lines, 'debit')}</td>
+                    <td className="py-2">{lineTotal(entry.lines, 'credit')}</td>
+                    <td className="py-2">
+                      <span className={entry.status === 'posted' ? 'text-emerald-600' : 'text-slate-400'}>
+                        {entry.status === 'posted' ? 'مُرحَّل' : 'مُعكوس'}
+                      </span>
+                    </td>
+                    <td className="py-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEntry(entry)}
+                        className="text-xs text-brand-600 hover:underline"
+                      >
+                        عرض التفاصيل
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {entries.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-6 text-center text-slate-400">
+                      لا توجد قيود محاسبية بعد
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            </div>
+            <Pagination
+              page={entryMeta.page}
+              pageSize={entryMeta.pageSize}
+              total={entryMeta.total}
+              onChange={loadEntries}
+            />
+          </Card>
+          )}
+        </div>
       )}
 
       {tab === 'opening-balance' && (
@@ -447,6 +480,7 @@ export function AccountingPage() {
                   </Button>
                 )}
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full text-right text-sm">
                 <thead>
                   <tr className="border-b text-slate-500">
@@ -467,6 +501,7 @@ export function AccountingPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </Card>
           )}
         </div>
@@ -483,6 +518,7 @@ export function AccountingPage() {
           {periodsLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
           {!periodsLoading && (
             <Card>
+              <div className="overflow-x-auto">
               <table className="w-full text-right text-sm">
                 <thead>
                   <tr className="border-b text-slate-500">
@@ -526,6 +562,7 @@ export function AccountingPage() {
                   )}
                 </tbody>
               </table>
+              </div>
             </Card>
           )}
         </div>
@@ -574,6 +611,7 @@ export function AccountingPage() {
         {selectedEntry && (
           <div className="space-y-3">
             <div className="text-sm text-slate-500">{selectedEntry.description}</div>
+            <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
@@ -601,6 +639,7 @@ export function AccountingPage() {
                 </tr>
               </tfoot>
             </table>
+            </div>
           </div>
         )}
       </Modal>

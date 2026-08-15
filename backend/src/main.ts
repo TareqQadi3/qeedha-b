@@ -3,10 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { assertCorsConfiguredForProduction, buildCorsOptions } from './config/cors.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
+
+  assertCorsConfiguredForProduction(config);
 
   app.use(helmet());
   app.setGlobalPrefix('api/v1');
@@ -17,7 +20,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  app.enableCors();
+  app.enableCors(buildCorsOptions(config));
 
   const port = config.get<number>('PORT') ?? 3000;
   await app.listen(port);

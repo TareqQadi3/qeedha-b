@@ -34,6 +34,8 @@ export function InventoryPage() {
   const [form, setForm] = useState({ productId: '', quantity: '', reason: '' });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const loadLevels = async (wh: string) => {
     const res = await api.get('/inventory/stock-levels', { warehouseId: wh || undefined, pageSize: 100 });
@@ -42,20 +44,33 @@ export function InventoryPage() {
 
   useEffect(() => {
     (async () => {
-      const wh = await api.get('/tenancy/warehouses');
-      setWarehouses(wh);
-      const defaultId = wh[0]?.id ?? '';
-      setWarehouseId(defaultId);
-      await loadLevels(defaultId);
-      const prod = await api.get('/products', { pageSize: 100 });
-      setProducts(prod.data);
+      setPageLoading(true);
+      setPageError(null);
+      try {
+        const wh = await api.get('/tenancy/warehouses');
+        setWarehouses(wh);
+        const defaultId = wh[0]?.id ?? '';
+        setWarehouseId(defaultId);
+        await loadLevels(defaultId);
+        const prod = await api.get('/products', { pageSize: 100 });
+        setProducts(prod.data);
+      } catch (err) {
+        setPageError(err instanceof ApiError ? err.message : 'تعذّر تحميل المخزون');
+      } finally {
+        setPageLoading(false);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onWarehouseChange = async (id: string) => {
     setWarehouseId(id);
-    await loadLevels(id);
+    setPageError(null);
+    try {
+      await loadLevels(id);
+    } catch (err) {
+      setPageError(err instanceof ApiError ? err.message : 'تعذّر تحميل أرصدة هذا المستودع');
+    }
   };
 
   const openModal = (mode: 'adjust' | 'opening') => {
@@ -120,43 +135,49 @@ export function InventoryPage() {
         </Field>
       </div>
 
-      <Card>
-        <table className="w-full text-right text-sm">
-          <thead>
-            <tr className="border-b text-slate-500">
-              <th className="py-2">SKU</th>
-              <th className="py-2">المنتج</th>
-              <th className="py-2">الرصيد الحالي</th>
-              <th className="py-2">المتاح</th>
-              <th className="py-2">الحالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b last:border-0">
-                <td className="py-2 font-mono text-xs">{r.productSku}</td>
-                <td className="py-2">{r.productName}</td>
-                <td className="py-2">{r.quantityOnHand}</td>
-                <td className="py-2">{r.availableQuantity}</td>
-                <td className="py-2">
-                  {r.isLowStock ? (
-                    <span className="text-amber-600">منخفض</span>
-                  ) : (
-                    <span className="text-emerald-600">جيد</span>
-                  )}
-                </td>
+      <ErrorBanner message={pageError} />
+      {pageLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {!pageLoading && (
+        <Card>
+          <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm">
+            <thead>
+              <tr className="border-b text-slate-500">
+                <th className="py-2">SKU</th>
+                <th className="py-2">المنتج</th>
+                <th className="py-2">الرصيد الحالي</th>
+                <th className="py-2">المتاح</th>
+                <th className="py-2">الحالة</th>
               </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-6 text-center text-slate-400">
-                  لا يوجد رصيد مسجَّل في هذا المستودع بعد
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </Card>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-b last:border-0">
+                  <td className="py-2 font-mono text-xs">{r.productSku}</td>
+                  <td className="py-2">{r.productName}</td>
+                  <td className="py-2">{r.quantityOnHand}</td>
+                  <td className="py-2">{r.availableQuantity}</td>
+                  <td className="py-2">
+                    {r.isLowStock ? (
+                      <span className="text-amber-600">منخفض</span>
+                    ) : (
+                      <span className="text-emerald-600">جيد</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-slate-400">
+                    لا يوجد رصيد مسجَّل في هذا المستودع بعد
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          </div>
+        </Card>
+      )}
 
       <Modal
         open={modalMode !== null}

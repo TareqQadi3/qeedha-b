@@ -61,6 +61,7 @@ function BalanceList({
       {loading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
       {!loading && (
         <Card>
+          <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead>
               <tr className="border-b text-slate-500">
@@ -94,6 +95,7 @@ function BalanceList({
               )}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
 
@@ -101,6 +103,7 @@ function BalanceList({
         {statementLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
         {statement && !statementLoading && (
           <div className="space-y-3">
+            <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
@@ -128,6 +131,7 @@ function BalanceList({
                 )}
               </tbody>
             </table>
+            </div>
             <div className="text-left font-bold">الرصيد: {money(statement.balance)}</div>
           </div>
         )}

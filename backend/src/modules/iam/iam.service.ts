@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { TenantClient } from '../../common/prisma/prisma.service';
+import { paginate, paginationSkip } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { QueryUsersDto } from './dto/query-users.dto';
 
 /** Never let passwordHash leave this module through an API response. User carries no company_id - see docs/DOMAIN_MODEL.md. */
 const SAFE_USER_SELECT = {
@@ -112,17 +114,26 @@ export class IamService {
   }
 
   /** Everyone with a Membership in this company, and their roles within it. */
-  async listUsers(tx: TenantClient, companyId: string) {
-    const memberships = await tx.membership.findMany({
-      where: { companyId },
-      include: {
-        user: { select: SAFE_USER_SELECT },
-        membershipRoles: { include: { role: true, branch: true } },
-      },
-      orderBy: { user: { fullName: 'asc' } },
-    });
+  async listUsers(tx: TenantClient, companyId: string, query: QueryUsersDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
 
-    return memberships.map((m) => ({
+    const where = { companyId };
+    const [memberships, total] = await Promise.all([
+      tx.membership.findMany({
+        where,
+        include: {
+          user: { select: SAFE_USER_SELECT },
+          membershipRoles: { include: { role: true, branch: true } },
+        },
+        orderBy: { user: { fullName: 'asc' } },
+        skip: paginationSkip(page, pageSize),
+        take: pageSize,
+      }),
+      tx.membership.count({ where }),
+    ]);
+
+    const data = memberships.map((m) => ({
       membershipId: m.id,
       membershipStatus: m.status,
       ...m.user,
@@ -132,6 +143,8 @@ export class IamService {
         branch: mr.branch?.name ?? null,
       })),
     }));
+
+    return paginate(data, total, page, pageSize);
   }
 
   /**

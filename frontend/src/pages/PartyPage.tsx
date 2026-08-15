@@ -37,11 +37,21 @@ export function PartyPage({
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
 
   const load = async (page = meta.page) => {
-    const res = await api.get(endpoint, { page, pageSize: meta.pageSize, search: search || undefined });
-    setData(res.data);
-    setMeta(res.meta);
+    setListLoading(true);
+    setListError(null);
+    try {
+      const res = await api.get(endpoint, { page, pageSize: meta.pageSize, search: search || undefined });
+      setData(res.data);
+      setMeta(res.meta);
+    } catch (err) {
+      setListError(err instanceof ApiError ? err.message : 'تعذّر التحميل');
+    } finally {
+      setListLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -92,42 +102,48 @@ export function PartyPage({
         <Button type="submit" variant="secondary">بحث</Button>
       </form>
 
-      <Card>
-        <table className="w-full text-right text-sm">
-          <thead>
-            <tr className="border-b text-slate-500">
-              <th className="py-2">الاسم</th>
-              <th className="py-2">الجوال</th>
-              <th className="py-2">البريد الإلكتروني</th>
-              <th className="py-2">المرجع</th>
-              <th className="py-2">الحالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((p) => (
-              <tr key={p.id} className="border-b last:border-0">
-                <td className="py-2">{p.name}</td>
-                <td className="py-2">{p.phone ?? '—'}</td>
-                <td className="py-2">{p.email ?? '—'}</td>
-                <td className="py-2">{p.reference ?? '—'}</td>
-                <td className="py-2">
-                  <span className={p.isActive ? 'text-emerald-600' : 'text-slate-400'}>
-                    {p.isActive ? 'نشط' : 'معطّل'}
-                  </span>
-                </td>
+      <ErrorBanner message={listError} />
+      {listLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {!listLoading && (
+        <Card>
+          <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm">
+            <thead>
+              <tr className="border-b text-slate-500">
+                <th className="py-2">الاسم</th>
+                <th className="py-2">الجوال</th>
+                <th className="py-2">البريد الإلكتروني</th>
+                <th className="py-2">المرجع</th>
+                <th className="py-2">الحالة</th>
               </tr>
-            ))}
-            {data.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-6 text-center text-slate-400">
-                  لا يوجد بيانات بعد
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        <Pagination page={meta.page} pageSize={meta.pageSize} total={meta.total} onChange={load} />
-      </Card>
+            </thead>
+            <tbody>
+              {data.map((p) => (
+                <tr key={p.id} className="border-b last:border-0">
+                  <td className="py-2">{p.name}</td>
+                  <td className="py-2">{p.phone ?? '—'}</td>
+                  <td className="py-2">{p.email ?? '—'}</td>
+                  <td className="py-2">{p.reference ?? '—'}</td>
+                  <td className="py-2">
+                    <span className={p.isActive ? 'text-emerald-600' : 'text-slate-400'}>
+                      {p.isActive ? 'نشط' : 'معطّل'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {data.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-slate-400">
+                    لا يوجد بيانات بعد
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          </div>
+          <Pagination page={meta.page} pageSize={meta.pageSize} total={meta.total} onChange={load} />
+        </Card>
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={addButtonLabel}>
         <form onSubmit={onCreate} className="space-y-3">

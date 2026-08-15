@@ -83,6 +83,7 @@ function TrialBalanceTab() {
       {loading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
       {!loading && data && (
         <Card>
+          <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead>
               <tr className="border-b text-slate-500">
@@ -124,6 +125,7 @@ function TrialBalanceTab() {
               </tr>
             </tfoot>
           </table>
+          </div>
         </Card>
       )}
     </div>
@@ -140,10 +142,13 @@ function GeneralLedgerTab() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get('/accounting/accounts').then((res) => {
-      setAccounts(res);
-      if (res.length > 0) setAccountId(res[0].id);
-    });
+    api
+      .get('/accounting/accounts')
+      .then((res) => {
+        setAccounts(res);
+        if (res.length > 0) setAccountId(res[0].id);
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'تعذّر تحميل دليل الحسابات'));
   }, []);
 
   const load = async (id = accountId) => {
@@ -199,6 +204,7 @@ function GeneralLedgerTab() {
             <span>الرصيد الافتتاحي: {money(data.openingBalance)}</span>
             <span>الرصيد الختامي: {money(data.closingBalance)}</span>
           </div>
+          <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead>
               <tr className="border-b text-slate-500">
@@ -230,6 +236,7 @@ function GeneralLedgerTab() {
               )}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
     </div>
@@ -273,6 +280,7 @@ function ProfitAndLossTab() {
         <div className="space-y-4">
           <Card>
             <h3 className="mb-2 font-bold text-slate-700">الإيرادات</h3>
+            <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
               <tbody>
                 {data.revenue.map((r: any) => (
@@ -294,9 +302,11 @@ function ProfitAndLossTab() {
                 </tr>
               </tfoot>
             </table>
+            </div>
           </Card>
           <Card>
             <h3 className="mb-2 font-bold text-slate-700">المصروفات</h3>
+            <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
               <tbody>
                 {data.expenses.map((r: any) => (
@@ -318,6 +328,7 @@ function ProfitAndLossTab() {
                 </tr>
               </tfoot>
             </table>
+            </div>
           </Card>
           <Card className="bg-brand-50">
             <div className="flex justify-between text-base font-bold">
@@ -358,6 +369,7 @@ function BalanceSheetTab() {
   const section = (title: string, rows: any[]) => (
     <Card>
       <h3 className="mb-2 font-bold text-slate-700">{title}</h3>
+      <div className="overflow-x-auto">
       <table className="w-full text-right text-sm">
         <tbody>
           {rows.map((r: any, i: number) => (
@@ -376,6 +388,7 @@ function BalanceSheetTab() {
           )}
         </tbody>
       </table>
+      </div>
     </Card>
   );
 

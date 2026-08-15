@@ -12,6 +12,8 @@ export function setSession(accessToken: string, refreshToken: string) {
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
 }
 
+export const SESSION_EXPIRED_EVENT = 'qeedha:session-expired';
+
 export function clearSession() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -81,7 +83,13 @@ async function request(path: string, options: RequestOptions = {}) {
           return await rawRequest(path, options);
         } catch {
           clearSession();
+          window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
         }
+      } else {
+        // No refresh token at all (already logged out, or never logged in)
+        // - still worth clearing state and notifying so any stale UI resets.
+        clearSession();
+        window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
       }
     }
     throw err;
