@@ -61,10 +61,13 @@ export class IamController {
   }
 
   @RequirePermissions(PERMISSION_KEYS.IAM_USERS_MANAGE)
-  @Delete('users/:id/roles/:userRoleId')
-  revokeRole(@CurrentUser() user: AuthenticatedUser, @Param('userRoleId') userRoleId: string) {
+  @Delete('users/:id/roles/:membershipRoleId')
+  revokeRole(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('membershipRoleId') membershipRoleId: string,
+  ) {
     return this.prisma.withTenant(user.companyId, (tx) =>
-      this.iamService.revokeRole(tx, user.companyId, user.userId, userRoleId),
+      this.iamService.revokeRole(tx, user.companyId, user.userId, membershipRoleId),
     );
   }
 }

@@ -31,7 +31,9 @@ deleted_at    TIMESTAMPTZ                                -- soft delete
 
 ---
 
-## 1. Tenancy & Identity (المرحلة 1 — منفّذ)
+## 1. Tenancy & Identity (المرحلة 1 — منفّذ، مُحدَّث بعد Auth/IAM refactor)
+
+**النموذج الكامل والمنطق موثّق في `DOMAIN_MODEL.md`.** الجداول:
 
 ```text
 companies            الشركة/المنشأة (tenant الجذر)
@@ -46,8 +48,13 @@ warehouses            مستودع تابع لفرع (قد يكون أكثر م�
 pos_devices            جهاز نقطة بيع مسجَّل
   - company_id, branch_id, name, device_code, status
 
-users                 مستخدم (على مستوى المنشأة، وليس الفرع)
-  - company_id, full_name, email, mobile, password_hash, status, locale
+users                 هوية عالمية - لا تحمل company_id ولا تخضع لـRLS إطلاقًا
+  - full_name, email (فريد عالميًا), mobile (فريد عالميًا), password_hash,
+    status, locale
+
+memberships            العلاقة الوحيدة بين مستخدم ومنشأة (tenant-scoped، RLS)
+  - company_id, user_id, status (active/suspended)
+  - قيد فريد (company_id, user_id): عضوية واحدة لكل شخص في كل منشأة
 
 roles                 دور (Owner/Manager/Cashier/Accountant/Inventory Manager + مخصّص)
   - company_id NULL للأدوار النظامية العامة، أو مخصّص لمنشأة معيّنة
@@ -59,16 +66,24 @@ permissions            صلاحية دقيقة (sales.void, inventory.adjust ...
 role_permissions        ربط دور بصلاحياته
   - role_id, permission_id
 
-user_roles             ربط مستخدم بدور ضمن نطاق (فرع أو المنشأة كاملة)
-  - user_id, role_id, company_id, branch_id NULL = نطاق المنشأة كاملة
+membership_roles       ربط Membership (وليس User) بدور ضمن نطاق
+  - company_id (مُكرَّر لتبسيط RLS), membership_id, role_id,
+    branch_id NULL = نطاق المنشأة كاملة
 
 refresh_tokens          رموز التحديث (JWT refresh) — مع تدوير وإبطال
-  - user_id, token_hash, expires_at, revoked_at, replaced_by_token_id
+  - user_id, membership_id, company_id (الجلسة مرتبطة بـtenant مُختار مسبقًا)،
+    token_hash, expires_at, revoked_at, replaced_by_token_id
 
 audit_logs              سجل العمليات الحساسة
   - company_id, actor_user_id, action, entity_type, entity_id,
     before_state JSONB, after_state JSONB, reason, branch_id, created_at
 ```
+
+**تغييرات جوهرية عن التصميم الأول** (كانت `users.company_id` NOT NULL و
+`user_roles` مرتبط بالمستخدم مباشرة) — استُبدلت بالكامل بنموذج Membership
+عبر Migration بيانات آمن (`20260815120000_membership_identity_model`، راجع
+`docs/DOMAIN_MODEL.md` والملف نفسه للتفاصيل). لا تعتمد على `UserRole` أو
+`users.company_id` في أي كود جديد — هذان الاسمان لم يعودا موجودين.
 
 ## 2. Catalog & Inventory (المرحلة 2)
 
@@ -189,8 +204,8 @@ webhook_events               صندوق وارد عام لأي Webhook خارج�
 
 الجداول المنفَّذة في `backend/prisma/schema.prisma` في هذا التسليم:
 
-`companies, branches, warehouses, pos_devices, users, roles, permissions,
-role_permissions, user_roles, refresh_tokens, audit_logs,
+`companies, branches, warehouses, pos_devices, users, memberships, roles,
+permissions, role_permissions, membership_roles, refresh_tokens, audit_logs,
 integration_providers, integration_connections, webhook_events`
 
 `integration_transactions` مؤجَّل حتى وجود Use-Case فعلي يستهلكه (مرحلة POS/

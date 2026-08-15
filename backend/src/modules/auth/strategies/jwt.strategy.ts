@@ -7,6 +7,7 @@ import { AuthenticatedUser } from '../../../common/decorators/current-user.decor
 export interface AccessTokenPayload {
   sub: string; // userId
   companyId: string;
+  membershipId: string;
 }
 
 @Injectable()
@@ -20,6 +21,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(payload: AccessTokenPayload): AuthenticatedUser {
-    return { userId: payload.sub, companyId: payload.companyId };
+    return {
+      userId: payload.sub,
+      companyId: payload.companyId,
+      membershipId: payload.membershipId,
+    };
   }
 }

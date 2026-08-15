@@ -15,27 +15,38 @@
   اعتماد ضمني على اسم المسار.
 - `company_id`/`branch_id` تُشتق من الـJWT وسياق الطلب، لا تُقبل من Body/Query
   لتحديد نطاق الوصول (تُستخدم فقط لتحديد كيان مستهدف ضمن نطاق المستخدم نفسه).
+  حتى Endpoints تبديل المنشأة التي تستقبل `companyId` بالطلب تتحقق من
+  Membership فعلية قبل أي تصرف — راجع `SECURITY.md` وDOMAIN_MODEL.md`.
 
 ## Endpoints المرحلة الأولى
 
 ### Auth (`/api/v1/auth`)
 | Method | Path | الوصف | صلاحية |
 |---|---|---|---|
-| POST | `/register-company` | تسجيل منشأة جديدة + مستخدم Owner أول | عام (Rate-limited) |
-| POST | `/login` | تسجيل دخول (email/mobile + password) | عام (Rate-limited) |
-| POST | `/refresh` | تجديد access token عبر refresh token | يتطلب refresh token صالح |
+| POST | `/register-company` | تسجيل منشأة جديدة + مستخدم Owner أول + Membership | عام (Rate-limited) |
+| POST | `/login` | تسجيل دخول (email/mobile + password) — انظر ملاحظة أدناه | عام (Rate-limited) |
+| POST | `/select-tenant` | إتمام الدخول لمستخدم بعدة عضويات (tenantSelectionToken + companyId) | عام، يتطلب tenantSelectionToken صالح |
+| POST | `/refresh` | تجديد access token عبر refresh token (لنفس الـtenant) | يتطلب refresh token صالح |
 | POST | `/logout` | إبطال refresh token الحالي | يتطلب مصادقة |
-| GET | `/me` | بيانات المستخدم الحالي + صلاحياته الفعلية | يتطلب مصادقة |
+| GET | `/me` | بيانات المستخدم الحالي + الـMembership الفعّالة + صلاحياتها | يتطلب مصادقة |
+| GET | `/tenants` | المنشآت التي يملك المستخدم عضوية نشطة فيها (أساس Tenant Switcher) | يتطلب مصادقة |
+| POST | `/switch-tenant` | تبديل الجلسة الحالية إلى منشأة أخرى يملك المستخدم عضوية فيها | يتطلب مصادقة |
+
+**ملاحظة على `/login`**: الاستجابة تختلف حسب عدد عضويات المستخدم النشطة —
+عضوية واحدة تُعيد `{ accessToken, refreshToken, activeTenant, user }` مباشرة؛
+عضويتان فأكثر تُعيد `{ tenantSelectionRequired: true, tenantSelectionToken,
+availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/select-tenant`.
+التفاصيل الكاملة في `DOMAIN_MODEL.md` قسم "تسجيل الدخول واختيار المنشأة".
 
 ### IAM (`/api/v1/iam`)
 | Method | Path | الوصف | صلاحية |
 |---|---|---|---|
 | GET | `/roles` | قائمة الأدوار المتاحة للمنشأة | `iam.roles.view` |
 | GET | `/permissions` | قائمة الصلاحيات المتاحة في النظام | `iam.roles.view` |
-| GET | `/users` | مستخدمو المنشأة | `iam.users.view` |
-| POST | `/users` | إضافة مستخدم | `iam.users.manage` |
-| POST | `/users/:id/roles` | إسناد دور لمستخدم (مع نطاق فرع اختياري) | `iam.users.manage` |
-| DELETE | `/users/:id/roles/:userRoleId` | إلغاء إسناد دور | `iam.users.manage` |
+| GET | `/users` | أعضاء المنشأة (Memberships) وأدوارهم ضمنها | `iam.users.view` |
+| POST | `/users` | إضافة عضوية جديدة — تُنشئ مستخدمًا جديدًا، أو تُرفق مستخدمًا موجودًا بالفعل (بدون لمس كلمة مروره) إن تطابق البريد/الجوال | `iam.users.manage` |
+| POST | `/users/:id/roles` | إسناد دور لمستخدم ضمن هذه المنشأة (مع نطاق فرع اختياري) | `iam.users.manage` |
+| DELETE | `/users/:id/roles/:membershipRoleId` | إلغاء إسناد دور | `iam.users.manage` |
 
 ### Tenancy (`/api/v1/tenancy`)
 | Method | Path | الوصف | صلاحية |

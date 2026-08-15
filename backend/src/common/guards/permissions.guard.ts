@@ -29,7 +29,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const granted = await this.prisma.withTenant(user.companyId, (tx) =>
-      this.iamService.getEffectivePermissionKeys(tx, user.userId, user.companyId),
+      this.iamService.getEffectivePermissionKeys(tx, user.membershipId),
     );
 
     const missing = required.filter((key) => !granted.has(key));

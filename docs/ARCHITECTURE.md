@@ -49,8 +49,8 @@
   /src
     /common            # Guards, Decorators, Filters, Tenant Context, Interceptors
     /modules
-      /auth             # تسجيل الدخول، refresh، تسجيل منشأة جديدة
-      /iam              # Users, Roles, Permissions, UserRoles (RBAC)
+      /auth             # تسجيل الدخول، اختيار/تبديل المنشأة، refresh، تسجيل منشأة جديدة
+      /iam              # Users, Memberships, Roles, Permissions, MembershipRoles (RBAC)
       /tenancy          # Company, Branch, Warehouse, PosDevice
       /audit            # Audit Log service + interceptor
       /integrations     # Integration Layer الأساسية (ports, registry, connections)
@@ -80,20 +80,26 @@
 - هذا القرار قابل لإعادة النظر لاحقًا فقط إذا احتاج عميل معيّن عزلًا تعاقديًا
   صارمًا (عندها Schema-per-tenant لذلك العميل تحديدًا)، وليس افتراضيًا للجميع.
 
-## 5. الهيكل التنظيمي (Company → Branch → Warehouse → POS Device → Employee)
+## 5. نموذج الهوية والهيكل التنظيمي
+
+**تحديث معماري مهم**: النموذج الموصوف هنا استُبدل بنموذج Membership كامل بعد
+مراجعة SaaS-first — راجع `DOMAIN_MODEL.md` للتفاصيل الكاملة (User لا يحمل
+`company_id`، العلاقة الوحيدة بينه وبين منشأة هي `Membership`، والمستخدم
+الواحد قد يملك عدة عضويات في عدة منشآت بأدوار مختلفة تمامًا في كل منها).
 
 ```text
-Company (Tenant)
- ├── Branch
- │     ├── Warehouse (قد يكون أكثر من مستودع لكل فرع)
- │     ├── PosDevice
- │     └── Employees (عبر UserRole مرتبط بالفرع)
- └── Users (على مستوى المنشأة، بأدوار قد تكون عامة أو مقيّدة بفرع)
+User (هوية عالمية - لا يملك company_id)
+ └── Membership → Company (Tenant)
+        ├── Branch
+        │     ├── Warehouse (قد يكون أكثر من مستودع لكل فرع)
+        │     └── PosDevice
+        └── MembershipRole (دور هذا المستخدم في هذه المنشأة تحديدًا،
+                             مع نطاق فرع اختياري)
 ```
 
 ## 6. RBAC
 
-ثلاث طبقات منفصلة (لا نَدمجها):
+ثلاث طبقات منفصلة (لا نَدمجها)، **مُسنَدة إلى Membership وليس إلى User مباشرة**:
 
 1. **Role** — حزمة صلاحيات مسمّاة (Owner, Manager, Cashier, Accountant,
    Inventory Manager + أدوار مخصّصة لاحقًا).
@@ -102,13 +108,17 @@ Company (Tenant)
    جدول، وليست Enum ثابتة، حتى يمكن إضافة صلاحيات جديدة دون Migration لتغيير
    الأدوار الحالية.
 3. **Scope** — الفرع أو المنشأة التي يسري عليها الدور
-   (`UserRole.branch_id = NULL` يعني صلاحية على مستوى المنشأة كاملة).
+   (`MembershipRole.branch_id = NULL` يعني صلاحية على مستوى المنشأة كاملة).
 
 يُفرض RBAC على مستويين:
 - **Guard Layer**: `@RequirePermissions('sales.void')` يرفض الطلب قبل الوصول
-  لقاعدة البيانات.
+  لقاعدة البيانات، عبر استعلام `MembershipRole` بـ`membershipId` من الـJWT
+  context مباشرة (انظر `DOMAIN_MODEL.md` "Current Tenant Context").
 - **Query Layer**: كل Repository/Service يستقبل نطاق المستخدم (tenant + scope)
   كمعامل إلزامي وليس اختياريًا.
+- **MembershipGuard**: طبقة إضافية تعمل على كل طلب مُصادَق عليه (حتى بدون
+  `@RequirePermissions`)، تتحقق أن الـMembership نفسها ما زالت `active` —
+  تمنع استمرار وصول عضوية عُطِّلت أثناء صلاحية access token قصير الأجل.
 
 ## 7. Audit Log
 

@@ -34,9 +34,9 @@ model Company {
   deletedAt       DateTime?     @map("deleted_at")
 
   branches               Branch[]
-  users                  User[]
+  memberships            Membership[]
   roles                  Role[]
-  userRoles              UserRole[]
+  membershipRoles        MembershipRole[]
   auditLogs              AuditLog[]
   integrationConnections IntegrationConnection[]
 
@@ -54,10 +54,10 @@ model Branch {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company     Company      @relation(fields: [companyId], references: [id])
-  warehouses  Warehouse[]
-  posDevices  PosDevice[]
-  userRoles   UserRole[]
+  company         Company          @relation(fields: [companyId], references: [id])
+  warehouses      Warehouse[]
+  posDevices      PosDevice[]
+  membershipRoles MembershipRole[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -106,8 +106,21 @@ model PosDevice {
 }
 
 // ---------------------------------------------------------------------------
-// IAM / RBAC
+// Identity / Multi-tenant membership / RBAC
 // ---------------------------------------------------------------------------
+//
+// Deliberately separated per docs/DOMAIN_MODEL.md:
+//   User        -> global identity, NOT owned by any company. No company_id,
+//                  no RLS - a person's account is not tenant data.
+//   Membership  -> the ONLY relationship between a User and a Company. One
+//                  user can hold many memberships (one per company). This is
+//                  the thing that is tenant-scoped and RLS-protected.
+//   MembershipRole -> a role assignment, scoped to a Membership (i.e. to a
+//                  specific user-in-a-specific-company), never to the user
+//                  globally. The same person can be Manager in Company A and
+//                  Accountant in Company B via two separate Memberships.
+// The access token's "current tenant context" is a membershipId, not just a
+// companyId - see AuthService and docs/ARCHITECTURE.md "Identity model".
 
 enum UserStatus {
   active
@@ -116,7 +129,6 @@ enum UserStatus {
 
 model User {
   id           String     @id @default(uuid()) @db.Uuid
-  companyId    String     @map("company_id") @db.Uuid
   fullName     String     @map("full_name")
   email        String?
   mobile       String?
@@ -127,40 +139,61 @@ model User {
   updatedAt    DateTime   @updatedAt @map("updated_at")
   deletedAt    DateTime?  @map("deleted_at")
 
-  company       Company        @relation(fields: [companyId], references: [id])
-  userRoles     UserRole[]
+  memberships   Membership[]
   refreshTokens RefreshToken[]
 
-  // email/mobile are globally unique (not scoped by companyId) on purpose:
-  // login must resolve identity *before* a tenant context exists, via a
-  // separate narrowly-scoped DB role that bypasses RLS for this one lookup
-  // (see AuthLookupService + docs/SECURITY.md "Auth bootstrap"). A user
-  // belongs to exactly one company in Phase 1 - no multi-company membership.
+  // Globally unique on purpose: one person, one login identity, usable
+  // across every company they hold a Membership in. Login resolves the
+  // user first (no RLS involved - this table isn't tenant data), then
+  // resolves their memberships to determine/select the tenant context.
   @@unique([email])
   @@unique([mobile])
-  @@index([companyId, deletedAt])
+  @@index([deletedAt])
   @@map("users")
 }
 
+enum MembershipStatus {
+  active
+  suspended
+}
+
+model Membership {
+  id        String           @id @default(uuid()) @db.Uuid
+  companyId String           @map("company_id") @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  status    MembershipStatus @default(active)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  company         Company          @relation(fields: [companyId], references: [id])
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membershipRoles MembershipRole[]
+  refreshTokens   RefreshToken[]
+
+  @@unique([companyId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
 model Role {
-  id        String    @id @default(uuid()) @db.Uuid
-  companyId String?   @map("company_id") @db.Uuid // NULL = دور نظامي عام لكل المنشآت
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String?  @map("company_id") @db.Uuid // NULL = دور نظامي عام لكل المنشآت
   name      String
-  isSystem  Boolean   @default(false) @map("is_system")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  isSystem  Boolean  @default(false) @map("is_system")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   company         Company?         @relation(fields: [companyId], references: [id])
   rolePermissions RolePermission[]
-  userRoles       UserRole[]
+  membershipRoles MembershipRole[]
 
   @@unique([companyId, name])
   @@map("roles")
 }
 
 model Permission {
-  id          String   @id @default(uuid()) @db.Uuid
-  key         String   @unique
+  id          String @id @default(uuid()) @db.Uuid
+  key         String @unique
   category    String
   description String
 
@@ -181,22 +214,25 @@ model RolePermission {
   @@map("role_permissions")
 }
 
-model UserRole {
-  id        String    @id @default(uuid()) @db.Uuid
-  companyId String    @map("company_id") @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  roleId    String    @map("role_id") @db.Uuid
-  branchId  String?   @map("branch_id") @db.Uuid // NULL = نطاق المنشأة كاملة
-  createdAt DateTime  @default(now()) @map("created_at")
+model MembershipRole {
+  id           String   @id @default(uuid()) @db.Uuid
+  // Denormalized alongside membershipId (same pattern as elsewhere in this
+  // schema): keeps the RLS policy a flat `company_id = ...` check with no
+  // join, and keeps tenant-scoped indexes simple.
+  companyId    String   @map("company_id") @db.Uuid
+  membershipId String   @map("membership_id") @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
+  branchId     String?  @map("branch_id") @db.Uuid // NULL = نطاق المنشأة كاملة
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  company Company @relation(fields: [companyId], references: [id])
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role    Role    @relation(fields: [roleId], references: [id])
-  branch  Branch? @relation(fields: [branchId], references: [id])
+  company    Company    @relation(fields: [companyId], references: [id])
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id])
+  branch     Branch?    @relation(fields: [branchId], references: [id])
 
-  @@unique([userId, roleId, branchId])
-  @@index([companyId, userId])
-  @@map("user_roles")
+  @@unique([membershipId, roleId, branchId])
+  @@index([companyId, membershipId])
+  @@map("membership_roles")
 }
 
 // ---------------------------------------------------------------------------
@@ -204,22 +240,27 @@ model UserRole {
 // ---------------------------------------------------------------------------
 
 model RefreshToken {
-  id               String    @id @default(uuid()) @db.Uuid
-  userId           String    @map("user_id") @db.Uuid
-  // Denormalized on purpose: the refresh flow only has the raw token (hence
-  // userId) and must mint a new access token *before* it can establish a
-  // tenant context to look up the user. Caching companyId here avoids
-  // needing another RLS-bypass role just for this. Not RLS-protected itself
-  // (no policy below) - it is inherently scoped by userId per query, never
-  // listed cross-user, so tenant isolation doesn't apply the same way.
-  companyId        String    @map("company_id") @db.Uuid
-  tokenHash        String    @unique @map("token_hash")
-  expiresAt        DateTime  @map("expires_at")
-  revokedAt        DateTime? @map("revoked_at")
-  replacedByTokenId String?  @map("replaced_by_token_id") @db.Uuid
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  // A refresh token represents a session inside ONE already-selected tenant
+  // context, so it caches membershipId (+ companyId) at issuance time. This
+  // is what lets /auth/refresh mint a new access token for the same tenant
+  // without re-running tenant selection on every 15-minute expiry, and
+  // without needing RLS-bypass access - the values are trusted because they
+  // were only ever written by AuthService.issueTokens() after a real
+  // membership check. Not RLS-protected itself (no policy below): scoped by
+  // userId per query, never listed cross-user, so tenant isolation doesn't
+  // apply the same way it does to actual business data.
+  membershipId      String    @map("membership_id") @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  tokenHash         String    @unique @map("token_hash")
+  expiresAt         DateTime  @map("expires_at")
+  revokedAt         DateTime? @map("revoked_at")
+  replacedByTokenId String?   @map("replaced_by_token_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("refresh_tokens")
@@ -230,17 +271,17 @@ model RefreshToken {
 // ---------------------------------------------------------------------------
 
 model AuditLog {
-  id           String   @id @default(uuid()) @db.Uuid
-  companyId    String   @map("company_id") @db.Uuid
-  actorUserId  String?  @map("actor_user_id") @db.Uuid
-  branchId     String?  @map("branch_id") @db.Uuid
-  action       String
-  entityType   String   @map("entity_type")
-  entityId     String?  @map("entity_id")
-  beforeState  Json?    @map("before_state")
-  afterState   Json?    @map("after_state")
-  reason       String?
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  branchId    String?  @map("branch_id") @db.Uuid
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  beforeState Json?    @map("before_state")
+  afterState  Json?    @map("after_state")
+  reason      String?
+  createdAt   DateTime @default(now()) @map("created_at")
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -254,12 +295,12 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 
 model IntegrationProvider {
-  key                String   @id // e.g. "qeedha" - registered later, not seeded with business logic
-  name               String
-  category           String   // payment | erp | ecommerce | other
-  isEnabledGlobally  Boolean  @default(false) @map("is_enabled_globally")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  key               String   @id // e.g. "qeedha" - registered later, not seeded with business logic
+  name              String
+  category          String // payment | erp | ecommerce | other
+  isEnabledGlobally Boolean  @default(false) @map("is_enabled_globally")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   connections IntegrationConnection[]
 
@@ -275,18 +316,18 @@ enum IntegrationConnectionStatus {
 }
 
 model IntegrationConnection {
-  id                    String                       @id @default(uuid()) @db.Uuid
-  companyId             String                       @map("company_id") @db.Uuid
-  providerKey           String                       @map("provider_key")
-  status                IntegrationConnectionStatus  @default(not_connected)
-  credentialsEncrypted  String?                      @map("credentials_encrypted")
-  connectedAt           DateTime?                    @map("connected_at")
-  lastVerifiedAt        DateTime?                    @map("last_verified_at")
-  createdAt             DateTime                     @default(now()) @map("created_at")
-  updatedAt             DateTime                     @updatedAt @map("updated_at")
+  id                   String                      @id @default(uuid()) @db.Uuid
+  companyId            String                      @map("company_id") @db.Uuid
+  providerKey          String                      @map("provider_key")
+  status               IntegrationConnectionStatus @default(not_connected)
+  credentialsEncrypted String?                     @map("credentials_encrypted")
+  connectedAt          DateTime?                   @map("connected_at")
+  lastVerifiedAt       DateTime?                   @map("last_verified_at")
+  createdAt            DateTime                    @default(now()) @map("created_at")
+  updatedAt            DateTime                    @updatedAt @map("updated_at")
 
-  company  Company              @relation(fields: [companyId], references: [id])
-  provider IntegrationProvider  @relation(fields: [providerKey], references: [key])
+  company  Company             @relation(fields: [companyId], references: [id])
+  provider IntegrationProvider @relation(fields: [providerKey], references: [key])
 
   @@unique([companyId, providerKey])
   @@map("integration_connections")
@@ -299,13 +340,13 @@ enum WebhookProcessingStatus {
 }
 
 model WebhookEvent {
-  id                String                   @id @default(uuid()) @db.Uuid
-  providerKey       String                   @map("provider_key")
-  receivedAt        DateTime                 @default(now()) @map("received_at")
-  headers           Json
-  payload           Json
-  processingStatus  WebhookProcessingStatus  @default(received) @map("processing_status")
-  processedAt       DateTime?                @map("processed_at")
+  id               String                  @id @default(uuid()) @db.Uuid
+  providerKey      String                  @map("provider_key")
+  receivedAt       DateTime                @default(now()) @map("received_at")
+  headers          Json
+  payload          Json
+  processingStatus WebhookProcessingStatus @default(received) @map("processing_status")
+  processedAt      DateTime?               @map("processed_at")
 
   @@index([providerKey, processingStatus])
   @@map("webhook_events")

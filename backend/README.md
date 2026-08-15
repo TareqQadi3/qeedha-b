@@ -1,8 +1,10 @@
-# Qeedha Accounting - Backend (Phase 1)
+# Qeedha Accounting - Backend
 
-النظام المحاسبي وPOS للبقالات والسوبرماركت - المرحلة الأولى فقط
-(Architecture + Domain Model + Database + Auth + RBAC + Audit Log +
-Integration Layer skeleton). راجع `/docs` في جذر المستودع للتصميم الكامل.
+النظام المحاسبي وPOS للبقالات والسوبرماركت. الأساس الحالي (قبل بدء المرحلة 2):
+Architecture + Domain Model + Database + Auth/IAM (نموذج هوية
+User/Tenant/Membership متعدد المنشآت) + RBAC + Audit Log + Integration Layer
+skeleton. راجع `/docs` في جذر المستودع للتصميم الكامل، وخصوصًا
+`docs/DOMAIN_MODEL.md`.
 
 ## المتطلبات
 
@@ -21,10 +23,12 @@ docker-compose up -d          # أو استخدم Postgres محلي بنفس ب�
 # 2) تطبيق الـMigrations
 npx prisma migrate deploy
 
-# 3) دور "auth lookup" (يحتاج صلاحية Superuser - انظر التعليق أعلى الملف)
+# 3) دور "auth lookup" (يحتاج صلاحية Superuser - انظر التعليق أعلى كل ملف)
 #    مع docker-compose، المستخدم qeedha_dev هو superuser داخل الحاوية:
 psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting" \
   -f prisma/manual-sql/001_auth_lookup_role.sql
+psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting" \
+  -f prisma/manual-sql/002_auth_lookup_role_update.sql
 
 # 4) بذر الصلاحيات والأدوار النظامية
 npm run prisma:seed
@@ -42,9 +46,12 @@ npm run start:dev
 (`FORCE ROW LEVEL SECURITY` على كل جدول tenant-owned).
 
 `qeedha_auth_lookup`: دور ثانٍ ضيق جدًا (`BYPASSRLS`، `SELECT` على أعمدة
-محددة فقط من جدول `users`)، يُستخدم حصرًا لحل مشكلة "من هو المستخدم؟" أثناء
-تسجيل الدخول قبل معرفة الـtenant. التفاصيل والمبرر الكامل في
-`docs/SECURITY.md` وتعليقات `src/common/prisma/auth-lookup-prisma.service.ts`.
+محددة فقط من `memberships`/`companies`)، يُستخدم حصرًا لتحديد المنشآت التي
+يملك المستخدم عضوية فيها أثناء تسجيل الدخول قبل معرفة أي tenant context.
+(`users` نفسها لم تعد بحاجة لهذا الدور إطلاقًا - غير محمية بـRLS من الأساس،
+لأنها لم تعد بيانات tenant. راجع `docs/DOMAIN_MODEL.md`.) التفاصيل والمبرر
+الكامل في `docs/SECURITY.md` وتعليقات
+`src/common/prisma/auth-lookup-prisma.service.ts`.
 
 **لا تمنح الدور الرئيسي `BYPASSRLS` أبدًا** - هذا يُبطل RLS كخط دفاع لكل
 شيء آخر في النظام.
@@ -58,7 +65,7 @@ DATABASE_URL="postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accoun
 psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting_test" \
   -c "GRANT CONNECT ON DATABASE qeedha_accounting_test TO qeedha_auth_lookup;"
 psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting_test" \
-  -c "GRANT USAGE ON SCHEMA public TO qeedha_auth_lookup; GRANT SELECT (id, company_id, password_hash, status, full_name, locale, email, mobile, deleted_at) ON users TO qeedha_auth_lookup;"
+  -c "GRANT USAGE ON SCHEMA public TO qeedha_auth_lookup; GRANT SELECT (id, company_id, user_id, status) ON memberships TO qeedha_auth_lookup; GRANT SELECT (id, legal_name, trade_name, status) ON companies TO qeedha_auth_lookup;"
 DATABASE_URL="postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting_test?schema=public" npm run prisma:seed
 
 # التشغيل

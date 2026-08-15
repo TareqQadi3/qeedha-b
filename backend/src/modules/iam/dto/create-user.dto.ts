@@ -13,9 +13,14 @@ export class CreateUserDto {
   @IsString()
   mobile?: string;
 
+  // مطلوبة فقط عند إنشاء هوية جديدة كليًا. إن كان البريد/الجوال يطابق مستخدمًا
+  // موجودًا بالفعل (شخص لديه حساب في منشأة أخرى)، يُتجاهل هذا الحقل تمامًا
+  // ولا تُعدَّل كلمة مروره - يُضاف فقط كعضوية جديدة في هذه المنشأة. راجع
+  // IamService.createUser.
+  @IsOptional()
   @IsString()
   @MinLength(8, { message: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' })
-  password: string;
+  password?: string;
 
   @IsOptional()
   @IsUUID()

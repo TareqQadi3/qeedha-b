@@ -28,6 +28,16 @@ class EnvironmentVariables {
   @IsString()
   JWT_REFRESH_TTL: string;
 
+  // Signs the short-lived, single-purpose token issued between password
+  // verification and tenant selection for users with more than one
+  // Membership. Deliberately a separate secret from JWT_ACCESS_SECRET so a
+  // guard bug can never mistake one for the other - see AuthService.
+  @IsString()
+  JWT_TENANT_SELECTION_SECRET: string;
+
+  @IsString()
+  JWT_TENANT_SELECTION_TTL: string;
+
   @IsString()
   INTEGRATION_CREDENTIALS_ENCRYPTION_KEY: string;
 }

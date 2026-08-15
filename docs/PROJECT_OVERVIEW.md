@@ -42,6 +42,7 @@ Architecture + Domain Model + Database + Authentication + أساس النظام
 | الملف | المحتوى |
 |---|---|
 | `ARCHITECTURE.md` | الطبقات المعمارية، القرارات التقنية وأسبابها |
+| `DOMAIN_MODEL.md` | نموذج الهوية: User/Tenant/Membership/Role/Permission/Branch Scope |
 | `DATABASE.md` | نموذج البيانات الكامل لكل الوحدات |
 | `MODULES.md` | تفصيل كل وحدة (Module) ومسؤولياتها |
 | `API.md` | بنية الـAPI والمعايير |

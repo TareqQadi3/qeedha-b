@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -17,8 +18,15 @@ import { AuthLookupService } from './auth-lookup.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterCompanyDto } from './dto/register-company.dto';
+import { SelectTenantDto } from './dto/select-tenant.dto';
 
 const OWNER_ROLE_NAME = 'Owner';
+const TENANT_SELECTION_PURPOSE = 'tenant_selection';
+
+interface TenantSelectionPayload {
+  sub: string; // userId
+  purpose: typeof TENANT_SELECTION_PURPOSE;
+}
 
 @Injectable()
 export class AuthService {
@@ -40,8 +48,9 @@ export class AuthService {
     const branchId = randomUUID();
     const warehouseId = randomUUID();
     const userId = randomUUID();
+    const membershipId = randomUUID();
 
-    const { user } = await this.prisma.withTenant(companyId, async (tx) => {
+    const { user, membership } = await this.prisma.withTenant(companyId, async (tx) => {
       await tx.company.create({
         data: {
           id: companyId,
@@ -73,15 +82,21 @@ export class AuthService {
         },
       });
 
+      // Global identity: created fresh here since this flow always
+      // registers a brand-new owner. IamService.createUser handles the
+      // "attach an existing person to another company" case for invites.
       const user = await tx.user.create({
         data: {
           id: userId,
-          companyId,
           fullName: dto.ownerFullName,
           email: dto.ownerEmail,
           mobile: dto.ownerMobile,
           passwordHash,
         },
+      });
+
+      const membership = await tx.membership.create({
+        data: { id: membershipId, companyId, userId: user.id, status: 'active' },
       });
 
       const ownerRole = await tx.role.findFirst({
@@ -93,40 +108,135 @@ export class AuthService {
         );
       }
 
-      await tx.userRole.create({
-        data: { companyId, userId: user.id, roleId: ownerRole.id, branchId: null },
+      await tx.membershipRole.create({
+        data: { companyId, membershipId: membership.id, roleId: ownerRole.id, branchId: null },
       });
 
-      return { user };
+      return { user, membership };
     });
 
-    const tokens = await this.issueTokens(user.id, companyId);
+    const tokens = await this.issueTokens(user.id, membership.id, companyId);
     return {
       company: { id: companyId, legalName: dto.legalName },
       user: { id: user.id, fullName: user.fullName, email: user.email, mobile: user.mobile },
+      activeTenant: { companyId, membershipId: membership.id },
       ...tokens,
     };
   }
 
+  /**
+   * Two shapes of response, both intentional (see docs/DOMAIN_MODEL.md
+   * "Login and tenant selection"):
+   *  - Exactly one active Membership: tokens are issued immediately for
+   *    that tenant - no unnecessary selection screen for the common case.
+   *  - Two or more: a short-lived tenantSelectionToken is returned instead
+   *    of real tokens, alongside the list of companies to choose from.
+   */
   async login(dto: LoginDto) {
-    const record = await this.authLookupService.findCredentialsByIdentifier(dto.identifier);
-    if (!record || record.status !== 'active') {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        deletedAt: null,
+        OR: [{ email: dto.identifier }, { mobile: dto.identifier }],
+      },
+    });
+    if (!user || user.status !== 'active') {
       throw new UnauthorizedException('بيانات الدخول غير صحيحة');
     }
 
-    const passwordValid = await argon2.verify(record.passwordHash, dto.password);
+    const passwordValid = await argon2.verify(user.passwordHash, dto.password);
     if (!passwordValid) {
       throw new UnauthorizedException('بيانات الدخول غير صحيحة');
     }
 
-    const tokens = await this.issueTokens(record.id, record.companyId);
+    const memberships = await this.authLookupService.listActiveMembershipsForUser(user.id);
+
+    if (memberships.length === 0) {
+      throw new ForbiddenException('لا توجد منشأة نشطة مرتبطة بهذا الحساب');
+    }
+
+    if (memberships.length === 1) {
+      const [membership] = memberships;
+      const tokens = await this.issueTokens(user.id, membership.membershipId, membership.companyId);
+      return {
+        user: this.toSafeUser(user),
+        activeTenant: {
+          companyId: membership.companyId,
+          membershipId: membership.membershipId,
+          companyLegalName: membership.companyLegalName,
+        },
+        ...tokens,
+      };
+    }
+
+    const tenantSelectionToken = this.issueTenantSelectionToken(user.id);
     return {
-      user: {
-        id: record.id,
-        fullName: record.fullName,
-        locale: record.locale,
-        companyId: record.companyId,
-      },
+      tenantSelectionRequired: true,
+      tenantSelectionToken,
+      availableCompanies: memberships.map((m) => ({
+        companyId: m.companyId,
+        legalName: m.companyLegalName,
+        tradeName: m.companyTradeName,
+      })),
+    };
+  }
+
+  /** Completes login for a user with multiple Memberships. */
+  async selectTenant(dto: SelectTenantDto) {
+    let payload: TenantSelectionPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<TenantSelectionPayload>(
+        dto.tenantSelectionToken,
+        {
+          secret: this.config.get<string>('JWT_TENANT_SELECTION_SECRET'),
+        },
+      );
+    } catch {
+      throw new UnauthorizedException('رمز اختيار المنشأة غير صالح أو منتهي الصلاحية');
+    }
+    if (payload.purpose !== TENANT_SELECTION_PURPOSE) {
+      throw new UnauthorizedException('رمز غير صالح لهذا الغرض');
+    }
+
+    return this.completeTenantLogin(payload.sub, dto.companyId);
+  }
+
+  /**
+   * Switches an already-authenticated session to a different company this
+   * user also holds a Membership in - the "tenant switcher" extension point
+   * called out in docs/DOMAIN_MODEL.md. Same authorization check as
+   * selectTenant, just starting from a valid access token instead of a
+   * tenant-selection token.
+   */
+  async switchTenant(userId: string, companyId: string) {
+    return this.completeTenantLogin(userId, companyId);
+  }
+
+  /**
+   * The one authorization check that matters for both selectTenant and
+   * switchTenant: does this user actually hold an active Membership in the
+   * requested company? Checked through the normal RLS-protected path (not
+   * the bypass role) since the target tenant is already known - RLS
+   * independently confirms the row truly belongs to companyId, on top of
+   * the WHERE clause. Manual tenantId tampering (e.g. a client just sending
+   * a different companyId) fails here, not by trusting the request.
+   */
+  private async completeTenantLogin(userId: string, companyId: string) {
+    const membership = await this.prisma.withTenant(companyId, (tx) =>
+      tx.membership.findFirst({ where: { userId, companyId, status: 'active' } }),
+    );
+    if (!membership) {
+      throw new ForbiddenException('لا تملك عضوية صالحة في هذه المنشأة');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.status !== 'active') {
+      throw new UnauthorizedException('الحساب غير نشط');
+    }
+
+    const tokens = await this.issueTokens(user.id, membership.id, companyId);
+    return {
+      user: this.toSafeUser(user),
+      activeTenant: { companyId, membershipId: membership.id },
       ...tokens,
     };
   }
@@ -152,7 +262,11 @@ export class AuthService {
       throw new UnauthorizedException('انتهت صلاحية رمز التحديث');
     }
 
-    const tokens = await this.issueTokens(existing.userId, existing.companyId);
+    const tokens = await this.issueTokens(
+      existing.userId,
+      existing.membershipId,
+      existing.companyId,
+    );
 
     const newToken = await this.prisma.refreshToken.findUnique({
       where: { tokenHash: hashToken(tokens.refreshToken) },
@@ -182,39 +296,80 @@ export class AuthService {
 
   async me(user: AuthenticatedUser) {
     return this.prisma.withTenant(user.companyId, async (tx) => {
-      const record = await tx.user.findFirst({
-        where: { id: user.userId, companyId: user.companyId, deletedAt: null },
-        include: { userRoles: { include: { role: true, branch: true } } },
+      const membership = await tx.membership.findFirst({
+        where: {
+          id: user.membershipId,
+          companyId: user.companyId,
+          userId: user.userId,
+          status: 'active',
+        },
+        include: {
+          user: true,
+          membershipRoles: { include: { role: true, branch: true } },
+        },
       });
-      if (!record) {
-        throw new NotFoundException('المستخدم غير موجود');
+      if (!membership) {
+        throw new NotFoundException('العضوية غير موجودة');
       }
 
-      const permissions = await this.iamService.getEffectivePermissionKeys(
-        tx,
-        user.userId,
-        user.companyId,
-      );
+      const permissions = await this.iamService.getEffectivePermissionKeys(tx, user.membershipId);
 
       return {
-        id: record.id,
-        fullName: record.fullName,
-        email: record.email,
-        mobile: record.mobile,
-        locale: record.locale,
-        companyId: record.companyId,
-        roles: record.userRoles.map((ur) => ({
-          name: ur.role.name,
-          branch: ur.branch?.name ?? null,
+        id: membership.user.id,
+        fullName: membership.user.fullName,
+        email: membership.user.email,
+        mobile: membership.user.mobile,
+        locale: membership.user.locale,
+        companyId: user.companyId,
+        membershipId: membership.id,
+        roles: membership.membershipRoles.map((mr) => ({
+          name: mr.role.name,
+          branch: mr.branch?.name ?? null,
         })),
         permissions: Array.from(permissions),
       };
     });
   }
 
-  private async issueTokens(userId: string, companyId: string) {
+  /** All the companies this user could switch to - used to build a tenant switcher UI. */
+  async listMyTenants(userId: string) {
+    const memberships = await this.authLookupService.listActiveMembershipsForUser(userId);
+    return memberships.map((m) => ({
+      companyId: m.companyId,
+      legalName: m.companyLegalName,
+      tradeName: m.companyTradeName,
+    }));
+  }
+
+  private toSafeUser(user: {
+    id: string;
+    fullName: string;
+    email: string | null;
+    mobile: string | null;
+    locale: string;
+  }) {
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      mobile: user.mobile,
+      locale: user.locale,
+    };
+  }
+
+  private issueTenantSelectionToken(userId: string): string {
+    return this.jwtService.sign(
+      { sub: userId, purpose: TENANT_SELECTION_PURPOSE },
+      {
+        secret: this.config.get<string>('JWT_TENANT_SELECTION_SECRET'),
+        expiresIn: this.config.get<string>('JWT_TENANT_SELECTION_TTL'),
+      },
+    );
+  }
+
+  private async issueTokens(userId: string, membershipId: string, companyId: string) {
     const accessToken = this.jwtService.sign(
-      { sub: userId, companyId },
+      { sub: userId, companyId, membershipId },
       {
         secret: this.config.get<string>('JWT_ACCESS_SECRET'),
         expiresIn: this.config.get<string>('JWT_ACCESS_TTL'),
@@ -227,6 +382,7 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: {
         userId,
+        membershipId,
         companyId,
         tokenHash: hashToken(refreshTokenValue),
         expiresAt: new Date(Date.now() + ttlMs),

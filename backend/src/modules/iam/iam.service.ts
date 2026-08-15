@@ -1,13 +1,17 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { TenantClient } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
-/** Never let passwordHash leave this module through an API response. */
+/** Never let passwordHash leave this module through an API response. User carries no company_id - see docs/DOMAIN_MODEL.md. */
 const SAFE_USER_SELECT = {
   id: true,
-  companyId: true,
   fullName: true,
   email: true,
   mobile: true,
@@ -21,22 +25,55 @@ const SAFE_USER_SELECT = {
 export class IamService {
   constructor(private readonly auditService: AuditService) {}
 
+  /**
+   * Attaches a person to this company as a new Membership. If the
+   * email/mobile already belongs to an existing global User (they already
+   * have an account - possibly in a different company), that identity is
+   * reused as-is: no password change, no fullName overwrite. Only a
+   * genuinely new identity gets created here, and only then is `password`
+   * required.
+   */
   async createUser(tx: TenantClient, companyId: string, actorUserId: string, dto: CreateUserDto) {
-    const passwordHash = await argon2.hash(dto.password);
-    const user = await tx.user.create({
-      data: {
-        companyId,
-        fullName: dto.fullName,
-        email: dto.email,
-        mobile: dto.mobile,
-        passwordHash,
-      },
-      select: SAFE_USER_SELECT,
+    const identifierFilters = [
+      ...(dto.email ? [{ email: dto.email }] : []),
+      ...(dto.mobile ? [{ mobile: dto.mobile }] : []),
+    ];
+    let user = identifierFilters.length
+      ? await tx.user.findFirst({
+          where: { deletedAt: null, OR: identifierFilters },
+          select: SAFE_USER_SELECT,
+        })
+      : null;
+
+    let isNewUser = false;
+    if (!user) {
+      if (!dto.password) {
+        throw new BadRequestException(
+          'كلمة المرور مطلوبة عند إنشاء حساب جديد لا يملك عضوية في أي منشأة بعد',
+        );
+      }
+      const passwordHash = await argon2.hash(dto.password);
+      user = await tx.user.create({
+        data: { fullName: dto.fullName, email: dto.email, mobile: dto.mobile, passwordHash },
+        select: SAFE_USER_SELECT,
+      });
+      isNewUser = true;
+    } else {
+      const existingMembership = await tx.membership.findFirst({
+        where: { userId: user.id, companyId },
+      });
+      if (existingMembership) {
+        throw new ConflictException('هذا المستخدم لديه عضوية بالفعل في هذه المنشأة');
+      }
+    }
+
+    const membership = await tx.membership.create({
+      data: { companyId, userId: user.id, status: 'active' },
     });
 
-    let userRole = null;
+    let membershipRole = null;
     if (dto.roleId) {
-      userRole = await this.assignRole(tx, companyId, actorUserId, {
+      membershipRole = await this.assignRole(tx, companyId, actorUserId, {
         userId: user.id,
         roleId: dto.roleId,
         branchId: dto.branchId,
@@ -46,13 +83,19 @@ export class IamService {
     await this.auditService.log(tx, {
       companyId,
       actorUserId,
-      action: 'iam.user.create',
-      entityType: 'User',
-      entityId: user.id,
-      afterState: { fullName: user.fullName, email: user.email, mobile: user.mobile },
+      action: isNewUser ? 'iam.user.create' : 'iam.user.attach_existing',
+      entityType: 'Membership',
+      entityId: membership.id,
+      afterState: {
+        userId: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        mobile: user.mobile,
+        isNewUser,
+      },
     });
 
-    return { user, userRole };
+    return { user, membership, membershipRole };
   }
 
   async listPermissions(tx: TenantClient) {
@@ -68,30 +111,49 @@ export class IamService {
     });
   }
 
+  /** Everyone with a Membership in this company, and their roles within it. */
   async listUsers(tx: TenantClient, companyId: string) {
-    return tx.user.findMany({
-      where: { companyId, deletedAt: null },
-      select: {
-        ...SAFE_USER_SELECT,
-        userRoles: { include: { role: true, branch: true } },
+    const memberships = await tx.membership.findMany({
+      where: { companyId },
+      include: {
+        user: { select: SAFE_USER_SELECT },
+        membershipRoles: { include: { role: true, branch: true } },
       },
-      orderBy: { fullName: 'asc' },
+      orderBy: { user: { fullName: 'asc' } },
     });
+
+    return memberships.map((m) => ({
+      membershipId: m.id,
+      membershipStatus: m.status,
+      ...m.user,
+      roles: m.membershipRoles.map((mr) => ({
+        membershipRoleId: mr.id,
+        name: mr.role.name,
+        branch: mr.branch?.name ?? null,
+      })),
+    }));
   }
 
+  /**
+   * `params.userId` is the global User id (what the API surfaces, since an
+   * admin thinks "assign this person a role", not "this membership id").
+   * Resolved to the Membership for (userId, companyId) internally - a role
+   * is always granted within a specific Membership, never to a user
+   * globally (docs/DOMAIN_MODEL.md).
+   */
   async assignRole(
     tx: TenantClient,
     companyId: string,
     actorUserId: string,
     params: { userId: string; roleId: string; branchId?: string | null },
   ) {
-    const [user, role] = await Promise.all([
-      tx.user.findFirst({ where: { id: params.userId, companyId, deletedAt: null } }),
+    const [membership, role] = await Promise.all([
+      tx.membership.findFirst({ where: { userId: params.userId, companyId, status: 'active' } }),
       tx.role.findFirst({
         where: { id: params.roleId, OR: [{ companyId: null }, { companyId }] },
       }),
     ]);
-    if (!user) throw new NotFoundException('المستخدم غير موجود');
+    if (!membership) throw new NotFoundException('لا توجد عضوية نشطة لهذا المستخدم في هذه المنشأة');
     if (!role) throw new NotFoundException('الدور غير موجود');
 
     if (params.branchId) {
@@ -101,17 +163,21 @@ export class IamService {
       if (!branch) throw new NotFoundException('الفرع غير موجود');
     }
 
-    const existing = await tx.userRole.findFirst({
-      where: { userId: params.userId, roleId: params.roleId, branchId: params.branchId ?? null },
+    const existing = await tx.membershipRole.findFirst({
+      where: {
+        membershipId: membership.id,
+        roleId: params.roleId,
+        branchId: params.branchId ?? null,
+      },
     });
     if (existing) {
       throw new ConflictException('هذا الدور مُسنَد بالفعل لهذا المستخدم ضمن هذا النطاق');
     }
 
-    const userRole = await tx.userRole.create({
+    const membershipRole = await tx.membershipRole.create({
       data: {
         companyId,
-        userId: params.userId,
+        membershipId: membership.id,
         roleId: params.roleId,
         branchId: params.branchId ?? null,
       },
@@ -121,61 +187,62 @@ export class IamService {
     await this.auditService.log(tx, {
       companyId,
       actorUserId,
-      action: 'iam.user_role.assign',
-      entityType: 'UserRole',
-      entityId: userRole.id,
+      action: 'iam.membership_role.assign',
+      entityType: 'MembershipRole',
+      entityId: membershipRole.id,
       afterState: {
         userId: params.userId,
-        roleName: userRole.role.name,
+        roleName: membershipRole.role.name,
         branchId: params.branchId ?? null,
       },
     });
 
-    return userRole;
+    return membershipRole;
   }
 
-  async revokeRole(tx: TenantClient, companyId: string, actorUserId: string, userRoleId: string) {
-    const userRole = await tx.userRole.findFirst({
-      where: { id: userRoleId, companyId },
-      include: { role: true },
+  async revokeRole(
+    tx: TenantClient,
+    companyId: string,
+    actorUserId: string,
+    membershipRoleId: string,
+  ) {
+    const membershipRole = await tx.membershipRole.findFirst({
+      where: { id: membershipRoleId, companyId },
+      include: { role: true, membership: true },
     });
-    if (!userRole) throw new NotFoundException('إسناد الدور غير موجود');
+    if (!membershipRole) throw new NotFoundException('إسناد الدور غير موجود');
 
-    await tx.userRole.delete({ where: { id: userRoleId } });
+    await tx.membershipRole.delete({ where: { id: membershipRoleId } });
 
     await this.auditService.log(tx, {
       companyId,
       actorUserId,
-      action: 'iam.user_role.revoke',
-      entityType: 'UserRole',
-      entityId: userRoleId,
-      beforeState: { userId: userRole.userId, roleName: userRole.role.name },
+      action: 'iam.membership_role.revoke',
+      entityType: 'MembershipRole',
+      entityId: membershipRoleId,
+      beforeState: { userId: membershipRole.membership.userId, roleName: membershipRole.role.name },
     });
 
     return { success: true };
   }
 
   /**
-   * Every permission key the user holds, across all their role assignments
-   * for this company (company-wide scope and every branch scope combined).
-   * Phase 1 permission checks are scope-agnostic ("does the user have this
-   * permission anywhere"); branch-scoped enforcement is added once actual
-   * branch-scoped resources exist (POS sales, branch inventory) in later
-   * phases.
+   * Every permission key held by this Membership - i.e. this user, in this
+   * company, across every role assignment (company-wide scope and every
+   * branch scope combined). Phase 1/2 permission checks are scope-agnostic
+   * ("does the user have this permission anywhere in this company");
+   * branch-scoped enforcement is added once actual branch-scoped resources
+   * exist (POS sales, branch inventory).
    */
-  async getEffectivePermissionKeys(
-    tx: TenantClient,
-    userId: string,
-    companyId: string,
-  ): Promise<Set<string>> {
-    const userRoles = await tx.userRole.findMany({
-      where: { userId, companyId },
+  async getEffectivePermissionKeys(tx: TenantClient, membershipId: string): Promise<Set<string>> {
+    const membershipRoles = await tx.membershipRole.findMany({
+      where: { membershipId },
       include: { role: { include: { rolePermissions: { include: { permission: true } } } } },
     });
 
     const keys = new Set<string>();
-    for (const userRole of userRoles) {
-      for (const rp of userRole.role.rolePermissions) {
+    for (const membershipRole of membershipRoles) {
+      for (const rp of membershipRole.role.rolePermissions) {
         keys.add(rp.permission.key);
       }
     }
