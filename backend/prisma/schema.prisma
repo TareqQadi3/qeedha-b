@@ -1,0 +1,312 @@
+// Qeedha Accounting - Prisma Schema
+// Phase 1: Tenancy, IAM/RBAC, Auth, Audit Log, Integration Layer skeleton.
+// Additional modules (catalog, inventory, sales, accounting, ...) are added
+// in later phases per /docs/ROADMAP.md - not defined here yet.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy
+// ---------------------------------------------------------------------------
+
+enum CompanyStatus {
+  active
+  suspended
+}
+
+model Company {
+  id              String        @id @default(uuid()) @db.Uuid
+  legalName       String        @map("legal_name")
+  tradeName       String?       @map("trade_name")
+  vatNumber       String?       @map("vat_number")
+  crNumber        String?       @map("cr_number")
+  defaultCurrency String        @default("SAR") @map("default_currency")
+  status          CompanyStatus @default(active)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  branches               Branch[]
+  users                  User[]
+  roles                  Role[]
+  userRoles              UserRole[]
+  auditLogs              AuditLog[]
+  integrationConnections IntegrationConnection[]
+
+  @@map("companies")
+}
+
+model Branch {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  name      String
+  code      String
+  address   String?
+  isDefault Boolean   @default(false) @map("is_default")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company     Company      @relation(fields: [companyId], references: [id])
+  warehouses  Warehouse[]
+  posDevices  PosDevice[]
+  userRoles   UserRole[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("branches")
+}
+
+model Warehouse {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  branchId  String    @map("branch_id") @db.Uuid
+  name      String
+  code      String
+  isDefault Boolean   @default(false) @map("is_default")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([companyId, code])
+  @@index([companyId, branchId, deletedAt])
+  @@map("warehouses")
+}
+
+enum PosDeviceStatus {
+  active
+  inactive
+}
+
+model PosDevice {
+  id         String          @id @default(uuid()) @db.Uuid
+  companyId  String          @map("company_id") @db.Uuid
+  branchId   String          @map("branch_id") @db.Uuid
+  name       String
+  deviceCode String          @map("device_code")
+  status     PosDeviceStatus @default(active)
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+  deletedAt  DateTime?       @map("deleted_at")
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([companyId, deviceCode])
+  @@index([companyId, branchId, deletedAt])
+  @@map("pos_devices")
+}
+
+// ---------------------------------------------------------------------------
+// IAM / RBAC
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  active
+  disabled
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  companyId    String     @map("company_id") @db.Uuid
+  fullName     String     @map("full_name")
+  email        String?
+  mobile       String?
+  passwordHash String     @map("password_hash")
+  status       UserStatus @default(active)
+  locale       String     @default("ar")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  deletedAt    DateTime?  @map("deleted_at")
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  userRoles     UserRole[]
+  refreshTokens RefreshToken[]
+
+  // email/mobile are globally unique (not scoped by companyId) on purpose:
+  // login must resolve identity *before* a tenant context exists, via a
+  // separate narrowly-scoped DB role that bypasses RLS for this one lookup
+  // (see AuthLookupService + docs/SECURITY.md "Auth bootstrap"). A user
+  // belongs to exactly one company in Phase 1 - no multi-company membership.
+  @@unique([email])
+  @@unique([mobile])
+  @@index([companyId, deletedAt])
+  @@map("users")
+}
+
+model Role {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String?   @map("company_id") @db.Uuid // NULL = دور نظامي عام لكل المنشآت
+  name      String
+  isSystem  Boolean   @default(false) @map("is_system")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  company         Company?         @relation(fields: [companyId], references: [id])
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([companyId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  category    String
+  description String
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(uuid()) @db.Uuid
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  roleId    String    @map("role_id") @db.Uuid
+  branchId  String?   @map("branch_id") @db.Uuid // NULL = نطاق المنشأة كاملة
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id])
+  branch  Branch? @relation(fields: [branchId], references: [id])
+
+  @@unique([userId, roleId, branchId])
+  @@index([companyId, userId])
+  @@map("user_roles")
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+model RefreshToken {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  // Denormalized on purpose: the refresh flow only has the raw token (hence
+  // userId) and must mint a new access token *before* it can establish a
+  // tenant context to look up the user. Caching companyId here avoids
+  // needing another RLS-bypass role just for this. Not RLS-protected itself
+  // (no policy below) - it is inherently scoped by userId per query, never
+  // listed cross-user, so tenant isolation doesn't apply the same way.
+  companyId        String    @map("company_id") @db.Uuid
+  tokenHash        String    @unique @map("token_hash")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  replacedByTokenId String?  @map("replaced_by_token_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Audit Log
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  branchId     String?  @map("branch_id") @db.Uuid
+  action       String
+  entityType   String   @map("entity_type")
+  entityId     String?  @map("entity_id")
+  beforeState  Json?    @map("before_state")
+  afterState   Json?    @map("after_state")
+  reason       String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, entityType, entityId])
+  @@index([companyId, createdAt])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Integration Layer (بنية عامة فقط - بدون أي Provider فعلي في هذه المرحلة)
+// ---------------------------------------------------------------------------
+
+model IntegrationProvider {
+  key                String   @id // e.g. "qeedha" - registered later, not seeded with business logic
+  name               String
+  category           String   // payment | erp | ecommerce | other
+  isEnabledGlobally  Boolean  @default(false) @map("is_enabled_globally")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  connections IntegrationConnection[]
+
+  @@map("integration_providers")
+}
+
+enum IntegrationConnectionStatus {
+  not_connected
+  connecting
+  connected
+  needs_reauth
+  disabled
+}
+
+model IntegrationConnection {
+  id                    String                       @id @default(uuid()) @db.Uuid
+  companyId             String                       @map("company_id") @db.Uuid
+  providerKey           String                       @map("provider_key")
+  status                IntegrationConnectionStatus  @default(not_connected)
+  credentialsEncrypted  String?                      @map("credentials_encrypted")
+  connectedAt           DateTime?                    @map("connected_at")
+  lastVerifiedAt        DateTime?                    @map("last_verified_at")
+  createdAt             DateTime                     @default(now()) @map("created_at")
+  updatedAt             DateTime                     @updatedAt @map("updated_at")
+
+  company  Company              @relation(fields: [companyId], references: [id])
+  provider IntegrationProvider  @relation(fields: [providerKey], references: [key])
+
+  @@unique([companyId, providerKey])
+  @@map("integration_connections")
+}
+
+enum WebhookProcessingStatus {
+  received
+  processed
+  failed
+}
+
+model WebhookEvent {
+  id                String                   @id @default(uuid()) @db.Uuid
+  providerKey       String                   @map("provider_key")
+  receivedAt        DateTime                 @default(now()) @map("received_at")
+  headers           Json
+  payload           Json
+  processingStatus  WebhookProcessingStatus  @default(received) @map("processing_status")
+  processedAt       DateTime?                @map("processed_at")
+
+  @@index([providerKey, processingStatus])
+  @@map("webhook_events")
+}

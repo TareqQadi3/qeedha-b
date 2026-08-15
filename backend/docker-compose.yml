@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: qeedha_accounting
+      POSTGRES_USER: qeedha_dev
+      POSTGRES_PASSWORD: qeedha_dev_pw
+    ports:
+      - '5432:5432'
+    volumes:
+      - qeedha_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  qeedha_postgres_data:
