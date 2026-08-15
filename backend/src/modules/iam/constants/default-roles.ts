@@ -8,10 +8,6 @@ export interface SystemRoleDefinition {
 
 /**
  * System roles (company_id = NULL) seeded once, shared by every tenant.
- * Accountant still carries a minimal permission set as of Phase 3 - its full
- * set (accounting.*) doesn't exist until Phase 4. Seeding roles now (even
- * sparse) means role assignment and RBAC UI can be built and tested without
- * waiting for every future phase's permissions to exist.
  */
 export const SYSTEM_ROLES: SystemRoleDefinition[] = [
   {
@@ -50,6 +46,14 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
       PERMISSION_KEYS.SALES_CREATE,
       PERMISSION_KEYS.SALES_CANCEL,
       PERMISSION_KEYS.INVOICES_READ,
+      PERMISSION_KEYS.PURCHASES_READ,
+      PERMISSION_KEYS.PURCHASES_CREATE,
+      PERMISSION_KEYS.PURCHASES_CANCEL,
+      PERMISSION_KEYS.EXPENSES_READ,
+      PERMISSION_KEYS.EXPENSES_CREATE,
+      PERMISSION_KEYS.EXPENSES_UPDATE,
+      PERMISSION_KEYS.EXPENSES_DELETE,
+      PERMISSION_KEYS.ACCOUNTING_READ,
     ],
   },
   {
@@ -66,7 +70,7 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
   {
     name: 'Accountant',
     description:
-      'محاسب - صلاحيات المحاسبة الكاملة تُضاف في المرحلة 4، يحتاج الآن رؤية العملاء/الموردين/المنتجات/المبيعات/الفواتير للتقارير',
+      'محاسب - يدير دليل الحسابات والمصروفات، ويرى المبيعات/المشتريات/الفواتير للتقارير؛ لا يُنشئ مبيعات أو مشتريات بنفسه (فصل مهام)',
     permissions: [
       PERMISSION_KEYS.AUDIT_VIEW,
       PERMISSION_KEYS.PRODUCTS_READ,
@@ -75,11 +79,18 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
       PERMISSION_KEYS.SUPPLIERS_READ,
       PERMISSION_KEYS.SALES_READ,
       PERMISSION_KEYS.INVOICES_READ,
+      PERMISSION_KEYS.PURCHASES_READ,
+      PERMISSION_KEYS.EXPENSES_READ,
+      PERMISSION_KEYS.EXPENSES_CREATE,
+      PERMISSION_KEYS.EXPENSES_UPDATE,
+      PERMISSION_KEYS.EXPENSES_DELETE,
+      PERMISSION_KEYS.ACCOUNTING_READ,
+      PERMISSION_KEYS.ACCOUNTING_MANAGE,
     ],
   },
   {
     name: 'Inventory Manager',
-    description: 'مسؤول المخزون - صلاحيات المخزون والمنتجات الكاملة',
+    description: 'مسؤول المخزون - صلاحيات المخزون والمنتجات والمشتريات (استلام المخزون) الكاملة',
     permissions: [
       PERMISSION_KEYS.TENANCY_WAREHOUSES_VIEW,
       PERMISSION_KEYS.PRODUCTS_READ,
@@ -90,6 +101,8 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
       PERMISSION_KEYS.INVENTORY_COUNT,
       PERMISSION_KEYS.INVENTORY_TRANSFER,
       PERMISSION_KEYS.SUPPLIERS_READ,
+      PERMISSION_KEYS.PURCHASES_READ,
+      PERMISSION_KEYS.PURCHASES_CREATE,
     ],
   },
 ];

@@ -201,33 +201,79 @@ Idempotency على مستوى عملية البيع الكاملة (وليس ل�
 المفتاح يُعيد نفس السجل بدل إنشاء بيع مكرر، حتى تحت تزامن حقيقي. تفاصيل
 كاملة في `docs/SALES.md` "Idempotency".
 
-## 5. Purchasing (المرحلة 3)
+## 5. Purchasing (المرحلة 4 — منفَّذ، بنطاق أضيق مما خُطِّط له أصلًا هنا)
 
 ```text
-purchase_orders, po_items
-goods_receipts, goods_receipt_items
-supplier_invoices
-purchase_returns
+purchases            أمر شراء/فاتورة مورد (company_id, branch_id [مُشتق من
+                     warehouse_id، ليس مُدخلًا]، warehouse_id، supplier_id،
+                     status (ordered/received/cancelled)، currency، subtotal،
+                     discount_amount، tax_amount، total_amount،
+                     reference_number (PUR-###### فريد لكل منشأة)،
+                     client_reference_id [فريد لكل منشأة — idempotency]،
+                     actor_membership_id، received_at، cancelled_at)
+purchase_items       بند شراء، Snapshot كامل وقت الشراء (product_id +
+                     product_name + product_sku + unit_cost + vat_rate
+                     منسوخة — unit_cost تكلفة فعلية متفاوض عليها، وليست
+                     product.cost_price)
+purchase_sequences    عدّاد رقم مرجعي ذرّي لكل منشأة (company_id هو PK نفسه)،
+                     نفس نمط invoice_sequences الذرّي بالضبط
 ```
 
-## 6. Expenses (المرحلة 3)
+**انحراف موثَّق عن التصميم الأصلي لهذا القسم** (كان مكتوبًا قبل بناء أي
+كود Purchasing فعليًا، ويفترض `purchase_orders`/`po_items` منفصلة عن
+`goods_receipts`/`supplier_invoices`): التصميم الفعلي دمج هذه المفاهيم في
+جدول واحد — **الشراء هو الفاتورة**، لا كيان `supplier_invoices` منفصل
+(`docs/PURCHASING.md` "الشراء هو الفاتورة")، و`purchase.status` نفسه
+(`ordered`→`received`) يعبّر عن دورة الاستلام بدل جدول `goods_receipts`
+منفصل. `purchase_returns` لم تُبنَ (مؤجَّلة، راجع `docs/PURCHASING.md`
+"مرتجعات المشتريات").
+
+## 6. Expenses (المرحلة 4 — منفَّذ)
 
 ```text
-expense_categories
-expenses          المبلغ، الفئة، الفرع، طريقة الدفع، مرفق (إيصال)
+expense_categories    فئة مصروف (company_id، name [فريد لكل منشأة]،
+                      account_id [الحساب المحاسبي المرتبط — Account
+                      Mapping]، is_active). قابلة للتوسيع، وليست قائمة
+                      مغلقة — 6 فئات افتراضية تُزرَع عند التسجيل.
+expenses             المبلغ، الفئة، الفرع (اختياري — مصروف على مستوى
+                      المنشأة مسموح)، طريقة الدفع (نفس Enum
+                      payments.method المحلي)، status (recorded/cancelled)،
+                      client_reference_id [idempotency]
 ```
 
-## 7. Accounting (المرحلة 4)
+لا عمود مرفق/إيصال (Receipt attachment) في هذه المرحلة — راجع
+`docs/EXPENSES.md` "ما لم يُبنَ بعد".
+
+## 7. Accounting (المرحلة 4 — منفَّذ، بنطاق أضيق مما خُطِّط له أصلًا هنا)
 
 ```text
-chart_of_accounts     دليل الحسابات (شجري: أصول/خصوم/حقوق ملكية/إيرادات/مصروفات)
-journal_entries         قيد محاسبي (مصدره: تلقائي من عملية، أو يدوي)
-journal_lines           بنود القيد (مدين/دائن) — يجب أن يتوازن كل قيد
-fiscal_periods          فترات مالية قابلة للإغلاق (منع قيود بأثر رجعي بلا إذن)
-opening_balances         الأرصدة الافتتاحية
+accounts              دليل الحسابات (شجري عبر self-relation parent_id:
+                      أصول/خصوم/حقوق ملكية/إيرادات/مصروفات). code فريد لكل
+                      منشأة — مفتاح البحث الثابت (Account Mapping)، وليس
+                      UUID. type وcode غير قابلين للتعديل بعد الإنشاء.
+journal_entries        قيد محاسبي. status: posted | reversed فقط — لا
+                      draft (لا تدفق إدخال يدوي يبرره). reference_type/
+                      reference_id يربطانه بمعاملته المصدر (Sale/Purchase/
+                      Expense). reversal_of_entry_id يشير للقيد الأصلي عند
+                      قيد عكسي. branch_id اختياري.
+journal_lines           بنود القيد (مدين/دائن، حساب واحد لكل سطر) — يجب أن
+                      يتوازن كل قيد (مدين = دائن، مُتحقَّق برمجيًا عند
+                      الترحيل، وليس بقيد Check على مستوى قاعدة البيانات).
 ```
-كل عملية تجارية (بيع، شراء، مصروف، تسوية مخزون) تُنشئ قيدها تلقائيًا عبر
-Accounting Service — لا إدخال يدوي مزدوج.
+
+**انحراف موثَّق عن التصميم الأصلي لهذا القسم**: التصميم الأصلي افترض
+`fiscal_periods`/`opening_balances` كذلك. **لم يُبنَيا في المرحلة 4** —
+لا مفهوم إغلاق فترة مالية ولا أرصدة افتتاحية محاسبية بعد (راجع
+`docs/ACCOUNTING.md` "مؤجَّل"). كذلك، لا `manual` كمصدر لقيد — كل قيد
+تلقائي حصرًا (`reference_type` من ثلاث قيم فقط: `Sale`/`Purchase`/
+`Expense`، بالإضافة لقيد عكسي بنفس `reference_type` الأصل).
+
+**لا إدخال يدوي مزدوج — مُنفَّذ فعليًا، وليس مبدأً مؤجَّلًا بعد الآن**: كل
+عملية تجارية (بيع، استلام شراء، مصروف) تُنشئ قيدها تلقائيًا عبر
+`JournalService.postJournalEntry` — **لا `POST`/`PATCH`/`DELETE` على
+`JournalEntry` في أي مكان بالـAPI**. راجع `docs/JOURNAL_ENTRIES.md`
+للآلية الكاملة (بما فيها العكس عبر `reversalOfEntryId`، لا التعديل
+المباشر).
 
 ## 8. Import (المرحلة 5)
 
@@ -274,7 +320,7 @@ webhook_events               صندوق وارد عام لأي Webhook خارج�
 
 ---
 
-## الحالة الحالية (منفّذ فعليًا في Prisma حتى نهاية المرحلة 3)
+## الحالة الحالية (منفّذ فعليًا في Prisma حتى نهاية المرحلة 4)
 
 الجداول المنفَّذة في `backend/prisma/schema.prisma`:
 
@@ -289,10 +335,17 @@ stock_count_lines, customers, suppliers`
 
 **المرحلة 3**: `sales, sale_items, payments, invoice_sequences, invoices`
 
-`integration_transactions` لا يزال مؤجَّلًا حتى وجود Adapter خارجي فعلي
-يستهلكه — لم يُستهلَك في المرحلة 3 لأن الدفع المحلي (نقدي/بطاقة/تحويل) لا
-يمر عبر `integrations` إطلاقًا (`docs/PAYMENTS.md`)، وتعريفه يبقى موثّقًا هنا
-دون إضافته فارغًا بلا استخدام.
+**المرحلة 4**: `purchases, purchase_items, purchase_sequences,
+expense_categories, expenses, accounts, journal_entries, journal_lines` —
+8 جداول جديدة، كل جدول بـ`FORCE ROW LEVEL SECURITY` + policy
+`tenant_isolation` مستقل (`prisma/migrations/
+20260815200000_phase4_purchasing_expenses_accounting/`). لا تعديل على أي
+جدول من المراحل السابقة.
 
-باقي الجداول (Purchasing, Accounting, Import, ZATCA) ستُضاف عبر Migrations
-جديدة في مراحلها، وليس دفعة واحدة الآن.
+`integration_transactions` لا يزال مؤجَّلًا حتى وجود Adapter خارجي فعلي
+يستهلكه — لم يُستهلَك بعد لأن الدفع المحلي (نقدي/بطاقة/تحويل) لا يمر عبر
+`integrations` إطلاقًا (`docs/PAYMENTS.md`)، وتعريفه يبقى موثّقًا هنا دون
+إضافته فارغًا بلا استخدام.
+
+باقي الجداول (Import, ZATCA) ستُضاف عبر Migrations جديدة في مراحلها، وليس
+دفعة واحدة الآن.

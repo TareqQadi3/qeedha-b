@@ -1,209 +1,252 @@
 # حالة المشروع (Project Status)
 
 **آخر تحديث**: 2026-08-15
-**المرحلة الحالية**: Phase 3 — POS + Sales + Payments + Invoices + أساس
-التكامل — **مكتملة ومُختبرة**، بانتظار موافقتك الصريحة لبدء المرحلة 4
+**المرحلة الحالية**: Phase 4 — Purchases + Expenses + Accounting Foundation
+— **مكتملة ومُختبرة**، بانتظار موافقتك الصريحة لبدء المرحلة القادمة
 
-## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة 4
+## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة القادمة
 
 ## ملخص: ما هذه المرحلة وما ليست
 
-قلب qeedha B الأول القابل للاستخدام فعليًا: بيع حقيقي من نقطة بيع حقيقية،
-بدفع محلي، بخصم مخزون ذرّي، وفاتورة برقم مضمون التفرّد — كل ذلك بلا أي
-اعتماد على قيّدها. لم تُبنَ في هذه المرحلة: محاسبة كاملة (دفتر أستاذ، قيود)،
-ZATCA فعلي، Qeedha Connector فعلي، Control Center، Website، اشتراكات فعلية،
-نظام مرتجعات جزئي، ورديات كاشير، أو سلات معلّقة على الخادم — كلها موثَّقة
-صراحة أدناه تحت "مؤجَّل عمدًا".
+أساس المحاسبة الحقيقي الأول في qeedha B: مشتريات بتدفق طلب→استلام صريح،
+مصروفات مدفوعة فورًا، ودليل حسابات + قيود محاسبية مزدوجة (Double-Entry)
+تُرحَّل تلقائيًا من كل عملية تجارية — بلا أي إدخال يدوي مزدوج ممكن عبر
+الـAPI. لم تُبنَ في هذه المرحلة: تكلفة البضاعة المباعة/تقييم المخزون
+(FIFO/متوسط مرجّح — قرار مفتوح متعمَّد)، ذمم مدينة/دائنة كاملة (Subledger
+لكل عميل/مورد)، مرتجعات مشتريات، فترات مالية/إغلاق، تسوية بنكية، ZATCA
+فعلي، Qeedha Connector فعلي، Control Center، Website، اشتراكات فعلية —
+كلها موثَّقة صراحة أدناه تحت "مؤجَّل عمدًا" و`docs/ACCOUNTING.md`
+"مؤجَّل".
 
-## ما تم إنجازه في هذه الدورة (المرحلة 3)
+## ما تم إنجازه في هذه الدورة (المرحلة 4)
 
-- [x] Prisma schema: 5 جداول جديدة (`sales, sale_items, payments,
-      invoice_sequences, invoices`) — كل جدول بـ`FORCE ROW LEVEL SECURITY`
-      + policy `tenant_isolation` مستقل. لا تعديل على أي جدول من المراحل
-      السابقة.
-- [x] 4 صلاحيات RBAC جديدة (`sales.read`, `sales.create`, `sales.cancel`,
-      `invoices.read`)، تحديث الأدوار الافتراضية (Cashier يبيع بلا إلغاء؛
-      Manager/Owner كل الصلاحيات؛ Accountant قراءة فقط).
-- [x] وحدة `sales`: معاملة بيع ذرّية واحدة تغطي التحقق الكامل (مستودع، نطاق
-      فرع العضوية، جهاز POS إن وُجد، عميل إن وُجد، كل منتج) → حساب المبالغ
-      في الخادم فقط → Sale → SaleItems (Snapshot) → خصم مخزون عبر
-      `InventoryService.recordMovement` الموجود أصلًا من المرحلة 2 (بلا أي
-      تعديل عليه) → Payments (يدعم Split) → رقم فاتورة ذرّي → Invoice →
-      Audit. إلغاء بيع كامل (لا مرتجعات جزئية بعد). Idempotency عبر
-      `clientReferenceId` فريد لكل منشأة، مع معالجة سباق تزامن حقيقي.
-- [x] وحدة `invoices` (قراءة فقط): `InvoiceNumberService` بترقيم تسلسلي ذرّي
-      لكل منشأة، نفس نمط `recordMovement` الذرّي بالضبط.
-- [x] `BranchScopeService`/`PosDevice` (من المرحلتين 2.1/1) استُهلكا فعليًا
-      لأول مرة خارج وحدة `inventory` — بلا أي تعديل على نموذجهما.
-- [x] واجهة أمامية حقيقية (`/pos`): بحث/مسح باركود، سلة، كمية وخصم لكل سطر،
-      عميل اختياري، دفع (بما فيه Split payment)، إتمام بيع، نتيجة فاتورة؛
-      شاشة `/sales` للقراءة. **اختُبرت عبر متصفح حقيقي (Playwright)**: مسار
-      كامل ناجح (دخول → بحث → إضافة → كمية → عميل → دفع نقدي → إتمام → تحقق
-      فاتورة/مخزون عبر الـAPI) + سيناريو فشل (مخزون غير كافٍ، بلا تغيّر في
-      الرصيد، رسالة خطأ واضحة).
-- [x] `test/phase3.e2e-spec.ts`: 25 اختبارًا جديدًا (تفويض/وظيفي/تزامن
-      حقيقي/RBAC/RLS) — **63/63 إجمالًا بلا أي تراجع** عن المراحل 1/2/2.1.
-- [x] توثيق جديد: `SALES.md`, `PAYMENTS.md`, `INVOICES.md`, `INTEGRATION.md`؛
-      تحديث `POS.md` (من تصميم مرجعي لتوثيق تنفيذ فعلي)،
-      `QEEDHA_INTEGRATION.md`, `SECURITY.md`, `DOMAIN_MODEL.md`,
-      `DATABASE.md`, `API.md`, `TESTING.md`, `MODULES.md`, `CHANGELOG.md`.
+- [x] Prisma schema: 8 جداول جديدة (`purchases, purchase_items,
+      purchase_sequences, expense_categories, expenses, accounts,
+      journal_entries, journal_lines`) — كل جدول بـ`FORCE ROW LEVEL
+      SECURITY` + policy `tenant_isolation` مستقل. لا تعديل على أي جدول من
+      المراحل السابقة.
+- [x] 9 صلاحيات RBAC جديدة (`purchases.read`, `purchases.create`,
+      `purchases.cancel`, `expenses.read`, `expenses.create`,
+      `expenses.update`, `expenses.delete`, `accounting.read`,
+      `accounting.manage`)، تحديث الأدوار الافتراضية (Manager: كل
+      المشتريات/المصروفات + قراءة محاسبية؛ Accountant: يدير دليل الحسابات
+      والمصروفات، قراءة فقط للمبيعات/المشتريات؛ Inventory Manager: شراء
+      واستلام مخزون بلا إلغاء؛ Cashier: بلا أي صلاحية من المرحلة).
+- [x] وحدة `purchases`: تدفق صريح بخطوتين (`createPurchase` — الطلب فقط،
+      لا أثر مخزون/محاسبة؛ `receivePurchase` — انتقال حالة محروس ذرّيًا
+      (`UPDATE ... WHERE status='ordered'`) ثم خصم/إضافة مخزون عبر
+      `InventoryService.recordMovement` الموجود أصلًا ثم ترحيل قيد واحد).
+      إلغاء يعمل فقط قبل الاستلام. Idempotency عبر `clientReferenceId`،
+      ترقيم مرجعي ذرّي (`PUR-######`) بنفس نمط `InvoiceNumberService`.
+- [x] وحدة `expenses`: مصروف مدفوع فورًا (لا حالة "مستحق")، فرع اختياري
+      (مصروف على مستوى المنشأة مسموح)، فئات مصروفات قابلة للتوسيع (6
+      افتراضية مزروعة عند التسجيل) مربوطة بحسابات محاسبية. تعديل حقل مالي
+      يعكس القيد القديم ويرحّل قيدًا جديدًا؛ الحذف إلغاء ناعم يعكس القيد
+      فقط. Idempotency عبر `clientReferenceId`.
+- [x] وحدة `accounting`: `AccountingService` (دليل الحسابات — إنشاء/تعديل
+      حساب، `name`/`isActive` فقط قابلان للتعديل، لا تعديل على `code`/
+      `type`) + `JournalService` (نقطة العبور الوحيدة لترحيل/عكس أي قيد،
+      يتحقق من توازن مدين=دائن ويرفض قيدًا صفريًا). دليل حسابات افتراضي
+      (21 حسابًا) + 6 فئات مصروفات افتراضية يُزرَعان تلقائيًا داخل نفس
+      معاملة `AuthService.registerCompany` لكل منشأة جديدة — بلا تغيير في
+      عقد Endpoint التسجيل. **لا Endpoint لإنشاء/تعديل/حذف قيد محاسبي على
+      الإطلاق** — `JournalEntriesController` قراءة فقط بتصميم الكود.
+- [x] تكامل محاسبي تلقائي: `SalesService.createSale`/`cancelSale`،
+      `PurchasesService.receivePurchase`، و`ExpensesService` (إنشاء/تعديل
+      مالي/حذف) تستدعي `JournalService` داخل نفس معاملة العملية التجارية
+      — فشل ترحيل القيد يُلغي العملية كاملة معه.
+- [x] واجهة أمامية جديدة: `/purchases` (أوامر شراء + استلام)، `/expenses`
+      (تسجيل/تعديل/حذف مصروفات وفئاتها)، `/accounting` (قراءة فقط، تبويبا
+      "دليل الحسابات" و"القيود المحاسبية").
+- [x] `test/phase4.e2e-spec.ts`: 28 اختبارًا جديدًا (دليل حسابات/سلامة
+      قيد/مشتريات/مصروفات/تكامل محاسبي/RLS مباشر) — **91/91 إجمالًا بلا
+      أي تراجع** عن المراحل 1/2/2.1/3.
+- [x] Browser test (Playwright) يدوي: دخول → مشتريات (إنشاء + استلام،
+      تحقق زيادة المخزون عبر الـAPI) → مصروفات (إنشاء، تحقق توازن القيد
+      عبر الـAPI) → محاسبة (دليل الحسابات ظاهر، نافذة تفاصيل قيد تُظهر
+      مدين = دائن) — كل الخطوات نجحت بلا أخطاء console.
+- [x] توثيق جديد: `PURCHASING.md`, `EXPENSES.md`, `CHART_OF_ACCOUNTS.md`,
+      `JOURNAL_ENTRIES.md`؛ إعادة كتابة `ACCOUNTING.md` (من تصميم مرجعي
+      إلى توثيق التنفيذ الفعلي)؛ تحديث `DOMAIN_MODEL.md`, `DATABASE.md`,
+      `API.md`, `SECURITY.md`, `TESTING.md`, `CHANGELOG.md`.
 
 ## التقرير النهائي (بالصيغة المطلوبة)
 
-# Phase 3 — POS + Sales + Payments + Invoices
+# Phase 4 — Purchases + Expenses + Accounting Foundation
 
 **Status**: Completed
 
-**POS**: PASS
-**Sales**: PASS
-**Payments**: PASS
-**Invoices**: PASS
-**Inventory Integration**: PASS (خصم ذرّي عبر `recordMovement` الموجود أصلًا،
-لا مسار كتابة جديد)
-**Branch Scope**: PASS (يُشتق من `warehouse.branchId`، مُتحقَّق عبر
-`BranchScopeService` نفسه من المرحلة 2.1)
-**Warehouse Scope**: PASS
-**POS Device Security**: PASS (نفس فرع المستودع + نشط + نفس المنشأة)
+**Purchases**: PASS (تدفق طلب→استلام، ترقيم مرجعي ذرّي، Idempotency)
+**Expenses**: PASS (فرع اختياري، فئات قابلة للتوسيع، تعديل/حذف يعكسان القيد)
+**Chart of Accounts**: PASS (دليل افتراضي كامل مزروع تلقائيًا لكل منشأة)
+**Journal Entries**: PASS (posted/reversed فقط، عكس بلا تعديل مباشر أبدًا)
+**Double-Entry Integrity**: PASS (توازن مدين=دائن مُتحقَّق عند كل ترحيل،
+قيد صفري مرفوض)
+**No Manual Journal Entry**: PASS (لا `POST`/`PATCH`/`DELETE` على
+`/accounting/journal-entries` — مُختبَر صراحة أن السطح غير موجود)
+**Inventory Integration**: PASS (خصم/إضافة ذرّي عبر `recordMovement`
+الموجود أصلًا، لا مسار كتابة جديد)
+**Accounting Integration**: PASS (Sale/Purchase/Expense تُرحّل قيدها داخل
+نفس معاملتها الذرّية؛ فشل الترحيل يُلغي العملية كاملة)
+**Branch Scope**: PASS (`BranchScopeService` نفسه من المرحلة 2.1، يمتد
+لـPurchase عبر فرع المستودع، ولـExpense عند وجود `branchId` فقط)
 **Tenant Isolation**: PASS (RLS + فحوصات تطبيقية صريحة، كما في كل مرحلة سابقة)
-**RLS**: PASS (`FORCE ROW LEVEL SECURITY` على كل جدول جديد + اختبار RLS
-مباشر)
-**RBAC**: PASS (4 صلاحيات جديدة، مُختبَرة برفض 403 عند غيابها)
-**Audit**: PASS (`sales.sale.complete`, `sales.sale.cancel`)
-**Idempotency**: PASS (`clientReferenceId`، مُختبَر تسلسليًا و5 طلبات متزامنة
-حقيقية)
-**Concurrency**: PASS (عمليتا بيع متزامنتان حقيقيتان على نفس المنتج: واحدة
-تنجح فقط، الرصيد لا يصبح سالبًا أبدًا؛ 10 طلبات متزامنة تُنتج 10 أرقام فاتورة
-فريدة)
-**Frontend**: PASS (شاشة POS حقيقية متصلة بالكامل بالـAPI)
-**Browser Tests**: PASS (Playwright، مسار كامل + سيناريو فشل)
-**E2E**: PASS (63/63، `npx jest --config ./test/jest-e2e.json --runInBand`)
+**RLS**: PASS (`FORCE ROW LEVEL SECURITY` على كل جدول جديد من الثمانية +
+اختبار RLS مباشر)
+**RBAC**: PASS (9 صلاحيات جديدة، مُختبَرة برفض 403 عند غيابها)
+**Audit**: PASS (`purchases.purchase.create/receive/cancel`,
+`expenses.expense.create/update/delete`, `expenses.category.create`,
+`accounting.account.create/update`, `accounting.journal.post/reverse`)
+**Idempotency**: PASS (`clientReferenceId` على Purchase وExpense، مُختبَر
+بطلبات متزامنة حقيقية لكل منهما)
+**Concurrency**: PASS (استلام شراء متزامن حقيقي: مرة واحدة تنجح فقط، لا
+مضاعفة مخزون؛ 10 طلبات إنشاء شراء متزامنة تُنتج 10 أرقام مرجعية فريدة؛ 5
+طلبات إنشاء مصروف متزامنة بنفس المفتاح تُنتج مصروفًا واحدًا فقط)
+**Frontend**: PASS (شاشات `/purchases`, `/expenses`, `/accounting` متصلة
+بالكامل بالـAPI)
+**Browser Tests**: PASS (Playwright يدوي، مسار كامل عبر الثلاث وحدات)
+**E2E**: PASS (91/91، `npx jest --config ./test/jest-e2e.json --runInBand`)
 **Build**: PASS (`nest build` + frontend `tsc --noEmit && vite build`، بلا
 أخطاء)
 **Lint**: PASS (`eslint . --ext .ts` / `--ext ts,tsx` — 0 أخطاء في الطرفين)
 **Typecheck**: PASS (`tsc --noEmit` — 0 أخطاء في الطرفين)
-**Security**: PASS (IDOR، نطاق فرع/مستودع/جهاز POS، لا ثقة بمدخلات العميل —
+**Security**: PASS (IDOR، نطاق فرع/مستودع، لا Endpoint لتزوير قيد محاسبي —
 راجع `docs/SECURITY.md`)
-**SaaS Readiness**: PASS (كل جدول جديد tenant-scoped بـRLS، كل عملية تمر عبر
-نفس سلسلة الحراسة، لا انحراف عن نموذج Company/Membership/Role/Permission)
-**Qeedha Integration Foundation**: PASS (`PaymentIntegrationPort`/
-`IntegrationRegistry` من المرحلة 1 جاهزان بلا تعديل، `PaymentMethod.external`
-محجوزة، لا API مخترع)
-**Qeedha Independence**: PASS (لا استيراد واحد من `integrations/providers/*`
-في `sales`/`payments`/`invoices` — النظام يعمل بالكامل بدون قيّدها، وهذا هو
-الوضع الوحيد المُختبَر فعليًا)
-**Documentation**: PASS (13 ملف توثيق جديد/محدَّث)
+**SaaS Readiness**: PASS (كل جدول جديد tenant-scoped بـRLS، كل عملية تمر
+عبر نفس سلسلة الحراسة، لا انحراف عن نموذج Company/Membership/Role/Permission)
+**Documentation**: PASS (4 ملفات توثيق جديدة، 1 مُعاد كتابته بالكامل، 6
+ملفات مُحدَّثة)
 
-**Tests**: 63/63 (38 سابقًا + 25 جديدة)
+**Tests**: 91/91 (63 سابقًا + 28 جديدة)
 
 ### Files Changed
-- **Backend (جديد)**: `src/modules/sales/**` (module, controllers, services,
-  DTOs)، `src/modules/iam/branch-scope.service.ts` (إضافة
-  `assertBranchInScope`)، `prisma/migrations/
-  20260815180000_phase3_pos_sales_payments_invoices/`، `test/phase3.e2e-spec.ts`.
+- **Backend (جديد)**: `src/modules/purchases/**` (module, controller,
+  service, purchase-number.service, DTOs)، `src/modules/expenses/**`
+  (module, controller, services, DTOs)، `src/modules/accounting/**`
+  (module, controllers, services, constants, DTOs)، `prisma/migrations/
+  20260815200000_phase4_purchasing_expenses_accounting/`،
+  `test/phase4.e2e-spec.ts`.
 - **Backend (معدَّل)**: `prisma/schema.prisma`, `src/app.module.ts`,
+  `src/modules/auth/auth.service.ts` (بذر دليل الحسابات/فئات المصروفات
+  الافتراضية داخل معاملة `registerCompany` نفسها)،
   `src/modules/iam/constants/permissions.ts`,
   `src/modules/iam/constants/default-roles.ts`.
-- **Frontend (جديد)**: `src/pages/PosPage.tsx`, `src/pages/InvoicesPage.tsx`.
-- **Frontend (معدَّل)**: `src/App.tsx`, `src/components/Layout.tsx` (مسارا
-  `/pos`, `/sales`).
-- **Docs (جديد)**: `SALES.md`, `PAYMENTS.md`, `INVOICES.md`, `INTEGRATION.md`.
-- **Docs (معدَّل)**: `POS.md`, `QEEDHA_INTEGRATION.md`, `SECURITY.md`,
-  `DOMAIN_MODEL.md`, `DATABASE.md`, `API.md`, `TESTING.md`, `MODULES.md`,
-  `CHANGELOG.md`, `PROJECT_STATUS.md` (هذا الملف).
+- **Frontend (جديد)**: `src/pages/PurchasesPage.tsx`,
+  `src/pages/ExpensesPage.tsx`, `src/pages/AccountingPage.tsx`.
+- **Frontend (معدَّل)**: `src/App.tsx`, `src/components/Layout.tsx` (مسارات
+  `/purchases`, `/expenses`, `/accounting`).
+- **Docs (جديد)**: `PURCHASING.md`, `EXPENSES.md`, `CHART_OF_ACCOUNTS.md`,
+  `JOURNAL_ENTRIES.md`.
+- **Docs (معدَّل)**: `ACCOUNTING.md` (إعادة كتابة كاملة)، `DOMAIN_MODEL.md`,
+  `DATABASE.md`, `API.md`, `SECURITY.md`, `TESTING.md`, `CHANGELOG.md`,
+  `PROJECT_STATUS.md` (هذا الملف).
 
 ### Database Changes
-Migration واحدة (`20260815180000_phase3_pos_sales_payments_invoices`) — 5
-جداول جديدة + 4 enums (`SaleStatus`, `PaymentMethod`, `PaymentStatus`,
-`InvoiceStatus`) + RLS policies لكل جدول. طُبِّقت بنجاح على قاعدتي التطوير
-والاختبار. لا تعديل ولا حذف لأي جدول من المراحل السابقة. أُنشئت عبر
-`prisma migrate diff` + تطبيق يدوي (البيئة غير تفاعلية، فلا يمكن استخدام
-`prisma migrate dev` مباشرة) — نفس الناتج المُولَّد تلقائيًا، بلا فرق.
+Migration واحدة (`20260815200000_phase4_purchasing_expenses_accounting`) —
+8 جداول جديدة + 4 enums (`PurchaseStatus`, `ExpenseStatus`, `AccountType`,
+`JournalEntryStatus`) + RLS policies لكل جدول. طُبِّقت بنجاح
+على قاعدتي التطوير والاختبار. لا تعديل ولا حذف لأي جدول من المراحل
+السابقة.
 
 ### API Changes
-راجع `docs/API.md` قسم "Endpoints المرحلة الثالثة": 4 مسارات تحت `/sales`
-(قائمة/تفصيل/إنشاء/إلغاء)، مسارا قراءة تحت `/invoices`. كلها خلف نفس سلسلة
-الحراسة (`JwtAuthGuard → MembershipGuard → PermissionsGuard`) + طبقة نطاق
-الفرع من المرحلة 2.1.
+راجع `docs/API.md` قسم "Endpoints المرحلة الرابعة": 5 مسارات تحت
+`/purchases` (قائمة/تفصيل/إنشاء/استلام/إلغاء)، 7 مسارات تحت `/expenses`
+(فئات×2 + مصروفات×5)، 5 مسارات تحت `/accounting` (حسابات×3 + قيود×2،
+قراءة فقط للقيود — **لا `POST` عليها**). كلها خلف نفس سلسلة الحراسة
+(`JwtAuthGuard → MembershipGuard → PermissionsGuard`) + طبقة نطاق الفرع من
+المرحلة 2.1.
 
 ### Frontend Changes
-شاشة POS حقيقية (`/pos`) وشاشة مبيعات/فواتير للقراءة (`/sales`)، بنفس الهوية
-البصرية الحالية (لم تُغيَّر). راجع `docs/POS.md` للتفصيل الكامل وما هو
-مؤجَّل عمدًا في تصميم الواجهة.
+ثلاث شاشات جديدة بنفس الهوية البصرية الحالية (لم تُغيَّر): `/purchases`
+(إنشاء أمر شراء + استلامه)، `/expenses` (تسجيل/تعديل/حذف مصروف + إدارة
+فئاته)، `/accounting` (قراءة فقط، تبويبا "دليل الحسابات"/"القيود
+المحاسبية"). راجع `docs/PURCHASING.md`/`docs/EXPENSES.md` للتفصيل الكامل
+وما هو مؤجَّل عمدًا في تصميم كل واجهة.
 
 ### Architectural Decisions (قرارات مسجَّلة)
-- **لا طبقة Payment abstraction ثانية**: أُعيد استخدام `PaymentIntegrationPort`/
-  `IntegrationRegistry` من المرحلة 1 حرفيًا بلا تعديل، بدل بناء طبقة جديدة.
-  طرق الدفع المحلية لا تمر عبرهما إطلاقًا — راجع `docs/PAYMENTS.md`.
-- **Split payment مدعوم بنيويًا من اليوم الأول**: `Payment` علاقة واحد-إلى-
-  متعدد مع `Sale`، تفاديًا لـMigration كاسرة لاحقًا لإضافته.
-- **فحص النطاق في طبقة الخدمة، ليس Guard جديد**: نفس قرار المرحلة 2.1 يمتد
-  حرفيًا — `BranchScopeService` بلا أي تعديل على نموذجه.
-- **403 لخرق النطاق، 404 لعدم الانتماء للمنشأة، 409 لتعارض حالة** (جهاز POS
-  غير نشط أو من فرع مختلف، بيع ملغى بالفعل): نفس اتفاقية رموز الحالة من
-  المراحل السابقة، بلا استثناء.
-- **قوائم القراءة تُصفَّى بصمت، لا تُرفض**: نفس اتفاقية المرحلة 2.1، مطبَّقة
-  الآن على `/sales`/`/invoices`.
-- **Idempotency على مستوى البيع الكامل، لا لكل دفعة على حدة**:
-  `Sale.clientReferenceId` يغطي البيع وبنوده ودفعاته وفاتورته معًا، لأن كل
-  هذه الكيانات تُنشأ فقط داخل نفس المعاملة الذرّية — راجع `docs/SALES.md`.
-- **لا تجاوز سعر (Price override)**: `SaleItem.unitPrice` يُنسَخ دائمًا من
-  السعر الحالي للمنتج؛ الخصم لكل سطر هو الآلية الوحيدة لتعديل القيمة، ومتاح
-  لأي عضو يملك `sales.create` (بلا صلاحية تجاوز منفصلة في هذه المرحلة).
-- **إلغاء كامل فقط، لا مرتجعات جزئية**: `Sale.status` يدعم فقط
-  `completed`/`cancelled` — كافٍ لعدم "تجميد" التصميم ضد مرتجعات لاحقة دون
-  بناء نظام كامل لم يُطلَب بعد.
+- **الشراء هو الفاتورة**: لا كيان `PurchaseInvoice` منفصل — `Purchase`
+  نفسه يحمل كل مبالغ فاتورة المورد ورقمًا مرجعيًا ذرّيًا. راجع
+  `docs/PURCHASING.md`.
+- **تدفق شراء بخطوتين صريحتين، وليس معاملة واحدة**: `createPurchase`
+  (طلب فقط) ثم `receivePurchase` (استلام فعلي يلمس المخزون والمحاسبة) —
+  يعكس واقع العمل الحقيقي (البضاعة تصل لاحقًا، ربما بواسطة شخص آخر).
+- **لا صلاحية `purchases.receive` منفصلة**: الاستلام يشترك مع
+  `purchases.create` عمدًا، اتساقًا مع اتفاقية "صلاحية واحدة لكل نوع عملية
+  كتابة رئيسية" في هذا النظام.
+- **المصروف مدفوع دائمًا**: لا حالة "مستحق" أو "غير مدفوع" — القيد الناتج
+  دائمًا مدين حساب مصروف / دائن نقدية أو بنك بلا حالة وسيطة.
+- **فرع المصروف اختياري صراحة**: أول كيان تجاري يسمح بعدم الانتماء لأي
+  فرع (مصروف على مستوى المنشأة) — بعكس `Sale`/`Purchase` اللذين يشتقان
+  فرعًا إلزاميًا من المستودع.
+- **لا إدخال يدوي مزدوج، بتصميم الـController نفسه**:
+  `JournalEntriesController` قراءة فقط — لا `POST`/`PATCH`/`DELETE`
+  مُعرَّف على الإطلاق، وليس مجرد صلاحية غير ممنوحة.
+- **العكس، لا التعديل، لتصحيح قيد**: `JournalService.reverseJournalEntry`
+  ينشئ قيدًا جديدًا بمدين/دائن مقلوبين ويُعلّم الأصلي `reversed` — لا سطر
+  قيد مُرحَّل يُعدَّل أو يُحذَف أبدًا.
+- **الترميز الثابت (`Account.code`) هو مفتاح Account Mapping، وليس UUID**:
+  `ACCOUNT_CODES` + `AccountingService.getAccountByCode` يحلان أي حساب
+  ثابت معروف مسبقًا لكل منشأة على حدة وقت التنفيذ.
+- **دليل الحسابات وفئات المصروفات يُزرَعان داخل معاملة التسجيل نفسها،
+  بلا تغيير عقد Endpoint**: خطوة إضافية في `AuthService.registerCompany`
+  فقط.
+- **توقُّف متعمَّد عند تقييم المخزون (COGS)**: لا قرار FIFO/متوسط مرجّح
+  بعد، فلا سطر مخزون/COGS في قيد البيع إطلاقًا — قرار موثَّق صراحة، وليس
+  إغفالًا. راجع `docs/ACCOUNTING.md` "مؤجَّل".
 
 ### Known Limitations (موثَّقة صراحة، وليست ثغرات مسكوت عنها)
-- **لا ورديات كاشير (Cash sessions)، لا سلات معلّقة على الخادم (Held carts)**
-  — السلة تعيش في حالة المتصفح حتى الإتمام فقط. راجع `docs/POS.md` "مؤجَّل".
-- **لا مرتجعات جزئية بالسطر** — إلغاء كامل للفاتورة فقط.
-- **`IamService.assignRole`** لا يزال بلا فحص "هل مُسنِد الدور مخوَّل بهذا
-  الفرع؟" (نفس القيد الموثَّق في تقرير المرحلة 2.1، لم يتغيّر).
-- **`Payment.status = pending`** مدعوم في النموذج لكن غير مُنتَج فعليًا عبر
-  أي تدفق HTTP حقيقي بعد — لا مزوّد خارجي يُنتج حالة معلّقة فعلية.
-- **لا طابعة/PDF/QR فعلي للفاتورة** — العرض داخل الواجهة فقط.
+- **لا مرتجعات مشتريات**: إلغاء أمر شراء يعمل فقط قبل الاستلام؛ لا آلية
+  لإبطال شراء مُستلَم بالفعل.
+- **لا ذمم مدينة/دائنة كاملة**: `Sale`/`Purchase` يُرحَّلان لحساب إجمالي
+  واحد (نقدية/بنك، ذمم دائنة) — لا رصيد لكل عميل/مورد على حدة، ولا خطوة
+  "تحصيل من عميل" أو "دفع لمورد".
+- **لا فترات مالية/إغلاق**: أي قيد قابل للترحيل بأثر رجعي فنيًا (لا حظر
+  زمني)، رغم أن كل قيد فعلي في هذه المرحلة يُرحَّل لحظة وقوع العملية.
+- **لا مرفق/إيصال للمصروف**: لا حقل تخزين ملف على `Expense`.
+- **لا سير موافقة (Approval workflow)** لمصروفات تتجاوز حدًا معينًا.
 
 ### What is intentionally deferred (مؤجَّل عمدًا — وليس نسيانًا)
-- نظام مرتجعات جزئي كامل (`sale_returns`) — يحتاج قرار عمل حول سياسة
-  الاسترجاع أولًا.
-- ورديات الكاشير (`cash_sessions`/`cash_movements`).
-- السلات المعلّقة على الخادم (Hold/Resume عبر أجهزة مختلفة).
-- Offline-first الكامل (طابور محلي، مزامنة تلقائية، حل تعارض المخزون) —
-  الأساس (`clientReferenceId`) جاهز، التنفيذ الكامل لاحقًا.
-- تجاوز السعر يدويًا بصلاحية منفصلة.
-- طباعة/PDF/QR فعلي للفاتورة، والفوترة الإلكترونية ZATCA الكاملة.
+- تكلفة البضاعة المباعة (COGS) وتقييم المخزون (FIFO/متوسط مرجّح) — يحتاج
+  قرارك أولًا (راجع `docs/ACCOUNTING.md` "مؤجَّل").
+- ذمم مدينة/دائنة كاملة (Subledger لكل عميل/مورد + تقادم/Aging).
+- مرتجعات المشتريات (`purchase_returns`) — يحتاج قرار سياسة استرجاع أولًا.
+- الفترات المالية/إغلاقها، الأرصدة الافتتاحية المحاسبية.
+- التسوية البنكية/النقدية الكاملة.
+- طباعة/PDF/QR فعلي لفاتورة الشراء، والفوترة الإلكترونية ZATCA الكاملة.
 - Qeedha Connector الفعلي (لا API مخترع، بانتظار عقد رسمي).
-- Purchasing، Expenses، Accounting الكاملة، Control Center، Website،
-  اشتراكات فعلية — **لم تُبنَ ولن تُبنى في هذه المرحلة**، كما هو مطلوب صراحة.
+- التقارير المالية الكاملة (ميزانية عمومية، قائمة دخل)، Control Center،
+  Website، اشتراكات فعلية — **لم تُبنَ ولن تُبنى في هذه المرحلة**.
 
 ### Commit
-commit منفصل ونظيف لهذه المرحلة فقط (بدون تعديل أو إعادة كتابة `6528174` أو
-`5ac78e0`)، **بدون push** حسب التعليمات الصريحة. راجع رسالة الـcommit للـhash
-النهائي.
+commit منفصل ونظيف لهذه المرحلة فقط، بدون تعديل أو إعادة كتابة أي commit
+سابق — **pending final commit** (لم يُنفَّذ بعد وقت كتابة هذا التقرير).
 
 ### Push
 NOT PUSHED
 
 ## ما لم يبدأ بعد (بانتظار إذنك للانتقال)
 
-المرحلة 4 (محاسبة أساسية، وفق `ROADMAP.md`) — لا كود لأي من وحداتها بعد.
-**لن يبدأ التنفيذ إلا بعد موافقتك الصريحة، ولن يُبدأ تلقائيًا.**
+المرحلة القادمة (وفق `ROADMAP.md`، بعد إعادة تجزئة نطاق المراحل الفعلي عن
+التصميم الأصلي — راجع `docs/DATABASE.md` لكل "انحراف موثَّق") — لا كود لأي
+من وحداتها بعد. **لن يبدأ التنفيذ إلا بعد موافقتك الصريحة، ولن يُبدأ
+تلقائيًا.**
 
 ## قرارات تحتاج نقاشًا معك لاحقًا (مؤجَّلة عمدًا، ليست الآن)
 
-- سياسة المرتجعات (جزئي بالسطر أم كامل فقط؟) — قبل بناء `sale_returns`.
+- خوارزمية تقييم المخزون (FIFO/Weighted Average) — قبل بناء أي قيد COGS.
+- سياسة الذمم المدينة/الدائنة الكاملة (Subledger لكل عميل/مورد، شروط
+  ائتمان، تقادم).
+- سياسة مرتجعات المشتريات — قبل بناء `purchase_returns`.
+- سياسة مرتجعات المبيعات (لا تزال مؤجَّلة من المرحلة 3).
 - الحاجة الفعلية لورديات الكاشير قبل بناء `cash_sessions`.
-- استراتيجية Offline-first الكاملة (طابور محلي، حل تعارض) — عند الحاجة
-  الفعلية لدعم اتصال غير مستقر.
-- خوارزمية تقييم المخزون (FIFO/Weighted Average) — عند المرحلة 4.
-- الموجة/الحد المالي المطبَّق لـZATCA Phase 2 — عند المرحلة 6.
-- عقد API الفعلي لقيّدها (Endpoints, Auth, Fields) — عند المرحلة 7، بانتظار
-  توثيق منك.
+- استراتيجية Offline-first الكاملة (طابور محلي، حل تعارض).
+- الموجة/الحد المالي المطبَّق لـZATCA Phase 2.
+- عقد API الفعلي لقيّدها (Endpoints, Auth, Fields) — بانتظار توثيق منك.
 
 ## كيف تتحقق من الحالة الحالية محليًا
 
 Backend: `cd backend && npm install && npx prisma migrate deploy && npm run
-prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (63/63 حاليًا).
+prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (91/91 حاليًا).
 Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعمل
 على `http://localhost:3000`).
 
@@ -222,3 +265,6 @@ Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعم
 - 2026-08-15: المرحلة 3 (POS/Sales/Payments/Invoices + أساس التكامل) مكتملة
   ومُختبرة (63/63، build/lint/typecheck نظيفة في backend وfrontend، Playwright
   ناجح) — بانتظار موافقة صريحة لبدء المرحلة 4.
+- 2026-08-15: المرحلة 4 (Purchases/Expenses/Accounting Foundation) مكتملة
+  ومُختبرة (91/91، build/lint/typecheck نظيفة في backend وfrontend، Playwright
+  يدوي ناجح) — بانتظار موافقة صريحة لبدء المرحلة القادمة.

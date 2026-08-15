@@ -10,6 +10,9 @@ const NAV_ITEMS = [
   { to: '/inventory', label: 'المخزون' },
   { to: '/customers', label: 'العملاء' },
   { to: '/suppliers', label: 'الموردون' },
+  { to: '/purchases', label: 'المشتريات' },
+  { to: '/expenses', label: 'المصروفات' },
+  { to: '/accounting', label: 'الحسابات والقيود' },
 ];
 
 export function Layout() {

@@ -95,6 +95,33 @@ export const PERMISSIONS: PermissionDefinition[] = [
 
   // Phase 3: Invoices
   { key: 'invoices.read', category: 'invoices', description: 'عرض الفواتير' },
+
+  // Phase 4: Purchasing
+  { key: 'purchases.read', category: 'purchases', description: 'عرض المشتريات' },
+  {
+    key: 'purchases.create',
+    category: 'purchases',
+    description: 'إنشاء أمر شراء واستلام مخزونه',
+  },
+  { key: 'purchases.cancel', category: 'purchases', description: 'إلغاء أمر شراء لم يُستلَم بعد' },
+
+  // Phase 4: Expenses
+  { key: 'expenses.read', category: 'expenses', description: 'عرض المصروفات' },
+  { key: 'expenses.create', category: 'expenses', description: 'تسجيل مصروف' },
+  { key: 'expenses.update', category: 'expenses', description: 'تعديل مصروف' },
+  { key: 'expenses.delete', category: 'expenses', description: 'حذف/تعطيل مصروف' },
+
+  // Phase 4: Accounting
+  {
+    key: 'accounting.read',
+    category: 'accounting',
+    description: 'عرض دليل الحسابات والقيود المحاسبية',
+  },
+  {
+    key: 'accounting.manage',
+    category: 'accounting',
+    description: 'إدارة دليل الحسابات (إضافة/تعديل حساب) - القيود نفسها تُنشَأ آليًا فقط',
+  },
 ];
 
 export const PERMISSION_KEYS = {
@@ -130,6 +157,15 @@ export const PERMISSION_KEYS = {
   SALES_CREATE: 'sales.create',
   SALES_CANCEL: 'sales.cancel',
   INVOICES_READ: 'invoices.read',
+  PURCHASES_READ: 'purchases.read',
+  PURCHASES_CREATE: 'purchases.create',
+  PURCHASES_CANCEL: 'purchases.cancel',
+  EXPENSES_READ: 'expenses.read',
+  EXPENSES_CREATE: 'expenses.create',
+  EXPENSES_UPDATE: 'expenses.update',
+  EXPENSES_DELETE: 'expenses.delete',
+  ACCOUNTING_READ: 'accounting.read',
+  ACCOUNTING_MANAGE: 'accounting.manage',
 } as const;
 
 export const ALL_PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);

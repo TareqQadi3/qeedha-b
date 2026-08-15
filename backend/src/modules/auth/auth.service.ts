@@ -13,6 +13,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { hashToken } from '../../common/utils/token-hash';
 import { parseDurationMs } from '../../common/utils/duration';
+import { AccountingService } from '../accounting/accounting.service';
 import { IamService } from '../iam/iam.service';
 import { AuthLookupService } from './auth-lookup.service';
 import { LoginDto } from './dto/login.dto';
@@ -34,6 +35,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly authLookupService: AuthLookupService,
     private readonly iamService: IamService,
+    private readonly accountingService: AccountingService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
   ) {}
@@ -111,6 +113,12 @@ export class AuthService {
       await tx.membershipRole.create({
         data: { companyId, membershipId: membership.id, roleId: ownerRole.id, branchId: null },
       });
+
+      // Every company gets the same default Chart of Accounts + expense
+      // categories at creation (docs/ACCOUNTING.md §37) - additive to
+      // registration, no other step here changes.
+      const accountsByCode = await this.accountingService.seedDefaultChartOfAccounts(tx, companyId);
+      await this.accountingService.seedDefaultExpenseCategories(tx, companyId, accountsByCode);
 
       return { user, membership };
     });

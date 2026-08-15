@@ -56,6 +56,14 @@ model Company {
   payments               Payment[]
   invoices               Invoice[]
   invoiceSequence        InvoiceSequence?
+  purchases              Purchase[]
+  purchaseItems          PurchaseItem[]
+  purchaseSequence       PurchaseSequence?
+  expenseCategories      ExpenseCategory[]
+  expenses               Expense[]
+  accounts               Account[]
+  journalEntries         JournalEntry[]
+  journalLines           JournalLine[]
 
   @@map("companies")
 }
@@ -77,6 +85,9 @@ model Branch {
   membershipRoles MembershipRole[]
   sales           Sale[]
   invoices        Invoice[]
+  purchases       Purchase[]
+  expenses        Expense[]
+  journalEntries  JournalEntry[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -101,6 +112,7 @@ model Warehouse {
   stockAdjustments StockAdjustment[]
   stockCounts      StockCount[]
   sales            Sale[]
+  purchases        Purchase[]
 
   @@unique([companyId, code])
   @@index([companyId, branchId, deletedAt])
@@ -476,6 +488,7 @@ model Product {
   stockAdjustments StockAdjustment[]
   stockCountLines  StockCountLine[]
   saleItems        SaleItem[]
+  purchaseItems    PurchaseItem[]
 
   @@unique([companyId, sku])
   @@index([companyId, deletedAt])
@@ -678,7 +691,8 @@ model Supplier {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   deletedAt     DateTime? @map("deleted_at")
 
-  company Company @relation(fields: [companyId], references: [id])
+  company   Company    @relation(fields: [companyId], references: [id])
+  purchases Purchase[]
 
   @@unique([companyId, reference])
   @@index([companyId, deletedAt])
@@ -868,4 +882,273 @@ model Invoice {
   @@unique([companyId, invoiceNumber])
   @@index([companyId, customerId])
   @@map("invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: Purchasing
+// ---------------------------------------------------------------------------
+//
+// Deliberately no separate PurchaseInvoice table (unlike Sale/Invoice in
+// Phase 3): a supplier bill here is always 1:1 with its single receiving
+// event, with no distinct future use identified yet that would justify the
+// split - see docs/PURCHASING.md. Purchase IS the bill record.
+//
+// Purchases post as unpaid (Accounts Payable) on receipt - there is no
+// "pay supplier" step in this phase (docs/ACCOUNTING.md "Deferred").
+
+enum PurchaseStatus {
+  ordered
+  received
+  cancelled
+}
+
+model Purchase {
+  id        String @id @default(uuid()) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+
+  // Derived server-side from warehouseId, exactly like Sale.branchId - never
+  // a client-supplied value. See assertPurchaseAuthorization in
+  // PurchasesService.
+  branchId    String @map("branch_id") @db.Uuid
+  warehouseId String @map("warehouse_id") @db.Uuid
+  supplierId  String @map("supplier_id") @db.Uuid
+
+  status PurchaseStatus @default(ordered)
+
+  currency       String  @default("SAR")
+  subtotal       Decimal @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  taxAmount      Decimal @map("tax_amount") @db.Decimal(14, 2)
+  totalAmount    Decimal @map("total_amount") @db.Decimal(14, 2)
+
+  // Atomically issued, tenant-scoped (docs/PURCHASING.md "Numbering" - same
+  // guarded-UPDATE pattern as InvoiceNumberService).
+  referenceNumber String @map("reference_number")
+
+  // Idempotency key, same model as Sale.clientReferenceId.
+  clientReferenceId String @map("client_reference_id")
+
+  actorMembershipId String    @map("actor_membership_id") @db.Uuid
+  receivedAt        DateTime? @map("received_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company   Company        @relation(fields: [companyId], references: [id])
+  branch    Branch         @relation(fields: [branchId], references: [id])
+  warehouse Warehouse      @relation(fields: [warehouseId], references: [id])
+  supplier  Supplier       @relation(fields: [supplierId], references: [id])
+  items     PurchaseItem[]
+
+  @@unique([companyId, clientReferenceId])
+  @@unique([companyId, referenceNumber])
+  @@index([companyId, branchId, createdAt])
+  @@index([companyId, supplierId])
+  @@index([companyId, status])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id         String @id @default(uuid()) @db.Uuid
+  companyId  String @map("company_id") @db.Uuid
+  purchaseId String @map("purchase_id") @db.Uuid
+  productId  String @map("product_id") @db.Uuid
+
+  // Snapshot at time of purchase - same rationale as SaleItem
+  // (docs/SALES.md "Snapshot design"): a later product change must not
+  // alter a historical purchase bill.
+  productName String  @map("product_name")
+  productSku  String  @map("product_sku")
+  unitCost    Decimal @map("unit_cost") @db.Decimal(14, 2)
+  vatRate     Decimal @map("vat_rate") @db.Decimal(5, 2)
+
+  quantity       Decimal @db.Decimal(14, 3)
+  discountAmount Decimal @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  lineSubtotal   Decimal @map("line_subtotal") @db.Decimal(14, 2)
+  lineTax        Decimal @map("line_tax") @db.Decimal(14, 2)
+  lineTotal      Decimal @map("line_total") @db.Decimal(14, 2)
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@index([companyId, purchaseId])
+  @@index([companyId, productId])
+  @@map("purchase_items")
+}
+
+/// One row per company - atomic purchase reference-number counter, same
+/// pattern as InvoiceSequence.
+model PurchaseSequence {
+  companyId  String @id @map("company_id") @db.Uuid
+  nextNumber Int    @default(1) @map("next_number")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@map("purchase_sequences")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: Expenses
+// ---------------------------------------------------------------------------
+//
+// Expenses are always recorded as already paid (paymentMethod is required,
+// mirroring Payment.method's local values) - there is no "unpaid expense /
+// expense payable" tracking in this phase, see docs/EXPENSES.md "Deferred".
+
+model ExpenseCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String
+  // The expense (P&L) account this category posts to - the concrete
+  // "Account Mapping" for expenses (docs/ACCOUNTING.md "Account Mapping").
+  accountId String   @map("account_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  account  Account   @relation(fields: [accountId], references: [id])
+  expenses Expense[]
+
+  @@unique([companyId, name])
+  @@map("expense_categories")
+}
+
+enum ExpenseStatus {
+  recorded
+  cancelled
+}
+
+model Expense {
+  id         String  @id @default(uuid()) @db.Uuid
+  companyId  String  @map("company_id") @db.Uuid
+  // Optional on purpose (docs/EXPENSES.md): a company-level expense (e.g.
+  // head-office software subscription) is not forced onto a branch. When
+  // present, branch scope is enforced exactly like Sale/Purchase.
+  branchId   String? @map("branch_id") @db.Uuid
+  categoryId String  @map("category_id") @db.Uuid
+
+  amount        Decimal       @db.Decimal(14, 2)
+  currency      String        @default("SAR")
+  paymentMethod PaymentMethod @map("payment_method")
+  description   String?
+  reference     String?
+  status        ExpenseStatus @default(recorded)
+
+  clientReferenceId String @map("client_reference_id")
+
+  actorMembershipId String    @map("actor_membership_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+
+  company  Company         @relation(fields: [companyId], references: [id])
+  branch   Branch?         @relation(fields: [branchId], references: [id])
+  category ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([companyId, clientReferenceId])
+  @@index([companyId, branchId, createdAt])
+  @@index([companyId, categoryId])
+  @@map("expenses")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: Accounting - Chart of Accounts + double-entry Journal
+// ---------------------------------------------------------------------------
+//
+// docs/ACCOUNTING.md documents the full design and the accounting policy
+// decisions flagged explicitly rather than guessed (inventory
+// valuation/COGS deferred, no manual journal entry endpoint - every entry
+// is posted by JournalService.postJournalEntry() from Sales/Purchases/
+// Expenses, matching the "no manual double entry" principle already
+// recorded in docs/DATABASE.md since Phase 1).
+
+enum AccountType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+}
+
+model Account {
+  id        String      @id @default(uuid()) @db.Uuid
+  companyId String      @map("company_id") @db.Uuid
+  code      String
+  name      String
+  type      AccountType
+  parentId  String?     @map("parent_id") @db.Uuid
+  isActive  Boolean     @default(true) @map("is_active")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  company           Company           @relation(fields: [companyId], references: [id])
+  parent            Account?          @relation("AccountChildren", fields: [parentId], references: [id])
+  children          Account[]         @relation("AccountChildren")
+  journalLines      JournalLine[]
+  expenseCategories ExpenseCategory[]
+
+  @@unique([companyId, code])
+  @@index([companyId, type])
+  @@index([companyId, parentId])
+  @@map("accounts")
+}
+
+/// `reversed` marks that this entry's effect has been undone by a newer
+/// entry referencing it via `reversalOfEntryId` - the original's lines are
+/// NEVER mutated or deleted (docs/JOURNAL_ENTRIES.md "Posted vs corrections").
+enum JournalEntryStatus {
+  posted
+  reversed
+}
+
+model JournalEntry {
+  id        String  @id @default(uuid()) @db.Uuid
+  companyId String  @map("company_id") @db.Uuid
+  branchId  String? @map("branch_id") @db.Uuid
+
+  status JournalEntryStatus @default(posted)
+
+  // Which operational transaction this entry belongs to - 'Sale' |
+  // 'Purchase' | 'Expense' | 'JournalEntry' (a reversal referencing the
+  // entry it reverses, in addition to reversalOfEntryId below).
+  referenceType String  @map("reference_type")
+  referenceId   String  @map("reference_id")
+  description   String?
+
+  reversalOfEntryId String? @map("reversal_of_entry_id") @db.Uuid
+
+  actorMembershipId String?  @map("actor_membership_id") @db.Uuid
+  postedAt          DateTime @default(now()) @map("posted_at")
+
+  company    Company        @relation(fields: [companyId], references: [id])
+  branch     Branch?        @relation(fields: [branchId], references: [id])
+  reversalOf JournalEntry?  @relation("JournalEntryReversal", fields: [reversalOfEntryId], references: [id])
+  reversals  JournalEntry[] @relation("JournalEntryReversal")
+  lines      JournalLine[]
+
+  @@index([companyId, referenceType, referenceId])
+  @@index([companyId, postedAt])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String @id @default(uuid()) @db.Uuid
+  companyId      String @map("company_id") @db.Uuid
+  journalEntryId String @map("journal_entry_id") @db.Uuid
+  accountId      String @map("account_id") @db.Uuid
+
+  debit       Decimal @default(0) @db.Decimal(14, 2)
+  credit      Decimal @default(0) @db.Decimal(14, 2)
+  description String?
+
+  company      Company      @relation(fields: [companyId], references: [id])
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id])
+
+  @@index([companyId, journalEntryId])
+  @@index([companyId, accountId])
+  @@map("journal_lines")
 }

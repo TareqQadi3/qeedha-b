@@ -8,13 +8,21 @@ import {
 import { Prisma } from '@prisma/client';
 import { TenantClient } from '../../common/prisma/prisma.service';
 import { paginate, paginationSkip } from '../../common/utils/pagination';
+import { round2 } from '../../common/utils/money';
 import { AuditService } from '../audit/audit.service';
+import { ACCOUNT_CODES } from '../accounting/constants/default-chart-of-accounts';
+import { JournalLineInput, JournalService } from '../accounting/journal.service';
 import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { InventoryService } from '../inventory/inventory.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { QuerySalesDto } from './dto/query-sales.dto';
 import { InvoiceNumberService } from './invoice-number.service';
+
+/** cash -> Cash account, everything else (card/transfer/other) -> Bank account - see docs/PAYMENTS.md and docs/ACCOUNTING.md "Account Mapping". */
+function cashOrBankAccountCode(method: string): string {
+  return method === 'cash' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK;
+}
 
 const SALE_INCLUDE = {
   items: true,
@@ -23,11 +31,6 @@ const SALE_INCLUDE = {
   customer: true,
 } satisfies Prisma.SaleInclude;
 
-/** Cents-safe rounding for money computed from floats - avoids 39.999999999996-style artifacts before writing to a Decimal(14,2) column. */
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
 @Injectable()
 export class SalesService {
   constructor(
@@ -35,6 +38,7 @@ export class SalesService {
     private readonly branchScopeService: BranchScopeService,
     private readonly inventoryService: InventoryService,
     private readonly invoiceNumberService: InvoiceNumberService,
+    private readonly journalService: JournalService,
   ) {}
 
   /**
@@ -246,6 +250,30 @@ export class SalesService {
       },
     });
 
+    // Dr Cash/Bank (per payment) / Cr Sales Revenue (net of discount) / Cr
+    // VAT Payable. Deliberately no COGS/Inventory line yet - no inventory
+    // valuation method (FIFO/weighted average) has been chosen, see
+    // docs/ACCOUNTING.md "Deferred: COGS / inventory valuation" - flagged
+    // explicitly rather than guessed.
+    const revenueNet = round2(subtotal - discountTotal);
+    const journalLines: JournalLineInput[] = dto.payments.map((payment) => ({
+      accountCode: cashOrBankAccountCode(payment.method),
+      debit: payment.amount,
+    }));
+    journalLines.push({ accountCode: ACCOUNT_CODES.SALES_REVENUE, credit: revenueNet });
+    if (taxTotal > 0) {
+      journalLines.push({ accountCode: ACCOUNT_CODES.VAT_PAYABLE, credit: taxTotal });
+    }
+    await this.journalService.postJournalEntry(tx, companyId, {
+      branchId: warehouse.branchId,
+      referenceType: 'Sale',
+      referenceId: sale.id,
+      description: `بيع ${invoiceNumber}`,
+      actorMembershipId: membershipId,
+      actorUserId,
+      lines: journalLines,
+    });
+
     await this.auditService.log(tx, {
       companyId,
       actorUserId,
@@ -396,6 +424,24 @@ export class SalesService {
       await tx.invoice.update({
         where: { id: sale.invoice.id },
         data: { status: 'cancelled', cancelledAt: new Date() },
+      });
+    }
+
+    // Never mutates/deletes the original posted entry - posts a new
+    // reversing entry instead (docs/JOURNAL_ENTRIES.md "Posted vs
+    // corrections"). The original entry always exists (every completed
+    // sale posts one in createSale), so this is not conditional.
+    const activeEntry = await tx.journalEntry.findFirst({
+      where: { companyId, referenceType: 'Sale', referenceId: sale.id, status: 'posted' },
+    });
+    if (activeEntry) {
+      await this.journalService.reverseJournalEntry(tx, companyId, {
+        originalEntryId: activeEntry.id,
+        referenceType: 'Sale',
+        referenceId: sale.id,
+        description: `عكس قيد بيع ملغى`,
+        actorMembershipId: membershipId,
+        actorUserId,
       });
     }
 

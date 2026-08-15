@@ -1,13 +1,16 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { AccountingPage } from './pages/AccountingPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { ExpensesPage } from './pages/ExpensesPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { LoginPage } from './pages/LoginPage';
 import { PosPage } from './pages/PosPage';
 import { ProductsPage } from './pages/ProductsPage';
+import { PurchasesPage } from './pages/PurchasesPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { SuppliersPage } from './pages/SuppliersPage';
 import { useAuth } from './state/auth';
@@ -39,6 +42,9 @@ export function App() {
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/suppliers" element={<SuppliersPage />} />
+        <Route path="/purchases" element={<PurchasesPage />} />
+        <Route path="/expenses" element={<ExpensesPage />} />
+        <Route path="/accounting" element={<AccountingPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

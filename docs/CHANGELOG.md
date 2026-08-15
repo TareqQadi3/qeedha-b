@@ -1,5 +1,80 @@
 # سجل التغييرات (Changelog)
 
+## [Phase 4] - 2026-08-15
+
+Purchases + Expenses + Chart of Accounts + Journal Entries + تكامل محاسبي
+تلقائي للمبيعات/المشتريات/المصروفات — أول أساس Double-Entry حقيقي في
+qeedha B، بنفس مبادئ SaaS متعدد المستأجرين من اليوم الأول (Company/
+Membership/Role/Permission/Branch Scope/RLS/Audit) — بلا إعادة بناء أي من
+أساسات المراحل 1/2/2.1/3.
+
+### أُضيف
+- Prisma schema: `purchases, purchase_items, purchase_sequences,
+  expense_categories, expenses, accounts, journal_entries, journal_lines`
+  — كل جدول بـRLS (`FORCE ROW LEVEL SECURITY` + policy `tenant_isolation`)
+  مستقل. لا تعديل على أي جدول من المراحل السابقة.
+- 9 صلاحيات RBAC جديدة (`purchases.read`, `purchases.create`,
+  `purchases.cancel`, `expenses.read`, `expenses.create`,
+  `expenses.update`, `expenses.delete`, `accounting.read`,
+  `accounting.manage`) وتحديث الأدوار الافتراضية.
+- وحدة `purchases`: تدفق صريح بخطوتين — `createPurchase` (الطلب فقط، لا
+  أثر مخزون/محاسبة) ثم `receivePurchase` (انتقال حالة محروس ذرّيًا
+  `ordered→received`، خصم/إضافة مخزون عبر `InventoryService.recordMovement`
+  الموجود أصلًا، ثم ترحيل قيد واحد: مدين مخزون + ضريبة مدخلات، دائن ذمم
+  دائنة). إلغاء يعمل فقط قبل الاستلام (409 بعده). ترقيم مرجعي ذرّي
+  (`PUR-######`) بنفس نمط `InvoiceNumberService`، Idempotency عبر
+  `clientReferenceId` بنفس نمط `Sale`.
+- وحدة `expenses`: مصروف مدفوع فورًا (لا حالة "مستحق")، `branchId`
+  اختياري صراحة (مصروف على مستوى المنشأة مسموح)، فئات مصروفات قابلة
+  للتوسيع (6 افتراضية مزروعة عند التسجيل، كل واحدة مربوطة بحساب محاسبي).
+  تعديل حقل مالي (مبلغ/فئة/طريقة دفع) يعكس القيد القديم ويرحّل قيدًا
+  جديدًا؛ الحذف إلغاء ناعم (`status: cancelled`) يعكس القيد النشط فقط.
+- وحدة `accounting`: `AccountingService` (دليل حسابات شجري، `code` فريد
+  لكل منشأة كمفتاح Account Mapping ثابت — وليس UUID، `name`/`isActive`
+  فقط قابلان للتعديل بعد الإنشاء) + `JournalService` (نقطة العبور
+  الداخلية الوحيدة لترحيل/عكس أي قيد، يتحقق من توازن مدين=دائن ويرفض قيدًا
+  صفريًا). دليل حسابات افتراضي (21 حسابًا) + 6 فئات مصروفات افتراضية
+  تُزرَعان تلقائيًا داخل نفس معاملة `AuthService.registerCompany` لكل
+  منشأة جديدة، بلا تغيير في عقد Endpoint التسجيل.
+- **لا إدخال يدوي مزدوج، بتصميم الكود نفسه**: `JournalEntriesController`
+  قراءة فقط — لا `POST`/`PATCH`/`DELETE` مُعرَّف على الإطلاق تحت
+  `/accounting/journal-entries`. تصحيح قيد يتم حصرًا عبر
+  `JournalService.reverseJournalEntry` (قيد جديد بمدين/دائن مقلوبين،
+  الأصلي يُعلَّم `reversed` بلا أي تعديل مباشر على سطوره).
+- تكامل محاسبي تلقائي: `SalesService.createSale`/`cancelSale`،
+  `PurchasesService.receivePurchase`، و`ExpensesService` تستدعي
+  `JournalService` داخل نفس معاملة العملية التجارية — فشل الترحيل يُلغي
+  العملية كاملة معه.
+- واجهة أمامية: `/purchases` (إنشاء أمر شراء + استلامه)، `/expenses`
+  (تسجيل/تعديل/حذف مصروف + إدارة فئاته)، `/accounting` (قراءة فقط، تبويبا
+  "دليل الحسابات"/"القيود المحاسبية").
+- `test/phase4.e2e-spec.ts`: 28 اختبارًا (دليل حسابات، سلامة القيد
+  المحاسبي، مشتريات، مصروفات، تكامل محاسبي، RLS مباشر) — راجع
+  `docs/TESTING.md`. المجموع الكلي 91/91 بلا أي تراجع.
+- توثيق جديد: `docs/PURCHASING.md`, `docs/EXPENSES.md`,
+  `docs/CHART_OF_ACCOUNTS.md`, `docs/JOURNAL_ENTRIES.md`؛ إعادة كتابة
+  `docs/ACCOUNTING.md` بالكامل (من تصميم مرجعي إلى توثيق التنفيذ الفعلي).
+
+### قرارات معمارية مسجَّلة
+- **الشراء هو الفاتورة**: لا كيان `PurchaseInvoice` منفصل — `Purchase`
+  يحمل كل مبالغ فاتورة المورد ورقمًا مرجعيًا ذرّيًا بنفسه.
+- **تدفق شراء بخطوتين صريحتين، وليس معاملة واحدة كـ`Sale`**: يعكس واقع
+  العمل الحقيقي (طلب ثم استلام لاحق، ربما بواسطة شخص آخر).
+- **لا صلاحية `purchases.receive` منفصلة**: الاستلام يشترك مع
+  `purchases.create` عمدًا.
+- **المصروف مدفوع دائمًا**: لا حالة "مستحق" — القيد الناتج ثابت الشكل
+  (مدين مصروف/دائن نقدية أو بنك) بلا حالة وسيطة.
+- **الترميز الثابت (`Account.code`) هو مفتاح Account Mapping، وليس UUID**:
+  أول مكان في النظام يُحلّ فيه مرجع كيان عبر حقل نصي مستقر بدل معرّف قاعدة
+  بيانات ثابت.
+- **توقُّف متعمَّد عند تقييم المخزون (COGS)**: لا قرار FIFO/متوسط مرجّح
+  بعد، فلا سطر مخزون/COGS في قيد البيع — قرار موثَّق صراحة وليس إغفالًا،
+  راجع `docs/ACCOUNTING.md` "مؤجَّل".
+- **لا ذمم مدينة/دائنة كاملة، لا مرتجعات مشتريات، لا فترات مالية/إغلاق،
+  لا تسوية بنكية، لا تنفيذ ZATCA أو تكامل قيّدها فعلي** — خارج نطاق
+  المرحلة 4 المتفَق عليه، موثَّق صراحة في `docs/ACCOUNTING.md`/
+  `docs/PURCHASING.md` "مؤجَّل".
+
 ## [Phase 3] - 2026-08-15
 
 POS + Sales + Payments + Invoices + أساس التكامل، مبنية بنفس مبادئ SaaS

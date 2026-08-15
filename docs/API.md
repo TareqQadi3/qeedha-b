@@ -137,8 +137,52 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 المرحلة 2.1 (`BranchScopeService`) المُطبَّقة الآن على `warehouseId`/
 `posDeviceId` أيضًا — راجع `docs/SECURITY.md` "POS/Sale — تفويض".
 
+## Endpoints المرحلة الرابعة
+
+### Purchases (`/api/v1/purchases`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/purchases` | قائمة أوامر الشراء (مُصفّاة حسب نطاق الفرع، فلاتر مورد/مستودع/حالة) | `purchases.read` |
+| GET | `/purchases/:id` | تفاصيل أمر شراء (بنود + مورد) | `purchases.read` |
+| POST | `/purchases` | إنشاء أمر شراء (لا يلمس المخزون أو المحاسبة بعد) — يتطلب `clientReferenceId` لحماية التكرار | `purchases.create` |
+| POST | `/purchases/:id/receive` | استلام أمر شراء: يزيد المخزون + يُرحّل قيدًا محاسبيًا (مدين مخزون/ضريبة مدخلات، دائن ذمم دائنة) | `purchases.create` (لا صلاحية `receive` منفصلة) |
+| POST | `/purchases/:id/cancel` | إلغاء أمر شراء **لم يُستلَم بعد فقط** (409 إن كان مُستلَمًا أو ملغى بالفعل) | `purchases.cancel` |
+
+راجع `docs/PURCHASING.md` لتفاصيل تدفق الطلب→الاستلام والتزامن.
+
+### Expenses (`/api/v1/expenses`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/expenses/categories` | قائمة فئات المصروفات (النشطة فقط) | `expenses.read` |
+| POST | `/expenses/categories` | إنشاء فئة مصروف جديدة (مربوطة بحساب مصروف، افتراضيًا "مصروفات أخرى") | `expenses.create` |
+| GET | `/expenses` | قائمة المصروفات (مُصفّاة حسب نطاق الفرع، فلاتر فئة/فرع) | `expenses.read` |
+| GET | `/expenses/:id` | تفاصيل مصروف | `expenses.read` |
+| POST | `/expenses` | تسجيل مصروف (مدفوع فورًا) + ترحيل قيده — يتطلب `clientReferenceId` | `expenses.create` |
+| PATCH | `/expenses/:id` | تعديل مصروف — أي تغيير مالي (مبلغ/فئة/طريقة دفع) يعكس القيد القديم ويرحّل قيدًا جديدًا | `expenses.update` |
+| DELETE | `/expenses/:id` | إلغاء ناعم لمصروف (`status: cancelled`) + عكس قيده النشط | `expenses.delete` |
+
+راجع `docs/EXPENSES.md` لتفاصيل الفرق بين حقول "مالية" و"عرضية فقط" عند التعديل.
+
+### Accounting (`/api/v1/accounting`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/accounting/accounts` | دليل الحسابات كاملًا (شجري عبر `parentId`) | `accounting.read` |
+| POST | `/accounting/accounts` | إنشاء حساب جديد | `accounting.manage` |
+| PATCH | `/accounting/accounts/:id` | تعديل حساب — `name`/`isActive` فقط (`code`/`type` غير قابلين للتعديل) | `accounting.manage` |
+| GET | `/accounting/journal-entries` | قائمة القيود المحاسبية (مُصفّاة حسب نطاق الفرع، فلتر `referenceType`) | `accounting.read` |
+| GET | `/accounting/journal-entries/:id` | تفاصيل قيد (بنوده وحساباتها) | `accounting.read` |
+
+**لا `POST`/`PATCH`/`DELETE` تحت `/accounting/journal-entries` — عمدًا.**
+القيود تُرحَّل فقط داخليًا من `Sales`/`Purchases`/`Expenses`؛ لا مسار API
+لإنشاء أو تعديل أو حذف قيد مباشرة. راجع `docs/JOURNAL_ENTRIES.md`.
+
+كل endpoints المرحلة الرابعة تخضع لنفس سلسلة الحراسة
+(`JwtAuthGuard → MembershipGuard → PermissionsGuard`) + طبقة نطاق الفرع من
+المرحلة 2.1، بالإضافة لنفس اتفاقية idempotency
+(`clientReferenceId`/`P2002` catch-and-refetch) المُستخدَمة في `Sales`
+منذ المرحلة 3.
+
 ## Endpoints المراحل القادمة
 
-تُضاف تدريجيًا: `/purchasing`, `/expenses`, `/accounting`, `/reports`,
-`/import`, `/zatca` — كل منها يوثَّق في ملف الوحدة الخاص بها عند
-البناء الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.
+تُضاف تدريجيًا: `/reports`, `/import`, `/zatca` — كل منها يوثَّق في ملف
+الوحدة الخاص بها عند البناء الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.

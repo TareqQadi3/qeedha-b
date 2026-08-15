@@ -18,6 +18,9 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { PartiesModule } from './modules/parties/parties.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
+import { AccountingModule } from './modules/accounting/accounting.module';
+import { PurchasesModule } from './modules/purchases/purchases.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
 
 @Module({
   imports: [
@@ -34,6 +37,9 @@ import { TenancyModule } from './modules/tenancy/tenancy.module';
     InventoryModule,
     PartiesModule,
     SalesModule,
+    AccountingModule,
+    PurchasesModule,
+    ExpensesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

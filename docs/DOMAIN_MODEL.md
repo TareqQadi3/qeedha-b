@@ -310,6 +310,55 @@ Supplier (نفس البنية، كيان منفصل تمامًا)
   المشروع يمثّل "هوية معاملة من طرف العميل" منفصلة عن معرّف قاعدة البيانات —
   أساس ضروري لأي Offline-first لاحقًا (`docs/POS.md`).
 
+## المرحلة 4 — المشتريات والمصروفات وأساس المحاسبة (منفَّذ)
+
+راجع `docs/PURCHASING.md`, `docs/EXPENSES.md`, `docs/CHART_OF_ACCOUNTS.md`,
+`docs/JOURNAL_ENTRIES.md`, `docs/ACCOUNTING.md` للتفصيل الكامل. ملخص
+الموضع في نموذج الهوية/التفويض:
+
+```text
+Supplier (المرحلة 2) ──has──> Purchase ──has──> PurchaseItem[] (Snapshot)
+                                  │
+                                  └──(عند الاستلام)──> InventoryService.recordMovement
+                                                     + JournalService.postJournalEntry
+
+Branch? ──has (اختياري)──> Expense ──belongs to──> ExpenseCategory ──points to──> Account
+                                  │
+                                  └──(عند الإنشاء/التعديل المالي/الحذف)──> JournalService
+
+Account (شجري عبر self-relation) ──has──> JournalLine[] ──belongs to──> JournalEntry
+```
+
+- **`Purchase.branchId` يُشتق دائمًا من `Warehouse.branchId`**، بنفس مبدأ
+  `Sale.branchId` من المرحلة 3 حرفيًا — لا حقل فرع يُرسَل من العميل.
+- **`Expense.branchId` اختياري صراحة** — أول كيان تجاري في المشروع يسمح
+  صراحة بعدم الانتماء لأي فرع (مصروف على مستوى المنشأة). لا فحص نطاق فرع
+  يُطبَّق حين يكون فارغًا.
+- **نطاق الفرع (`BranchScopeService`) من المرحلة 2.1 يُعاد استخدامه
+  حرفيًا** لكل من `Purchase` (عبر فرع المستودع) و`Expense` (عند وجود
+  `branchId`) — لا نظام موازٍ جديد، ولا تعديل على نموذج
+  `MembershipRole.branchId` نفسه.
+- **`JournalEntry.branchId` اختياري كذلك**، ويُنسَخ من فرع المعاملة
+  المصدر إن وُجد. قاعدة رؤية خاصة به: قيد بلا فرع مرئي دائمًا لأي عضو
+  يملك `accounting.read`، بصرف النظر عن نطاق فروعه — راجع
+  `docs/JOURNAL_ENTRIES.md` "`branchId` الاختياري وقاعدة الرؤية".
+- **Idempotency يمتد لكيانين جديدين**: `Purchase.clientReferenceId` و
+  `Expense.clientReferenceId`، بنفس نمط `Sale.clientReferenceId` حرفيًا
+  (مسار سريع + قيد تفرّد كخط دفاع ثانٍ ضد سباق تزامن حقيقي).
+- **لا صلاحية RBAC جديدة لخطوة فرعية من تدفق موجود**: استلام الشراء لا
+  يملك صلاحية `purchases.receive` منفصلة — يشترك مع `purchases.create`
+  عمدًا، اتساقًا مع اتفاقية "صلاحية واحدة لكل نوع عملية كتابة رئيسية" في
+  هذا النظام.
+- **لا Endpoint لإنشاء/تعديل/حذف `JournalEntry` مباشرة** — أول قسم من
+  النظام يفرض عمدًا "قراءة فقط" على كيان كامل عبر تصميم الـController نفسه
+  (لا مجرد صلاحية مفقودة)، لأن `JournalEntry` يجب ألا يُنشَأ إلا كأثر
+  جانبي محسوب لعملية تجارية حقيقية. راجع `docs/JOURNAL_ENTRIES.md`.
+- **`Account.code` كمفتاح بحث ثابت لكل منشأة، وليس UUID**: أول مكان في
+  النظام يُحلّ فيه مرجع كيان عبر حقل نصي مستقر (`code`) بدل معرّف قاعدة
+  بيانات — لأن المُستدعي (`SalesService`/`PurchasesService`/
+  `ExpensesService`) يحتاج معرفة "حساب النقدية لهذه المنشأة" دون معرفة
+  UUID محدد سلفًا. راجع `docs/CHART_OF_ACCOUNTS.md` "Account Mapping".
+
 ## نقاط توسّع مستقبلية جاهزة بهذا التصميم
 
 - **Tenant/Company switcher في الواجهة**: `GET /auth/tenants` +
