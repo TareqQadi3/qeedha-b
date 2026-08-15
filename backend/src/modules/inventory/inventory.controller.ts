@@ -26,7 +26,7 @@ export class InventoryController {
   @Get('stock-levels')
   listStockLevels(@CurrentUser() user: AuthenticatedUser, @Query() query: QueryStockLevelsDto) {
     return this.prisma.withTenant(user.companyId, (tx) =>
-      this.inventoryService.listStockLevels(tx, user.companyId, query),
+      this.inventoryService.listStockLevels(tx, user.companyId, user.membershipId, query),
     );
   }
 
@@ -34,7 +34,7 @@ export class InventoryController {
   @Get('movements')
   listMovements(@CurrentUser() user: AuthenticatedUser, @Query() query: QueryStockMovementsDto) {
     return this.prisma.withTenant(user.companyId, (tx) =>
-      this.inventoryService.listStockMovements(tx, user.companyId, query),
+      this.inventoryService.listStockMovements(tx, user.companyId, user.membershipId, query),
     );
   }
 
@@ -72,7 +72,7 @@ export class InventoryController {
   @Get('stock-counts')
   listStockCounts(@CurrentUser() user: AuthenticatedUser, @Query() query: QueryStockCountsDto) {
     return this.prisma.withTenant(user.companyId, (tx) =>
-      this.stockCountService.list(tx, user.companyId, query),
+      this.stockCountService.list(tx, user.companyId, user.membershipId, query),
     );
   }
 
@@ -80,7 +80,7 @@ export class InventoryController {
   @Get('stock-counts/:id')
   getStockCount(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.prisma.withTenant(user.companyId, (tx) =>
-      this.stockCountService.getOwned(tx, user.companyId, id),
+      this.stockCountService.getOwnedForMembership(tx, user.companyId, user.membershipId, id),
     );
   }
 
@@ -100,7 +100,14 @@ export class InventoryController {
     @Body() dto: UpdateStockCountLinesDto,
   ) {
     return this.prisma.withTenant(user.companyId, (tx) =>
-      this.stockCountService.updateLines(tx, user.companyId, user.userId, id, dto),
+      this.stockCountService.updateLines(
+        tx,
+        user.companyId,
+        user.membershipId,
+        user.userId,
+        id,
+        dto,
+      ),
     );
   }
 
@@ -116,7 +123,7 @@ export class InventoryController {
   @Post('stock-counts/:id/cancel')
   cancelStockCount(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.prisma.withTenant(user.companyId, (tx) =>
-      this.stockCountService.cancel(tx, user.companyId, user.userId, id),
+      this.stockCountService.cancel(tx, user.companyId, user.membershipId, user.userId, id),
     );
   }
 }

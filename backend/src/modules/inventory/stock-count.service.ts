@@ -1,7 +1,14 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { TenantClient } from '../../common/prisma/prisma.service';
 import { paginate, paginationSkip } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
+import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
+import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { CreateStockCountDto } from './dto/create-stock-count.dto';
 import { QueryStockCountsDto } from './dto/query-stock-counts.dto';
 import { UpdateStockCountLinesDto } from './dto/update-stock-count-lines.dto';
@@ -20,6 +27,7 @@ export class StockCountService {
   constructor(
     private readonly auditService: AuditService,
     private readonly inventoryService: InventoryService,
+    private readonly branchScopeService: BranchScopeService,
   ) {}
 
   async create(
@@ -29,7 +37,12 @@ export class StockCountService {
     actorUserId: string,
     dto: CreateStockCountDto,
   ) {
-    await this.inventoryService.assertWarehouseOwned(tx, companyId, dto.warehouseId);
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      actorMembershipId,
+      PERMISSION_KEYS.INVENTORY_COUNT,
+    );
+    await this.inventoryService.assertWarehouseOwned(tx, companyId, dto.warehouseId, scope);
 
     const stockLevels = dto.productIds?.length
       ? await tx.stockLevel.findMany({
@@ -70,12 +83,34 @@ export class StockCountService {
     return stockCount;
   }
 
-  list(tx: TenantClient, companyId: string, query: QueryStockCountsDto) {
+  async list(
+    tx: TenantClient,
+    companyId: string,
+    membershipId: string,
+    query: QueryStockCountsDto,
+  ) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
-    const where = { companyId, ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}) };
 
-    return Promise.all([
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      membershipId,
+      PERMISSION_KEYS.INVENTORY_COUNT,
+    );
+
+    // Same convention as InventoryService list endpoints: a warehouseId
+    // outside this tenant/scope is ANDed into the filter, not rejected -
+    // list endpoints silently return zero rows rather than error, consistent
+    // with tenant-isolation filtering everywhere else in this codebase.
+    const where = {
+      companyId,
+      ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}),
+      ...(!scope.allBranches
+        ? { warehouse: { branchId: { in: Array.from(scope.branchIds) } } }
+        : {}),
+    };
+
+    const [data, total] = await Promise.all([
       tx.stockCount.findMany({
         where,
         orderBy: { startedAt: 'desc' },
@@ -83,26 +118,58 @@ export class StockCountService {
         take: pageSize,
       }),
       tx.stockCount.count({ where }),
-    ]).then(([data, total]) => paginate(data, total, page, pageSize));
+    ]);
+    return paginate(data, total, page, pageSize);
   }
 
-  async getOwned(tx: TenantClient, companyId: string, id: string) {
+  /**
+   * `scope`, when passed, rejects a stock count whose warehouse's branch
+   * isn't covered by this membership's inventory.count grant (403) - same
+   * two-layer model as InventoryService.assertWarehouseOwned. Internal
+   * callers within this service that have already scope-checked the
+   * warehouse (e.g. right after `create`) can omit it.
+   */
+  async getOwned(tx: TenantClient, companyId: string, id: string, scope?: BranchScope) {
     const stockCount = await tx.stockCount.findFirst({
       where: { id, companyId },
-      include: { lines: { include: { product: true } } },
+      include: { lines: { include: { product: true } }, warehouse: true },
     });
     if (!stockCount) throw new NotFoundException('الجرد غير موجود');
+    if (scope && !scope.allBranches && !scope.branchIds.has(stockCount.warehouse.branchId)) {
+      throw new ForbiddenException('هذا الجرد خارج نطاق الفروع المصرح بها لهذه العضوية');
+    }
     return stockCount;
+  }
+
+  /** Same as `getOwned`, but resolves the caller's branch scope for inventory.count itself - the shape controllers should call for a plain read. */
+  async getOwnedForMembership(
+    tx: TenantClient,
+    companyId: string,
+    membershipId: string,
+    id: string,
+  ) {
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      membershipId,
+      PERMISSION_KEYS.INVENTORY_COUNT,
+    );
+    return this.getOwned(tx, companyId, id, scope);
   }
 
   async updateLines(
     tx: TenantClient,
     companyId: string,
+    actorMembershipId: string,
     actorUserId: string,
     id: string,
     dto: UpdateStockCountLinesDto,
   ) {
-    const stockCount = await this.getOwned(tx, companyId, id);
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      actorMembershipId,
+      PERMISSION_KEYS.INVENTORY_COUNT,
+    );
+    const stockCount = await this.getOwned(tx, companyId, id, scope);
     if (stockCount.status !== 'draft') {
       throw new ConflictException('لا يمكن تعديل جرد مكتمل أو ملغى');
     }
@@ -135,7 +202,12 @@ export class StockCountService {
     actorUserId: string,
     id: string,
   ) {
-    const stockCount = await this.getOwned(tx, companyId, id);
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      actorMembershipId,
+      PERMISSION_KEYS.INVENTORY_COUNT,
+    );
+    const stockCount = await this.getOwned(tx, companyId, id, scope);
     if (stockCount.status !== 'draft') {
       throw new ConflictException('هذا الجرد ليس قيد الإعداد');
     }
@@ -188,8 +260,19 @@ export class StockCountService {
     return completed;
   }
 
-  async cancel(tx: TenantClient, companyId: string, actorUserId: string, id: string) {
-    const stockCount = await this.getOwned(tx, companyId, id);
+  async cancel(
+    tx: TenantClient,
+    companyId: string,
+    actorMembershipId: string,
+    actorUserId: string,
+    id: string,
+  ) {
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      actorMembershipId,
+      PERMISSION_KEYS.INVENTORY_COUNT,
+    );
+    const stockCount = await this.getOwned(tx, companyId, id, scope);
     if (stockCount.status !== 'draft') {
       throw new ConflictException('لا يمكن إلغاء جرد مكتمل بالفعل');
     }

@@ -1,161 +1,147 @@
 # حالة المشروع (Project Status)
 
 **آخر تحديث**: 2026-08-15
-**المرحلة الحالية**: Phase 2 — Products + Inventory + Customers + Suppliers
+**المرحلة الحالية**: Phase 2.1 — Branch/Warehouse Authorization Hardening
 — **مكتملة ومُختبرة**، بانتظار موافقتك الصريحة لبدء المرحلة 3
 
 ## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة 3
 
-## ما تم إنجازه في هذه الدورة (المرحلة 2)
+## ملخص: ما هذه الدورة (2.1) وما ليست
 
-بُنيت كل وحدة كوحدة SaaS كاملة من اليوم الأول: multi-tenant، معزولة بـRLS،
-محمية بـRBAC، قابلة للتدقيق (Audit)، وبواجهة أمامية حقيقية متصلة — وليس
-Backend فقط ثم واجهة لاحقًا.
+هذه **ليست** المرحلة 3. لم يُبنَ أي من POS/Sales/Purchases/Accounting/ZATCA/
+تكامل قيّدها/Control Center/Website. هذه دورة تعزيز أمني ضيقة: إغلاق الفجوة
+التي وثَّقها التقرير النهائي للمرحلة 2 صراحة تحت بند "Branch/Warehouse
+Security ⚠️ جزئي" — عضو يملك صلاحية مخزون كان يستطيع التأثير على أي مستودع
+تابع لمنشأته، بصرف النظر عن نطاق الفرع المُسنَد له.
 
-- [x] Prisma schema: 12 جدولًا جديدًا (`units, product_categories, brands,
-      products, product_barcodes, stock_levels, stock_movements,
-      stock_adjustments, stock_counts, stock_count_lines, customers,
-      suppliers`) — كل جدول بـ`FORCE ROW LEVEL SECURITY` + policy
-      `tenant_isolation` مستقل.
-- [x] 16 صلاحية RBAC جديدة (`products.*` ×4, `inventory.*` ×4,
-      `customers.*` ×4, `suppliers.*` ×4)، والأدوار الافتراضية الخمسة
-      محدَّثة لتعكسها بشكل مناسب لكل دور (Owner كل شيء، Cashier قراءة فقط
-      للمنتجات/العملاء، إلخ).
-- [x] وحدة `catalog`: Products + Categories (شجرية عبر self-relation) +
-      Brands + Units. تحقق صريح من ملكية المراجع عبر المنشآت
-      (`categoryId`/`brandId`/`unitId` يجب أن تعود لنفس المنشأة). SKU
-      وباركود فريدان لكل منشأة (وليس عالميًا). أحداث Audit منفصلة لتغيّر
-      السعر (`products.product.price_change`) وتغيّر SKU
-      (`products.product.sku_change`) بالإضافة للحدث العام.
-- [x] وحدة `inventory`: `InventoryService.recordMovement` هو المسار الوحيد
-      لتعديل رصيد المخزون في الكود بأكمله، بنمط ذرّي (`INSERT ... ON
-      CONFLICT DO NOTHING` + `UPDATE` محروس يمنع الأرصدة السالبة ويمنع فقدان
-      التحديثات تحت تزامن حقيقي) — **مُختبَر تجريبيًا** بـ10 طلبات HTTP
-      متزامنة حقيقية، ليس نظريًا فقط. رصيد افتتاحي، تسوية، تحويل فوري ذرّي
-      بين مستودعين، ودورة جرد مخزون كاملة (draft → تحديث سطور → اعتماد ينتج
-      حركات تسوية تلقائيًا للفروقات → تجميد السطور).
-- [x] وحدة `parties`: Customers/Suppliers ككيانين منفصلين عمدًا (سيتباعدان
-      في مرحلة الذمم المدينة/الدائنة لاحقًا)، `reference` فريد اختياري لكل
-      منشأة، `phone` غير فريد عمدًا، بلا حقول Qeedha مُخترَعة.
-- [x] واجهة أمامية حقيقية (`/frontend`, React 18 + Vite + TypeScript +
-      Tailwind RTL): تسجيل دخول/تسجيل منشأة (بما فيه اختيار المنشأة
-      لمستخدم متعدد العضويات)، لوحة تحكم بمؤشرات من بيانات حقيقية فقط، شاشات
-      المنتجات/الكتالوج/المخزون/العملاء/الموردين متصلة فعليًا بالـAPI. اختُبرت
-      يدويًا عبر متصفح حقيقي (Playwright) بتشغيل فعلي متزامن للـbackend
-      والـfrontend — 9 سيناريوهات مستخدم كاملة (تسجيل، إنشاء تصنيف/علامة/
-      وحدة، إنشاء منتج، رصيد افتتاحي، عميل، مورد، تسجيل خروج) بلا أخطاء
-      console/page.
-- [x] `test/phase2.e2e-spec.ts`: 33 اختبارًا (وظيفية + أمنية عبر-المنشآت،
-      بما فيها اختبار RLS مباشر بدون طبقة الخدمة) — كلها ناجحة مع اختبارات
-      المرحلة 1.
-- [x] توثيق كامل محدَّث: `DATABASE.md`, `DOMAIN_MODEL.md`, `ARCHITECTURE.md`,
-      `MODULES.md`, `API.md`, `SECURITY.md`, `TESTING.md`, `CHANGELOG.md`,
-      `IMPORT_EXCEL.md` (قسم جاهزية المخطط).
+## ما تم إنجازه في هذه الدورة (المرحلة 2.1)
+
+- [x] **`BranchScopeService`** (وحدة `iam`، جديد): يحسب لعضوية معيّنة، ولصلاحية
+      معيّنة، مجموعة الفروع التي يُغطّيها إسنادها لتلك الصلاحية —
+      `MembershipRole.branchId = null` ⇐ كل الفروع، `branchId` محدَّد ⇐ ذلك
+      الفرع وكل مستودعاته. لا جدول جديد — تفعيل لعمود موجود أصلًا منذ إعادة
+      هيكلة Auth/IAM ولم يكن يُقرَأ من قبل.
+- [x] **إنفاذ Permission + Scope معًا** في `InventoryService`/
+      `StockCountService`: `assertWarehouseOwned` يقبل الآن `scope` اختياري
+      ويرفض بـ403 إن كان المستودع تابعًا للمنشأة الصحيحة لكن لفرع خارج
+      النطاق (متمايز عن 404 لعدم الانتماء للمنشأة إطلاقًا). مُطبَّق على: رصيد
+      افتتاحي، تسوية، تحويل (كلا الطرفين)، إنشاء/قراءة-بمعرّف/تحديث سطور/
+      اعتماد/إلغاء جرد.
+- [x] **قوائم القراءة تُصفَّى لا تُرفض**: `GET /inventory/stock-levels`,
+      `/movements`, `/stock-counts` تدمج شرط النطاق داخل استعلام Prisma
+      نفسه (نتيجة فارغة صامتة لخارج النطاق)، بنفس اتفاقية عزل المستأجرين
+      المعتمدة في كل قوائم النظام — بلا كسر أي اختبار قائم.
+- [x] **`PermissionsGuard` لم يتغيّر** (لا يزال يفحص فقط "هل تملك هذه
+      العضوية هذه الصلاحية في أي مكان بالمنشأة؟") — فحص النطاق قرار معماري
+      واعٍ وُضع في طبقة الخدمة، حيث يُعرَف المورد (`warehouseId`) فعليًا، لا
+      في الـGuard.
+- [x] **Products/Customers/Suppliers لم تُمَس** — تبقى tenant-wide بلا أي
+      قيد فرع، كما هي منذ المرحلة 2، بقرار مقصود موثَّق.
+- [x] **لا أدوار جديدة** (لا `BranchManager`/`WarehouseManager`) — نفس نظام
+      RBAC الحالي (Permission)، مع طبقة Scope فوقه فقط.
+- [x] **5 اختبارات e2e جديدة** في `test/phase2.e2e-spec.ts` (قسم "نطاق
+      الفروع/المستودعات") تغطي مصفوفة الاختبار كاملة: فرع مُصرَّح/غير
+      مُصرَّح بنفس المنشأة، نطاق فرع يشمل كل مستودعاته، اتحاد نطاقين
+      بإسنادَي دور، نطاق كامل تلقائي لفرع جديد (Owner)، عضوية معلَّقة تفقد
+      الوصول فورًا، وسيناريو متعدد المستأجرين كامل (منشأتان، ثلاثة فروع،
+      أربعة مستخدمين بنطاقات مختلفة). **33 اختبار المرحلة 2 استمرت بالنجاح
+      كاملة بلا تراجع، بما فيها اختبار التزامن بـ10 طلبات — المجموع 38/38.**
+- [x] توثيق كامل محدَّث: `DOMAIN_MODEL.md`, `SECURITY.md`, `MODULES.md`,
+      `TESTING.md`, `PROJECT_STATUS.md` (هذا الملف).
 
 ## التقرير النهائي (بالصيغة المطلوبة)
 
-**الحالة**: ✅ PASS — المرحلة 2 مكتملة ومُختبرة بالكامل.
+# Phase 2.1 — Branch/Warehouse Authorization Hardening
 
-| البند | النتيجة |
-|---|---|
-| Products | ✅ PASS |
-| Inventory | ✅ PASS |
-| Customers | ✅ PASS |
-| Suppliers | ✅ PASS |
-| Excel Import | ⏸️ Deferred (جاهزية المخطط موثَّقة في `IMPORT_EXCEL.md`؛ لا Wizard فعلي — كما هو مطلوب، مؤجَّل للمرحلة 5) |
-| Frontend | ✅ PASS (متصل فعليًا بالـAPI، مُختبَر عبر متصفح حقيقي) |
-| Multi-tenancy | ✅ PASS (كل جدول جديد `company_id` + عزل مُختبَر) |
-| RLS | ✅ PASS (`FORCE ROW LEVEL SECURITY` على كل جدول جديد + اختبار RLS مباشر) |
-| RBAC | ✅ PASS (16 صلاحية جديدة، مُختبَرة برفض 403 عند غيابها) |
-| Branch/Warehouse Security | ⚠️ **جزئي — موثَّق بصراحة** (راجع "قرارات معمارية" أدناه؛ عزل المنشآت كامل، عزل الفروع *داخل* نفس المنشأة غير مُفعَّل بعد في `PermissionsGuard`) |
-| Audit | ✅ PASS (بما فيها أحداث منفصلة لتغيّر السعر/SKU) |
-| Security | ✅ PASS (سلامة مراجع عبر-المنشآت، تزامن ذرّي، لا ثقة بـ`companyId` من العميل) |
-| Tests | ✅ PASS (33/33) |
-| E2E | ✅ PASS (33/33، `npx jest --config ./test/jest-e2e.json --runInBand`) |
-| Build | ✅ PASS (`nest build` بدون أخطاء) |
-| Lint | ✅ PASS (`eslint . --ext .ts` — 0 أخطاء) |
-| Typecheck | ✅ PASS (`tsc --noEmit` — 0 أخطاء) |
-| Documentation | ✅ PASS (9 ملفات محدَّثة، هذا الملف ضمنها) |
+**Status**: Completed
 
-### Files Changed (ملخص)
-- **Backend (جديد)**: `src/modules/catalog/**`, `src/modules/inventory/**`,
-  `src/modules/parties/**`, `src/common/dto/pagination-query.dto.ts`,
-  `src/common/utils/pagination.ts`, `test/phase2.e2e-spec.ts`,
-  `prisma/migrations/20260815150000_phase2_catalog_inventory_parties/`.
-- **Backend (معدَّل)**: `prisma/schema.prisma`, `src/app.module.ts`,
-  `src/modules/iam/constants/permissions.ts`,
-  `src/modules/iam/constants/default-roles.ts`, `package.json`/`package-lock.json`
-  (إضافة `@nestjs/mapped-types`).
-- **Frontend (جديد بالكامل)**: `/frontend` — راجع `frontend/README.md`
-  للنطاق التفصيلي.
-- **Docs (معدَّل)**: `DATABASE.md`, `DOMAIN_MODEL.md`, `ARCHITECTURE.md`,
-  `MODULES.md`, `API.md`, `SECURITY.md`, `TESTING.md`, `CHANGELOG.md`,
-  `IMPORT_EXCEL.md`, `PROJECT_STATUS.md` (هذا الملف).
+**Branch Authorization**: PASS
+**Warehouse Authorization**: PASS
+**Tenant Isolation**: PASS (غير مُتأثرة — RLS + `assertWarehouseOwned` كما
+كانت، طبقة النطاق فوقها لا بديلة عنها)
+**RLS**: PASS (لم تُعدَّل أي policy؛ لم تُستخدَم RLS لتطبيق نطاق الفرع —
+قرار مسجَّل أدناه)
+**RBAC**: PASS (لا أدوار جديدة، لا تعديل على نموذج Permission؛ `Permission +
+Scope` طبقتان منفصلتان كما طُلب)
+**IDOR Protection**: PASS (`inventory.adjust` صالحة + `warehouseId` لمنشأة
+صحيحة لكن فرع خارج النطاق ⇐ 403، مُختبَر صراحة)
+**Inventory Security**: PASS (كل مسارات الكتابة على مستودع محدد تفرض
+Permission + Scope معًا)
+**Tests**: PASS (38/38 — 33 قائمة + 5 جديدة، `npx jest --config
+./test/jest-e2e.json --runInBand`)
+**Build**: PASS (`nest build` بدون أخطاء)
+**Lint**: PASS (`eslint . --ext .ts` — 0 أخطاء)
+**Typecheck**: PASS (`tsc --noEmit` — 0 أخطاء)
+**Documentation**: PASS (5 ملفات محدَّثة)
 
-### Database Changes
-Migration واحدة (`20260815150000_phase2_catalog_inventory_parties`) — 12
-جدولًا جديدًا + RLS policies لكل منها. طُبِّقت بنجاح على قاعدتي التطوير
-(`qeedha_accounting`) والاختبار (`qeedha_accounting_test`). لا تعديل ولا حذف
-لأي جدول من المرحلة 1 أو Auth refactor.
-
-### API Changes
-راجع `docs/API.md` قسم "Endpoints المرحلة الثانية" للجدول الكامل: 11 مسارًا
-تحت `/catalog` + `/products`، 10 مسارات تحت `/inventory`، 8 مسارات تحت
-`/customers` + `/suppliers`. كلها خلف نفس سلسلة الحراسة
-(`JwtAuthGuard → MembershipGuard → PermissionsGuard`).
-
-### Frontend Changes
-تطبيق React كامل جديد (`/frontend`) — تسجيل دخول/تسجيل، لوحة تحكم، 5 شاشات
-وحدات (منتجات، كتالوج، مخزون، عملاء، موردون)، RTL بالكامل، بألوان هوية
-Qeedha Accounting (`#0e5f58` / `#f5a623`). راجع `frontend/README.md` للنطاق
-الدقيق وما هو مؤجَّل عمدًا.
-
-### Deferred (مؤجَّل عمدًا — وليس نسيانًا)
-- معالج استيراد Excel الفعلي (`import_jobs`/`import_job_rows` + الواجهة) —
-  جاهزية المخطط موثَّقة، التنفيذ الكامل للمرحلة 5.
-- تفعيل نطاق الفروع في `PermissionsGuard` (راجع البند التالي).
-- التحويل متعدد المراحل بين المستودعين (طلب → شحن → استلام) — التحويل
-  الحالي فوري ذرّي فقط.
-- شاشات الجرد (Stock Count) والتحويل في الواجهة الأمامية — الـAPI جاهز
-  ومُختبَر بالكامل، الواجهة تُضاف لاحقًا (موثَّق في `frontend/README.md`).
-- تعديل/حذف من الواجهة الأمامية (متاح عبر الـAPI ومُختبَر، الشاشات الحالية
-  تركّز على العرض والإضافة).
-- تبديل اللغة إنجليزي/LTR في الواجهة (بنية RTL جاهزة، i18n كامل مؤجَّل).
-- حقول ائتمان/رصيد/حد ائتماني للعملاء والموردين — تنتمي لمرحلة المحاسبة.
-- POS، Sales، Purchases، Expenses، Accounting الكاملة، ZATCA، تكامل قيّدها
-  الفعلي، Control Center، Website، اشتراكات فعلية — **لم تُبنَ ولن تُبنى في
-  هذه المرحلة**، كما هو مطلوب صراحة.
-
-### Known Issues
-لا مشاكل معروفة غير موثَّقة أعلاه. كل الاختبارات خضراء، build/lint/typecheck
-نظيفة.
+### Files Changed
+- **Backend (جديد)**: `src/modules/iam/branch-scope.service.ts`.
+- **Backend (معدَّل)**: `src/modules/iam/iam.module.ts` (تصدير
+  `BranchScopeService`), `src/modules/inventory/inventory.module.ts`
+  (استيراد `IamModule`), `src/modules/inventory/inventory.service.ts`
+  (`assertWarehouseOwned` + `warehouseScopeFilter` + قوائم/عمليات محدَّثة),
+  `src/modules/inventory/stock-count.service.ts` (نفس النمط لكل عمليات
+  الجرد), `src/modules/inventory/inventory.controller.ts` (تمرير
+  `membershipId`)، `test/phase2.e2e-spec.ts` (+5 اختبارات).
+- **Docs (معدَّل)**: `DOMAIN_MODEL.md`, `SECURITY.md`, `MODULES.md`,
+  `TESTING.md`, `PROJECT_STATUS.md` (هذا الملف).
+- **لا تغيير على Prisma schema** — لا migration جديدة، `MembershipRole.branchId`
+  و`Warehouse.branchId` كانا موجودين أصلًا منذ مراحل سابقة.
+- **لا تغيير على الواجهة الأمامية** — رسائل 403 الجديدة تمر عبر نفس مسار
+  معالجة أخطاء `ApiError` الموجود أصلًا (`frontend/src/api/client.ts`)، الذي
+  يعرض بالفعل أي رسالة خطأ من الخادم دون حاجة لكود خاص بها. لم تُبنَ أي واجهة
+  اختيار فرع/مستودع جديدة — كانت ستُعتبر إفراطًا في البناء خارج نطاق هذه
+  الدورة الأمنية الضيقة.
 
 ### Architectural Decisions (قرارات مسجَّلة)
-- **نطاق الفروع/المستودعات في RBAC لم يُفعَّل بعد**: `MembershipRole.branchId`
-  موجود في المخطط منذ Auth refactor، لكن `PermissionsGuard` في المرحلة 2 **لا
-  يقرأه ولا يفرضه**. عمليًا: أي عضو يملك صلاحية مثل `inventory.adjust` يستطيع
-  التأثير على **أي** مستودع تابع لمنشأته، بصرف النظر عن أي نطاق فرع مُسنَد له.
-  الفصل المفروض فعليًا هو الفصل **بين المنشآت** (tenant isolation عبر RLS)،
-  وهذا فصل مختلف تمامًا عن الفصل بين الفروع **داخل** نفس المنشأة. هذا قرار
-  موثَّق بصراحة تامة في `docs/DOMAIN_MODEL.md` و`docs/SECURITY.md` وليس نظامًا
-  مزيّفًا أو ثغرة مسكوت عنها — التوسّع المستقبلي (تفعيل فحص `branchId`) مخطَّط
-  له ولم يُبنَ بعد.
-- سلامة المراجع عبر المنشآت (category/brand/unit/warehouse) تُفرض في طبقة
-  التطبيق صراحة (`assertReferencesOwnedByTenant`, `assertWarehouseOwned`)
-  لأن FK وحده في Postgres لا يعبّر عن "نفس الصف وفي نفس المنشأة معًا".
-- استراتيجية التزامن لكتابة المخزون: `INSERT ... ON CONFLICT DO NOTHING` +
-  `UPDATE` محروس ذرّي (وليس Prisma `upsert()`، غير ذرّي فعليًا على Postgres
-  تحت تزامن حقيقي) — تفاصيل كاملة في `DATABASE.md`/`SECURITY.md`.
-- Customers/Suppliers ككيانين منفصلين تمامًا في الكود (لا تجريد Party مشترك)
-  لأنهما سيتباعدان في مرحلة الذمم المدينة/الدائنة، والتجريد المبكر كان سيُعقّد
-  ذلك التوسّع دون فائدة حالية.
-- التحويل بين المستودعين فوري ذرّي فقط في هذه المرحلة؛ لا حالة "بالطريق".
-- لا حقول Qeedha-specific مُخترَعة في `customers`/`suppliers` — أي توافق
-  مستقبلي مع qeedha يمر عبر Integration Layer حصرًا.
+- **الفحص في طبقة التطبيق (Service)، وليس في `PermissionsGuard`**:
+  `PermissionsGuard` يبقى بلا تغيير لأن سؤاله ("هل تملك هذه الصلاحية؟") عام
+  وثابت الشكل، بينما سؤال النطاق ("أي فرع يتبعه هذا المورد المحدد؟") يحتاج
+  معرفة جسم/معاملات الطلب التي تختلف شكلًا بين DTO وآخر (`warehouseId` مقابل
+  `fromWarehouseId`/`toWarehouseId` مثلًا) — فرضه في نفس نقطة الفحص الموجودة
+  أصلًا لسلامة المراجع عبر المنشآت (`assertWarehouseOwned`) أبسط وأكثر
+  اتساقًا من إضافة طبقة Guard عامة تحتاج تفسير كل DTO.
+- **403 لخرق النطاق، 404 لعدم الانتماء للمنشأة**: تمييز متعمَّد. 404 يبقى
+  "هذا غير موجود لديك إطلاقًا" (سلامة مرجعية عبر المنشآت، كما في المرحلة 2).
+  403 جديد يعني "هذا موجود في منشأتك فعلًا، لكن نطاقك لا يغطيه".
+- **قوائم القراءة تُصفَّى بصمت، لا تُرفض**: خيار مقصود ليس اعتباطيًا — أول
+  محاولة استخدمت `assertWarehouseOwned` (ترفض) في مسارات القوائم أيضًا،
+  فكسرت اختبار عزل مستأجرين قائم من المرحلة 2 كان يتوقع 200 بنتيجة فارغة عند
+  تمرير `warehouseId` من منشأة أخرى في استعلام قائمة. صُحِّح ليطابق الاتفاقية
+  الموجودة أصلًا في كل قوائم هذا النظام (فلترة صامتة)، ويقتصر الرفض الصريح
+  على عمليات المورد الواحد المحدد (تسوية/تحويل/جرد).
+- **لا استخدام لـRLS لفرض نطاق الفرع**: RLS يبقى مخصصًا حصرًا لعزل
+  المستأجرين (tenant isolation) — وهو الحد الذي طلبه المستخدم صراحة ("Tenant
+  isolation must remain enforced at database level. Branch/warehouse
+  authorization must be enforced at the appropriate application/domain
+  boundary"). إضافة RLS policy تعتمد على `current_setting` لعضوية/نطاق فرع
+  كانت ستُعقّد نموذج RLS الحالي (المبني على `company_id` فقط) دون فائدة
+  تناسب حجم هذه الدورة.
+- **`Permission` + `Scope`، وليس أدوار جديدة**: لا `BranchManager` ولا
+  `WarehouseManager` — دور `Inventory Manager` الموجود يُسنَد الآن بنطاق فرع
+  اختياري عبر `MembershipRole.branchId` الموجود أصلًا، بدل اختراع نظام صلاحية
+  موازٍ.
+- **Products/Customers/Suppliers تبقى tenant-wide**: لا مبرر عمل حقيقي حاليًا
+  لتقييدها بفرع؛ تقييدها الآن كان سيُخالف "لا تُفرط في البناء".
+
+### Known Limitations (موثَّقة صراحة، وليست ثغرات مسكوت عنها)
+- **إنشاء/تعديل الفروع والمستودعات نفسها** (`tenancy.branches.manage`/
+  `tenancy.warehouses.manage`) بلا فحص نطاق فرع — منطقي لأنها عمليات على
+  مستوى المنشأة كاملة، لا على فرع قائم مسبقًا.
+- **`IamService.assignRole`/`createUser`** يتحققان أن الفرع المُسنَد ينتمي
+  لنفس المنشأة، لكن بلا فحص "هل مُسنِد الدور نفسه مخوَّل بهذا الفرع؟" — أي
+  عضو يملك `iam.users.manage` (عادة نطاق كامل) يستطيع إسناد أي فرع لأي عضو.
+  هذا امتداد منطقي لصلاحية إدارة المستخدمين نفسها في هذه المرحلة، وليس ثغرة؛
+  تحسين مستقبلي محتمل إن احتاج العمل تفويض إدارة مستخدمين لمدير فرع واحد
+  فقط.
+- **POS (المرحلة 3)** لم يُبنَ بعد؛ `PosDevice.branchId` موجود من المرحلة 1
+  وسيُعاد استخدام `BranchScopeService` نفسه حين تُبنى وحدة POS، لا نظام
+  موازٍ جديد.
 
 ### Commit
-سيُنفَّذ commit واحد نظيف لكل تغييرات المرحلة 2 (بدون push، حسب التعليمات
-الصريحة) بعد هذا التحديث. راجع رسالة الـcommit للـhash النهائي.
+commit منفصل ونظيف لهذه الدورة فقط (بدون تعديل أو إعادة كتابة commit المرحلة
+2)، **بدون push** حسب التعليمات الصريحة. راجع رسالة الـcommit للـhash
+النهائي.
 
 ## ما لم يبدأ بعد (بانتظار إذنك للانتقال)
 
@@ -167,8 +153,9 @@ Qeedha Accounting (`#0e5f58` / `#f5a623`). راجع `frontend/README.md` للن�
 
 - خوارزمية تقييم المخزون (FIFO/Weighted Average) — عند المرحلة 4.
 - تفاصيل Offline POS الكاملة — عند المرحلة 3.
-- تفعيل نطاق الفروع الفعلي في RBAC — يحتاج قرارك حول الأولوية الزمنية له
-  نسبةً لمرحلة POS.
+- واجهة أمامية لاختيار/عرض نطاق الفرع عند إسناد دور — لم تُطلَب في هذه
+  الدورة، ولم تُبنَ لتفادي الإفراط في البناء؛ يمكن إضافتها كتحسين لاحق على
+  شاشة IAM الحالية.
 - الموجة/الحد المالي المطبَّق لـZATCA Phase 2 — عند المرحلة 6.
 - عقد API الفعلي لقيّدها (Endpoints, Auth, Fields) — عند المرحلة 7، بانتظار
   توثيق منك.
@@ -176,7 +163,7 @@ Qeedha Accounting (`#0e5f58` / `#f5a623`). راجع `frontend/README.md` للن�
 ## كيف تتحقق من الحالة الحالية محليًا
 
 Backend: `cd backend && npm install && npx prisma migrate deploy && npm run
-prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (33/33 حاليًا).
+prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (38/38 حاليًا).
 Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعمل
 على `http://localhost:3000`).
 
@@ -189,3 +176,6 @@ Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعم
 - 2026-08-15: المرحلة 2 (Products/Inventory/Customers/Suppliers + Frontend)
   مكتملة ومُختبرة (33/33، build/lint/typecheck نظيفة) — بانتظار موافقة صريحة
   لبدء المرحلة 3.
+- 2026-08-15: المرحلة 2.1 (Branch/Warehouse Authorization Hardening) مكتملة
+  ومُختبرة (38/38، build/lint/typecheck نظيفة) — بانتظار موافقة صريحة لبدء
+  المرحلة 3.

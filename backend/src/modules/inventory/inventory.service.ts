@@ -1,9 +1,16 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, StockMovementType } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { TenantClient } from '../../common/prisma/prisma.service';
 import { paginate, paginationSkip } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
+import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
+import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { QueryStockLevelsDto } from './dto/query-stock-levels.dto';
 import { QueryStockMovementsDto } from './dto/query-stock-movements.dto';
@@ -24,7 +31,10 @@ export interface RecordMovementParams {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly auditService: AuditService) {}
+  constructor(
+    private readonly auditService: AuditService,
+    private readonly branchScopeService: BranchScopeService,
+  ) {}
 
   /**
    * The ONLY write path to stock_levels. Concurrency strategy (see
@@ -82,13 +92,32 @@ export class InventoryService {
     return { movement, quantityOnHand: updated[0].quantity_on_hand };
   }
 
-  async listStockLevels(tx: TenantClient, companyId: string, query: QueryStockLevelsDto) {
+  async listStockLevels(
+    tx: TenantClient,
+    companyId: string,
+    membershipId: string,
+    query: QueryStockLevelsDto,
+  ) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
 
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      membershipId,
+      PERMISSION_KEYS.INVENTORY_READ,
+    );
+
+    // A warehouseId outside this tenant, or outside this membership's branch
+    // scope, is never rejected here (this is a list/filter endpoint, same
+    // convention as every other tenant-isolation filter in this codebase) -
+    // it is just ANDed into the where clause like any other filter, so it
+    // silently yields zero rows instead of leaking another branch's/tenant's
+    // data. Only single-resource, state-changing endpoints (adjustStock,
+    // transferStock, stock counts, ...) reject an out-of-scope warehouse.
     const where: Prisma.StockLevelWhereInput = {
       companyId,
       ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}),
+      ...this.warehouseScopeFilter(scope),
       ...(query.productId ? { productId: query.productId } : {}),
       ...(query.search
         ? { product: { name: { contains: query.search, mode: 'insensitive' as const } } }
@@ -126,13 +155,25 @@ export class InventoryService {
     return paginate(shaped, query.lowStockOnly ? shaped.length : total, page, pageSize);
   }
 
-  async listStockMovements(tx: TenantClient, companyId: string, query: QueryStockMovementsDto) {
+  async listStockMovements(
+    tx: TenantClient,
+    companyId: string,
+    membershipId: string,
+    query: QueryStockMovementsDto,
+  ) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
+
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      membershipId,
+      PERMISSION_KEYS.INVENTORY_READ,
+    );
 
     const where: Prisma.StockMovementWhereInput = {
       companyId,
       ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}),
+      ...this.warehouseScopeFilter(scope),
       ...(query.productId ? { productId: query.productId } : {}),
       ...(query.type ? { type: query.type } : {}),
     };
@@ -158,7 +199,12 @@ export class InventoryService {
     actorUserId: string,
     dto: SetOpeningBalanceDto,
   ) {
-    await this.assertWarehouseOwned(tx, companyId, dto.warehouseId);
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      actorMembershipId,
+      PERMISSION_KEYS.INVENTORY_ADJUST,
+    );
+    await this.assertWarehouseOwned(tx, companyId, dto.warehouseId, scope);
     await this.assertProductOwned(tx, companyId, dto.productId);
 
     const existing = await tx.stockLevel.findUnique({
@@ -208,7 +254,12 @@ export class InventoryService {
     actorUserId: string,
     dto: AdjustStockDto,
   ) {
-    await this.assertWarehouseOwned(tx, companyId, dto.warehouseId);
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      actorMembershipId,
+      PERMISSION_KEYS.INVENTORY_ADJUST,
+    );
+    await this.assertWarehouseOwned(tx, companyId, dto.warehouseId, scope);
     await this.assertProductOwned(tx, companyId, dto.productId);
 
     const { movement, quantityOnHand } = await this.recordMovement(tx, companyId, {
@@ -266,8 +317,13 @@ export class InventoryService {
     if (dto.fromWarehouseId === dto.toWarehouseId) {
       throw new ConflictException('لا يمكن التحويل إلى نفس المستودع');
     }
-    await this.assertWarehouseOwned(tx, companyId, dto.fromWarehouseId);
-    await this.assertWarehouseOwned(tx, companyId, dto.toWarehouseId);
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      actorMembershipId,
+      PERMISSION_KEYS.INVENTORY_TRANSFER,
+    );
+    await this.assertWarehouseOwned(tx, companyId, dto.fromWarehouseId, scope);
+    await this.assertWarehouseOwned(tx, companyId, dto.toWarehouseId, scope);
     await this.assertProductOwned(tx, companyId, dto.productId);
 
     const referenceId = randomUUID();
@@ -316,11 +372,30 @@ export class InventoryService {
     };
   }
 
-  async assertWarehouseOwned(tx: TenantClient, companyId: string, warehouseId: string) {
+  /**
+   * `scope`, when passed, is the SECOND check layered on top of tenant
+   * ownership - see docs/SECURITY.md "نطاق الفروع/المستودعات": tenant
+   * ownership answers "does this warehouse belong to this company at all"
+   * (404 if not - the resource doesn't exist for this tenant); scope answers
+   * "does THIS membership's grant of THIS permission cover the branch this
+   * warehouse belongs to" (403 if not - the resource exists, but this
+   * membership isn't authorized for its branch). Callers that don't pass a
+   * scope get tenant-only enforcement, unchanged from before this scope
+   * model existed.
+   */
+  async assertWarehouseOwned(
+    tx: TenantClient,
+    companyId: string,
+    warehouseId: string,
+    scope?: BranchScope,
+  ) {
     const warehouse = await tx.warehouse.findFirst({
       where: { id: warehouseId, companyId, deletedAt: null },
     });
     if (!warehouse) throw new NotFoundException('المستودع غير موجود');
+    if (scope && !scope.allBranches && !scope.branchIds.has(warehouse.branchId)) {
+      throw new ForbiddenException('هذا المستودع خارج نطاق الفروع المصرح بها لهذه العضوية');
+    }
     return warehouse;
   }
 
@@ -330,5 +405,13 @@ export class InventoryService {
     });
     if (!product) throw new NotFoundException('المنتج غير موجود');
     return product;
+  }
+
+  /** Prisma where-clause fragment restricting a warehouse-relation query to an authorized branch scope. Omit (spread {}) when scope.allBranches. */
+  warehouseScopeFilter(
+    scope: BranchScope,
+  ): { warehouse: { branchId: { in: string[] } } } | Record<string, never> {
+    if (scope.allBranches) return {};
+    return { warehouse: { branchId: { in: Array.from(scope.branchIds) } } };
   }
 }

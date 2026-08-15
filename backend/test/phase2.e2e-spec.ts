@@ -515,6 +515,318 @@ describe('Phase 2: Products/Inventory/Customers/Suppliers (e2e)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Phase 2.1: Branch & Warehouse Authorization Scope
+  // ---------------------------------------------------------------------------
+
+  describe('نطاق الفروع/المستودعات (Branch & Warehouse Authorization Scope)', () => {
+    const getRoleId = async (token: string, name: string) => {
+      const roles = await request(server).get('/api/v1/iam/roles').set(auth(token)).expect(200);
+      const role = roles.body.find((r: any) => r.name === name);
+      if (!role) throw new Error(`role not found: ${name}`);
+      return role.id as string;
+    };
+
+    const getDefaultBranchId = async (token: string) => {
+      const branches = await request(server)
+        .get('/api/v1/tenancy/branches')
+        .set(auth(token))
+        .expect(200);
+      return branches.body.find((b: any) => b.isDefault).id as string;
+    };
+
+    const createBranch = async (token: string) => {
+      const id = unique();
+      const res = await request(server)
+        .post('/api/v1/tenancy/branches')
+        .set(auth(token))
+        .send({ name: `فرع ${id}`, code: `BR-${id}` })
+        .expect(201);
+      return res.body;
+    };
+
+    const createWarehouse = async (token: string, branchId: string) => {
+      const id = unique();
+      const res = await request(server)
+        .post('/api/v1/tenancy/warehouses')
+        .set(auth(token))
+        .send({ branchId, name: `مستودع ${id}`, code: `WH-${id}` })
+        .expect(201);
+      return res.body;
+    };
+
+    /** New membership in `tenant`, holding `roleName` scoped to `branchId` (company-wide if null). */
+    const createScopedUser = async (
+      tenant: Awaited<ReturnType<typeof registerTenant>>,
+      roleName: string,
+      branchId: string | null,
+    ) => {
+      const roleId = await getRoleId(tenant.accessToken, roleName);
+      const email = `scoped-${unique()}@test.qeedha.local`;
+      const password = 'ScopedPass123';
+      const created = await request(server)
+        .post('/api/v1/iam/users')
+        .set(auth(tenant.accessToken))
+        .send({
+          fullName: 'مستخدم مقيّد بفرع',
+          email,
+          password,
+          roleId,
+          ...(branchId ? { branchId } : {}),
+        })
+        .expect(201);
+      const login = await request(server)
+        .post('/api/v1/auth/login')
+        .send({ identifier: email, password })
+        .expect(200);
+      return {
+        userId: created.body.user.id as string,
+        accessToken: login.body.accessToken as string,
+      };
+    };
+
+    /** Grants an existing user a second role assignment scoped to a different branch. */
+    const addScopedRole = async (
+      tenant: Awaited<ReturnType<typeof registerTenant>>,
+      targetUserId: string,
+      roleName: string,
+      branchId: string,
+    ) => {
+      const roleId = await getRoleId(tenant.accessToken, roleName);
+      await request(server)
+        .post(`/api/v1/iam/users/${targetUserId}/roles`)
+        .set(auth(tenant.accessToken))
+        .send({ roleId, branchId })
+        .expect(201);
+    };
+
+    it('عضو مقيّد بفرع واحد: يعمل على مستودع فرعه (PASS)، ويُرفض بـ403 على مستودع فرع آخر بنفس المنشأة (FAIL)', async () => {
+      const tenant = await registerTenant();
+      const product = await createProduct(tenant);
+
+      const branchA1 = await getDefaultBranchId(tenant.accessToken);
+      const branchA2 = await createBranch(tenant.accessToken);
+      const warehouseA2 = await createWarehouse(tenant.accessToken, branchA2.id);
+
+      const userA1 = await createScopedUser(tenant, 'Inventory Manager', branchA1);
+
+      // Authorized branch/warehouse -> PASS.
+      await request(server)
+        .post('/api/v1/inventory/opening-balance')
+        .set(auth(userA1.accessToken))
+        .send({ warehouseId: tenant.warehouseId, productId: product.id, quantity: 5 })
+        .expect(201);
+
+      // Unauthorized branch/warehouse, SAME tenant -> FAIL with 403 (the
+      // warehouse genuinely exists in this tenant - unlike a cross-tenant
+      // reference, which is 404 - this membership's scope just doesn't
+      // cover its branch).
+      await request(server)
+        .post('/api/v1/inventory/adjustments')
+        .set(auth(userA1.accessToken))
+        .send({
+          warehouseId: warehouseA2.id,
+          productId: product.id,
+          quantityDelta: 1,
+          reason: 'خارج النطاق',
+        })
+        .expect(403);
+
+      // Valid permission (inventory.transfer) but invalid warehouse scope on
+      // one leg of the transfer -> FAIL.
+      await request(server)
+        .post('/api/v1/inventory/transfers')
+        .set(auth(userA1.accessToken))
+        .send({
+          fromWarehouseId: tenant.warehouseId,
+          toWarehouseId: warehouseA2.id,
+          productId: product.id,
+          quantity: 1,
+        })
+        .expect(403);
+
+      // Valid permission (inventory.count) but invalid warehouse scope -> FAIL.
+      await request(server)
+        .post('/api/v1/inventory/stock-counts')
+        .set(auth(userA1.accessToken))
+        .send({ warehouseId: warehouseA2.id })
+        .expect(403);
+
+      // Reads never leak the unauthorized branch's rows either - filtered
+      // out silently (200 + empty), same convention as tenant isolation.
+      const levels = await request(server)
+        .get('/api/v1/inventory/stock-levels')
+        .query({ warehouseId: warehouseA2.id })
+        .set(auth(userA1.accessToken))
+        .expect(200);
+      expect(levels.body.data).toHaveLength(0);
+    });
+
+    it('نطاق الفرع يشمل كل مستودعاته: عضو مُصرَّح لفرع كامل يصل لكل مستودعات ذلك الفرع (PASS)', async () => {
+      const tenant = await registerTenant();
+      const product = await createProduct(tenant);
+
+      const branch = await createBranch(tenant.accessToken);
+      const warehouse1 = await createWarehouse(tenant.accessToken, branch.id);
+      const warehouse2 = await createWarehouse(tenant.accessToken, branch.id);
+
+      const scopedUser = await createScopedUser(tenant, 'Inventory Manager', branch.id);
+
+      await request(server)
+        .post('/api/v1/inventory/opening-balance')
+        .set(auth(scopedUser.accessToken))
+        .send({ warehouseId: warehouse1.id, productId: product.id, quantity: 3 })
+        .expect(201);
+      await request(server)
+        .post('/api/v1/inventory/opening-balance')
+        .set(auth(scopedUser.accessToken))
+        .send({ warehouseId: warehouse2.id, productId: product.id, quantity: 4 })
+        .expect(201);
+    });
+
+    it('عضو بإسنادَي دور (فرعان) يصل للفرعين معًا؛ عضو بنطاق كامل (بلا branchId) يصل لأي فرع جديد بلا إسناد إضافي', async () => {
+      const tenant = await registerTenant();
+      const product = await createProduct(tenant);
+
+      const branchA1 = await getDefaultBranchId(tenant.accessToken);
+      const branchA2 = await createBranch(tenant.accessToken);
+      const warehouseA2 = await createWarehouse(tenant.accessToken, branchA2.id);
+
+      const dualUser = await createScopedUser(tenant, 'Inventory Manager', branchA1);
+      await addScopedRole(tenant, dualUser.userId, 'Inventory Manager', branchA2.id);
+
+      await request(server)
+        .post('/api/v1/inventory/opening-balance')
+        .set(auth(dualUser.accessToken))
+        .send({ warehouseId: tenant.warehouseId, productId: product.id, quantity: 1 })
+        .expect(201);
+      await request(server)
+        .post('/api/v1/inventory/opening-balance')
+        .set(auth(dualUser.accessToken))
+        .send({ warehouseId: warehouseA2.id, productId: product.id, quantity: 1 })
+        .expect(201);
+
+      // Owner kept its company-wide grant (branchId: null at registration) -
+      // a brand-new branch/warehouse, created after the Owner's role
+      // assignment already existed, is still authorized with zero extra
+      // role assignments.
+      const branchA3 = await createBranch(tenant.accessToken);
+      const warehouseA3 = await createWarehouse(tenant.accessToken, branchA3.id);
+      await request(server)
+        .post('/api/v1/inventory/opening-balance')
+        .set(auth(tenant.accessToken))
+        .send({ warehouseId: warehouseA3.id, productId: product.id, quantity: 1 })
+        .expect(201);
+    });
+
+    it('عضوية معلَّقة تفقد الوصول فورًا حتى لمستودع ضمن نطاق فرعها', async () => {
+      const tenant = await registerTenant();
+      const product = await createProduct(tenant);
+      const branchA1 = await getDefaultBranchId(tenant.accessToken);
+      const scopedUser = await createScopedUser(tenant, 'Inventory Manager', branchA1);
+
+      await request(server)
+        .post('/api/v1/inventory/opening-balance')
+        .set(auth(scopedUser.accessToken))
+        .send({ warehouseId: tenant.warehouseId, productId: product.id, quantity: 1 })
+        .expect(201);
+
+      await prisma.withTenant(tenant.companyId, (tx) =>
+        tx.membership.updateMany({
+          where: { userId: scopedUser.userId, companyId: tenant.companyId },
+          data: { status: 'suspended' },
+        }),
+      );
+
+      await request(server)
+        .post('/api/v1/inventory/adjustments')
+        .set(auth(scopedUser.accessToken))
+        .send({
+          warehouseId: tenant.warehouseId,
+          productId: product.id,
+          quantityDelta: 1,
+          reason: 'بعد التعليق',
+        })
+        .expect(403);
+    });
+
+    it('سيناريو متعدد المستأجرين: منشأتان بفروعهما ومستودعاتهما، بلا أي تسرّب بين النطاقات', async () => {
+      const companyA = await registerTenant();
+      const companyB = await registerTenant();
+      const productA = await createProduct(companyA);
+      const productB = await createProduct(companyB);
+
+      const branchA1 = await getDefaultBranchId(companyA.accessToken);
+      const branchA2 = await createBranch(companyA.accessToken);
+      const warehouseA2 = await createWarehouse(companyA.accessToken, branchA2.id);
+
+      // "User A1": scoped to Branch A1 only.
+      const userA1 = await createScopedUser(companyA, 'Inventory Manager', branchA1);
+      // "User A1+A2": scoped to both branches.
+      const userA1A2 = await createScopedUser(companyA, 'Inventory Manager', branchA1);
+      await addScopedRole(companyA, userA1A2.userId, 'Inventory Manager', branchA2.id);
+
+      // User A1 -> A1 warehouse: PASS.
+      await request(server)
+        .post('/api/v1/inventory/opening-balance')
+        .set(auth(userA1.accessToken))
+        .send({ warehouseId: companyA.warehouseId, productId: productA.id, quantity: 1 })
+        .expect(201);
+      // User A1 -> A2 warehouse (same tenant, wrong branch): FAIL 403.
+      await request(server)
+        .post('/api/v1/inventory/adjustments')
+        .set(auth(userA1.accessToken))
+        .send({
+          warehouseId: warehouseA2.id,
+          productId: productA.id,
+          quantityDelta: 1,
+          reason: 'خارج النطاق',
+        })
+        .expect(403);
+      // User A1 -> Company B's warehouse (different tenant entirely): FAIL 404.
+      await request(server)
+        .post('/api/v1/inventory/adjustments')
+        .set(auth(userA1.accessToken))
+        .send({
+          warehouseId: companyB.warehouseId,
+          productId: productA.id,
+          quantityDelta: 1,
+          reason: 'منشأة أخرى',
+        })
+        .expect(404);
+
+      // User A1+A2 -> A2 warehouse: PASS (second role assignment covers it).
+      await request(server)
+        .post('/api/v1/inventory/adjustments')
+        .set(auth(userA1A2.accessToken))
+        .send({
+          warehouseId: warehouseA2.id,
+          productId: productA.id,
+          quantityDelta: 2,
+          reason: 'ضمن النطاق',
+        })
+        .expect(201);
+
+      // "User B1" (Company B's Owner, company-wide by default) -> its own
+      // warehouse: PASS; Company A's warehouse: FAIL 404 (cross-tenant).
+      await request(server)
+        .post('/api/v1/inventory/opening-balance')
+        .set(auth(companyB.accessToken))
+        .send({ warehouseId: companyB.warehouseId, productId: productB.id, quantity: 1 })
+        .expect(201);
+      await request(server)
+        .post('/api/v1/inventory/adjustments')
+        .set(auth(companyB.accessToken))
+        .send({
+          warehouseId: companyA.warehouseId,
+          productId: productB.id,
+          quantityDelta: 1,
+          reason: 'منشأة أخرى',
+        })
+        .expect(404);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Customers & Suppliers
   // ---------------------------------------------------------------------------
 

@@ -7,7 +7,7 @@
 | Module | المسؤولية | المرحلة |
 |---|---|---|
 | `tenancy` | Company, Branch, Warehouse, PosDevice | 1 |
-| `iam` | Users, Memberships, Roles, Permissions, MembershipRoles (RBAC) | 1 |
+| `iam` | Users, Memberships, Roles, Permissions, MembershipRoles (RBAC)، `BranchScopeService` (نطاق الفروع — 2.1) | 1 |
 | `auth` | تسجيل الدخول، JWT access/refresh، تسجيل منشأة جديدة | 1 |
 | `audit` | سجل العمليات الحساسة | 1 |
 | `integrations` (core) | Ports عامة، IntegrationConnection، Webhook Inbox عام | 1 |
@@ -32,3 +32,11 @@
   هذا يضمن توازن كل قيد ومصدر واحد للحقيقة المحاسبية.
 - `integrations` هي الوحدة الوحيدة المسموح لها بمعرفة تفاصيل مزوّد خارجي، وحتى
   هي تُعرّض Interface عام على باقي النظام (انظر `QEEDHA_INTEGRATION.md`).
+
+## المرحلة 2.1 — تفعيل نطاق الفروع/المستودعات (Branch & Warehouse Scope)
+
+`inventory` أصبحت تستدعي `BranchScopeService.getScopeForPermission` من `iam`
+(لذا `InventoryModule` يستورد `IamModule` الآن) قبل أي عملية تلمس مستودعًا
+محددًا. راجع `docs/SECURITY.md` و`docs/DOMAIN_MODEL.md` للتفاصيل الكاملة —
+لا وحدة جديدة، ولا جدول جديد، فقط تفعيل عمود `MembershipRole.branchId`
+الموجود أصلًا منذ إعادة هيكلة Auth/IAM.
