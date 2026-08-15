@@ -1,7 +1,8 @@
 # الوحدات (Modules)
 
 جدول مرجعي سريع؛ التفاصيل الكاملة لكل وحدة رئيسية في ملفها المخصص
-(`POS.md`, `ACCOUNTING.md`, `INVENTORY.md`, `IMPORT_EXCEL.md`, `ZATCA.md`,
+(`POS.md`, `SALES.md`, `PAYMENTS.md`, `INVOICES.md`, `ACCOUNTING.md`,
+`INVENTORY.md`, `IMPORT_EXCEL.md`, `ZATCA.md`, `INTEGRATION.md`,
 `QEEDHA_INTEGRATION.md`).
 
 | Module | المسؤولية | المرحلة |
@@ -14,14 +15,19 @@
 | `catalog` | المنتجات، التصنيفات، العلامات، الوحدات، الباركود | 2 — منفَّذ |
 | `inventory` | رصيد المخزون، الحركات، التحويلات، الجرد | 2 — منفَّذ |
 | `parties` | العملاء، الموردون | 2 — منفَّذ |
-| `sales` / `pos` | الفاتورة، الدفع، المرتجعات، السلات المعلّقة، الوردية | 3 |
-| `purchasing` | أوامر الشراء، الاستلام، فواتير الموردين | 3 |
-| `expenses` | المصروفات وفئاتها | 3 |
+| `sales` | Sale/SaleItem/Payment/Invoice، خصم مخزون ذرّي، Idempotency (POS واجهة فقط — لا جدول له) | 3 — منفَّذ |
+| `purchasing` | أوامر الشراء، الاستلام، فواتير الموردين | 4 |
+| `expenses` | المصروفات وفئاتها | 4 |
 | `accounting` | دليل الحسابات، القيود، الأستاذ، الميزانيات | 4 |
 | `reports` | تقارير مالية وتشغيلية | 4 |
 | `import` | Excel Import Wizard | 5 |
 | `zatca` | الفوترة الإلكترونية | 6 |
 | `integrations/providers/qeedha` | Adapter فعلي لقيّدها | 7 |
+
+**ملاحظة نطاق**: مرتجعات جزئية (`sale_returns`)، ورديات كاشير
+(`cash_sessions`)، والسلات المعلّقة على الخادم كانت مذكورة في تصميم مرجعي
+مبكر لوحدة `sales`/`pos` لكنها **لم تُبنَ في المرحلة 3** — موثَّق صراحة في
+`docs/POS.md`/`docs/SALES.md` "مؤجَّل عمدًا"، ليست نسيانًا.
 
 ## مبدأ الحدود بين الوحدات
 
@@ -40,3 +46,14 @@
 محددًا. راجع `docs/SECURITY.md` و`docs/DOMAIN_MODEL.md` للتفاصيل الكاملة —
 لا وحدة جديدة، ولا جدول جديد، فقط تفعيل عمود `MembershipRole.branchId`
 الموجود أصلًا منذ إعادة هيكلة Auth/IAM.
+
+## المرحلة 3 — وحدة `sales` الجديدة
+
+`sales` (تضم `SalesController`/`SalesService` و`InvoicesController`/
+`InvoicesService`/`InvoiceNumberService` في نفس الوحدة، لأن الفاتورة لا
+تُنشأ إلا داخل معاملة إنشاء البيع) تستورد `IamModule` (لـ`BranchScopeService`)
+و`InventoryModule` (لـ`InventoryService.recordMovement`، مسار خصم المخزون
+الوحيد) — بلا أي وصول مباشر لـProduct/Customer/Warehouse Prisma models عبر
+خدمة وسيطة، بنفس النمط المُتَّبع أصلًا في `InventoryService` (فحوصات ملكية
+مباشرة عبر `tx` المشترك، وليس عبر كل خدمة مالكة). راجع `docs/SALES.md`،
+`docs/PAYMENTS.md`، `docs/INVOICES.md` للتفاصيل الكاملة.

@@ -115,8 +115,30 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 دائمًا من ملكيتها لنفس المنشأة في طبقة الخدمة قبل أي كتابة (راجع
 `SECURITY.md`).
 
+## Endpoints المرحلة الثالثة
+
+### Sales (`/api/v1/sales`)
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/sales` | قائمة المبيعات (مُصفّاة حسب نطاق الفرع، فلاتر عميل/مستودع/حالة) | `sales.read` |
+| GET | `/sales/:id` | تفاصيل بيع (بنود، دفعات، فاتورة) | `sales.read` |
+| POST | `/sales` | إتمام بيع كامل (بنود + دفع + خصم مخزون + فاتورة، ذرّي) — يتطلب `clientReferenceId` لحماية التكرار | `sales.create` |
+| POST | `/sales/:id/cancel` | إلغاء بيع مكتمل (يُرجع المخزون، يُلغي الفاتورة) | `sales.cancel` |
+
+### Invoices (`/api/v1/invoices`) — قراءة فقط
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/invoices` | قائمة الفواتير (مُصفّاة حسب نطاق الفرع، فلاتر عميل/حالة) | `invoices.read` |
+| GET | `/invoices/:id` | تفاصيل فاتورة | `invoices.read` |
+
+لا `POST /invoices` — الفاتورة تُصدَر فقط داخل `POST /sales` (راجع
+`docs/INVOICES.md`). كل endpoints المرحلة الثالثة تخضع لنفس سلسلة الحراسة
+ونفس قاعدة اشتقاق `companyId` من الـJWT، بالإضافة لطبقة نطاق الفرع من
+المرحلة 2.1 (`BranchScopeService`) المُطبَّقة الآن على `warehouseId`/
+`posDeviceId` أيضًا — راجع `docs/SECURITY.md` "POS/Sale — تفويض".
+
 ## Endpoints المراحل القادمة
 
-تُضاف تدريجيًا: `/sales`, `/pos`, `/purchasing`, `/expenses`, `/accounting`,
-`/reports`, `/import`, `/zatca` — كل منها يوثَّق في ملف الوحدة الخاص بها عند
+تُضاف تدريجيًا: `/purchasing`, `/expenses`, `/accounting`, `/reports`,
+`/import`, `/zatca` — كل منها يوثَّق في ملف الوحدة الخاص بها عند
 البناء الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.

@@ -8,10 +8,10 @@ export interface SystemRoleDefinition {
 
 /**
  * System roles (company_id = NULL) seeded once, shared by every tenant.
- * Cashier/Accountant carry a minimal permission set as of Phase 2 - their
- * full set (sales.*, accounting.*) doesn't exist until phases 3-4. Seeding
- * roles now (even sparse) means role assignment and RBAC UI can be built
- * and tested without waiting for every future phase's permissions to exist.
+ * Accountant still carries a minimal permission set as of Phase 3 - its full
+ * set (accounting.*) doesn't exist until Phase 4. Seeding roles now (even
+ * sparse) means role assignment and RBAC UI can be built and tested without
+ * waiting for every future phase's permissions to exist.
  */
 export const SYSTEM_ROLES: SystemRoleDefinition[] = [
   {
@@ -46,24 +46,35 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
       PERMISSION_KEYS.SUPPLIERS_CREATE,
       PERMISSION_KEYS.SUPPLIERS_UPDATE,
       PERMISSION_KEYS.SUPPLIERS_DELETE,
+      PERMISSION_KEYS.SALES_READ,
+      PERMISSION_KEYS.SALES_CREATE,
+      PERMISSION_KEYS.SALES_CANCEL,
+      PERMISSION_KEYS.INVOICES_READ,
     ],
   },
   {
     name: 'Cashier',
-    description:
-      'كاشير - صلاحيات نقطة البيع الكاملة تُضاف في المرحلة 3، يحتاج الآن فقط البحث عن المنتجات والعملاء',
-    permissions: [PERMISSION_KEYS.PRODUCTS_READ, PERMISSION_KEYS.CUSTOMERS_READ],
+    description: 'كاشير - يشغّل نقطة البيع؛ لا يملك إلغاء بيع مكتمل (صلاحية مشرف)',
+    permissions: [
+      PERMISSION_KEYS.PRODUCTS_READ,
+      PERMISSION_KEYS.CUSTOMERS_READ,
+      PERMISSION_KEYS.SALES_READ,
+      PERMISSION_KEYS.SALES_CREATE,
+      PERMISSION_KEYS.INVOICES_READ,
+    ],
   },
   {
     name: 'Accountant',
     description:
-      'محاسب - صلاحيات المحاسبة الكاملة تُضاف في المرحلة 4، يحتاج الآن رؤية العملاء/الموردين/المنتجات للتقارير',
+      'محاسب - صلاحيات المحاسبة الكاملة تُضاف في المرحلة 4، يحتاج الآن رؤية العملاء/الموردين/المنتجات/المبيعات/الفواتير للتقارير',
     permissions: [
       PERMISSION_KEYS.AUDIT_VIEW,
       PERMISSION_KEYS.PRODUCTS_READ,
       PERMISSION_KEYS.INVENTORY_READ,
       PERMISSION_KEYS.CUSTOMERS_READ,
       PERMISSION_KEYS.SUPPLIERS_READ,
+      PERMISSION_KEYS.SALES_READ,
+      PERMISSION_KEYS.INVOICES_READ,
     ],
   },
   {

@@ -4,7 +4,9 @@ import { CatalogPage } from './pages/CatalogPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { InventoryPage } from './pages/InventoryPage';
+import { InvoicesPage } from './pages/InvoicesPage';
 import { LoginPage } from './pages/LoginPage';
+import { PosPage } from './pages/PosPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { SuppliersPage } from './pages/SuppliersPage';
@@ -30,6 +32,8 @@ export function App() {
         }
       >
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/pos" element={<PosPage />} />
+        <Route path="/sales" element={<InvoicesPage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/inventory" element={<InventoryPage />} />

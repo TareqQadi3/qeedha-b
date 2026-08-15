@@ -83,6 +83,18 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'suppliers.create', category: 'suppliers', description: 'إضافة موردين' },
   { key: 'suppliers.update', category: 'suppliers', description: 'تعديل بيانات موردين' },
   { key: 'suppliers.delete', category: 'suppliers', description: 'حذف/تعطيل موردين' },
+
+  // Phase 3: Sales (POS)
+  { key: 'sales.read', category: 'sales', description: 'عرض المبيعات والفواتير' },
+  { key: 'sales.create', category: 'sales', description: 'إتمام عملية بيع (POS)' },
+  {
+    key: 'sales.cancel',
+    category: 'sales',
+    description: 'إلغاء عملية بيع مكتملة (يُرجع المخزون)',
+  },
+
+  // Phase 3: Invoices
+  { key: 'invoices.read', category: 'invoices', description: 'عرض الفواتير' },
 ];
 
 export const PERMISSION_KEYS = {
@@ -114,6 +126,10 @@ export const PERMISSION_KEYS = {
   SUPPLIERS_CREATE: 'suppliers.create',
   SUPPLIERS_UPDATE: 'suppliers.update',
   SUPPLIERS_DELETE: 'suppliers.delete',
+  SALES_READ: 'sales.read',
+  SALES_CREATE: 'sales.create',
+  SALES_CANCEL: 'sales.cancel',
+  INVOICES_READ: 'invoices.read',
 } as const;
 
 export const ALL_PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);

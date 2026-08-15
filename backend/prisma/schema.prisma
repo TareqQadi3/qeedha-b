@@ -51,6 +51,11 @@ model Company {
   stockCountLines        StockCountLine[]
   customers              Customer[]
   suppliers              Supplier[]
+  sales                  Sale[]
+  saleItems              SaleItem[]
+  payments               Payment[]
+  invoices               Invoice[]
+  invoiceSequence        InvoiceSequence?
 
   @@map("companies")
 }
@@ -70,6 +75,8 @@ model Branch {
   warehouses      Warehouse[]
   posDevices      PosDevice[]
   membershipRoles MembershipRole[]
+  sales           Sale[]
+  invoices        Invoice[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -93,6 +100,7 @@ model Warehouse {
   stockMovements   StockMovement[]
   stockAdjustments StockAdjustment[]
   stockCounts      StockCount[]
+  sales            Sale[]
 
   @@unique([companyId, code])
   @@index([companyId, branchId, deletedAt])
@@ -116,6 +124,7 @@ model PosDevice {
   deletedAt  DateTime?       @map("deleted_at")
 
   branch Branch @relation(fields: [branchId], references: [id])
+  sales  Sale[]
 
   @@unique([companyId, deviceCode])
   @@index([companyId, branchId, deletedAt])
@@ -466,6 +475,7 @@ model Product {
   stockMovements   StockMovement[]
   stockAdjustments StockAdjustment[]
   stockCountLines  StockCountLine[]
+  saleItems        SaleItem[]
 
   @@unique([companyId, sku])
   @@index([companyId, deletedAt])
@@ -642,7 +652,9 @@ model Customer {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company Company @relation(fields: [companyId], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id])
+  sales    Sale[]
+  invoices Invoice[]
 
   @@unique([companyId, reference])
   @@index([companyId, deletedAt])
@@ -672,4 +684,188 @@ model Supplier {
   @@index([companyId, deletedAt])
   @@index([companyId, name])
   @@map("suppliers")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3: Sales, Payments, Invoices
+// ---------------------------------------------------------------------------
+//
+// POS is a UI concept, not a database model of its own - see docs/POS.md. The
+// domain transaction is Sale (+ SaleItem, + Payment, + Invoice), independent
+// of whatever screen created it. branchId on Sale/Invoice is ALWAYS derived
+// server-side from warehouse.branchId, never trusted from the client - see
+// docs/SECURITY.md "POS/Sale authorization".
+
+enum SaleStatus {
+  completed
+  cancelled
+}
+
+enum PaymentMethod {
+  cash
+  card
+  transfer
+  other
+  // Routed through the Phase 1 PaymentIntegrationPort/IntegrationRegistry
+  // (modules/integrations) instead of being handled directly by this module.
+  // No adapter is registered for any real provider yet - see
+  // docs/INTEGRATION.md "Payment provider foundation".
+  external
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+  cancelled
+  refunded
+}
+
+enum InvoiceStatus {
+  issued
+  cancelled
+}
+
+model Sale {
+  id          String  @id @default(uuid()) @db.Uuid
+  companyId   String  @map("company_id") @db.Uuid
+  // Derived server-side from warehouse.branchId at creation time - never a
+  // client-supplied value. See assertSaleAuthorization in SalesService.
+  branchId    String  @map("branch_id") @db.Uuid
+  warehouseId String  @map("warehouse_id") @db.Uuid
+  posDeviceId String? @map("pos_device_id") @db.Uuid
+  customerId  String? @map("customer_id") @db.Uuid
+
+  status SaleStatus @default(completed)
+
+  currency       String  @default("SAR")
+  subtotal       Decimal @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  taxAmount      Decimal @map("tax_amount") @db.Decimal(14, 2)
+  totalAmount    Decimal @map("total_amount") @db.Decimal(14, 2)
+
+  // Client/POS-generated idempotency key - see docs/SALES.md "Idempotency".
+  // Unique per company: a retried request with the same key returns the
+  // already-created sale instead of creating a duplicate.
+  clientReferenceId String @map("client_reference_id")
+
+  actorMembershipId String    @map("actor_membership_id") @db.Uuid
+  cancelledAt       DateTime? @map("cancelled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company   Company    @relation(fields: [companyId], references: [id])
+  branch    Branch     @relation(fields: [branchId], references: [id])
+  warehouse Warehouse  @relation(fields: [warehouseId], references: [id])
+  posDevice PosDevice? @relation(fields: [posDeviceId], references: [id])
+  customer  Customer?  @relation(fields: [customerId], references: [id])
+  items     SaleItem[]
+  payments  Payment[]
+  invoice   Invoice?
+
+  @@unique([companyId, clientReferenceId])
+  @@index([companyId, branchId, createdAt])
+  @@index([companyId, customerId])
+  @@index([companyId, status])
+  @@map("sales")
+}
+
+model SaleItem {
+  id        String @id @default(uuid()) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  saleId    String @map("sale_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+
+  // Snapshot at time of sale (docs/SALES.md "Snapshot design") - a later
+  // change to the product's name/price/SKU/tax must NEVER alter a past
+  // invoice. Only what's needed to render/re-derive a historical line is
+  // copied; everything else (category, brand, image, ...) is looked up live
+  // via `product` when still needed, since that's display-only and doesn't
+  // affect the recorded transaction amounts.
+  productName String  @map("product_name")
+  productSku  String  @map("product_sku")
+  unitPrice   Decimal @map("unit_price") @db.Decimal(14, 2)
+  vatRate     Decimal @map("vat_rate") @db.Decimal(5, 2)
+
+  quantity       Decimal @db.Decimal(14, 3)
+  discountAmount Decimal @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  lineSubtotal   Decimal @map("line_subtotal") @db.Decimal(14, 2)
+  lineTax        Decimal @map("line_tax") @db.Decimal(14, 2)
+  lineTotal      Decimal @map("line_total") @db.Decimal(14, 2)
+
+  company Company @relation(fields: [companyId], references: [id])
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([companyId, saleId])
+  @@index([companyId, productId])
+  @@map("sale_items")
+}
+
+model Payment {
+  id        String @id @default(uuid()) @db.Uuid
+  companyId String @map("company_id") @db.Uuid
+  saleId    String @map("sale_id") @db.Uuid
+
+  method   PaymentMethod
+  status   PaymentStatus @default(success)
+  amount   Decimal       @db.Decimal(14, 2)
+  currency String        @default("SAR")
+
+  // Only meaningful when method = external (docs/INTEGRATION.md). NULL for
+  // cash/card/transfer/other - there is no external call to reference.
+  providerKey       String? @map("provider_key")
+  externalReference String? @map("external_reference")
+  idempotencyKey    String? @map("idempotency_key")
+
+  actorMembershipId String   @map("actor_membership_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, saleId])
+  @@map("payments")
+}
+
+/// One row per company - an atomic, tenant-scoped invoice number counter.
+/// See docs/INVOICES.md "Numbering" for the guarded-UPDATE mechanism (same
+/// pattern as InventoryService.recordMovement's atomic stock update).
+model InvoiceSequence {
+  companyId  String @id @map("company_id") @db.Uuid
+  nextNumber Int    @default(1) @map("next_number")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@map("invoice_sequences")
+}
+
+model Invoice {
+  id         String  @id @default(uuid()) @db.Uuid
+  companyId  String  @map("company_id") @db.Uuid
+  branchId   String  @map("branch_id") @db.Uuid
+  saleId     String  @unique @map("sale_id") @db.Uuid
+  customerId String? @map("customer_id") @db.Uuid
+
+  invoiceNumber String        @map("invoice_number")
+  status        InvoiceStatus @default(issued)
+
+  currency       String  @default("SAR")
+  subtotal       Decimal @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  taxAmount      Decimal @map("tax_amount") @db.Decimal(14, 2)
+  totalAmount    Decimal @map("total_amount") @db.Decimal(14, 2)
+
+  issuedAt    DateTime  @default(now()) @map("issued_at")
+  cancelledAt DateTime? @map("cancelled_at")
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  branch   Branch    @relation(fields: [branchId], references: [id])
+  sale     Sale      @relation(fields: [saleId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, customerId])
+  @@map("invoices")
 }

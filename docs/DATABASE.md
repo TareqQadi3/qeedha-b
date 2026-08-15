@@ -150,24 +150,56 @@ suppliers    الاسم، جهة الاتصال، الجوال، البريد، 
 حد الائتمان والرصيد (ذمم مدينة/دائنة) مؤجَّلان لمرحلة المحاسبة (4) حيث
 تُبنى الذمم من حركات فعلية (مبيعات آجلة، مدفوعات) وليس كحقل ثابت الآن.
 
-## 4. Sales / POS (المرحلة 3)
+## 4. Sales / POS (المرحلة 3 — منفَّذ، بنطاق أضيق مما خُطِّط له أصلًا هنا)
 
 ```text
-sales, sale_items         الفاتورة وبنودها
-payments                  دفعات الفاتورة (تدعم Split payment)
-                          method: cash | card | transfer | <integration_key>
-sale_returns, sale_return_items
-held_carts                السلات المعلّقة (Hold/Resume) — hard delete مسموح
-cash_sessions             فتح/إغلاق الوردية لكل جهاز POS/كاشير
-cash_movements            سحب/إيداع نقدي أثناء الوردية
+sales               عملية بيع مكتملة (company_id, branch_id [مُشتق من
+                    warehouse_id, ليس من العميل], warehouse_id, pos_device_id
+                    اختياري, customer_id اختياري, status
+                    (completed/cancelled), currency, subtotal,
+                    discount_amount, tax_amount, total_amount,
+                    client_reference_id [فريد لكل منشأة — مفتاح idempotency]،
+                    actor_membership_id, cancelled_at)
+sale_items          بند بيع، Snapshot كامل وقت البيع (product_id + product_name
+                    + product_sku + unit_price + vat_rate منسوخة، بحيث لا
+                    يتأثر سطر بيع تاريخي بتعديل لاحق على المنتج)
+payments            دفعة على عملية بيع (تدعم Split — عدة صفوف لكل sale)،
+                    method: cash | card | transfer | other | external،
+                    status: pending | success | failed | cancelled | refunded،
+                    provider_key + external_reference + idempotency_key
+                    (فارغة إلا عند method = external)
+invoice_sequences    عدّاد فاتورة ذرّي لكل منشأة (company_id هو PK نفسه)،
+                    next_number — يُستهلَك عبر UPDATE محروس ذرّي، نفس نمط
+                    stock_levels
+invoices            فاتورة صادرة لعملية بيع واحدة (unique على sale_id)،
+                    invoice_number (فريد لكل منشأة)، نسخة من نفس المبالغ
+                    المالية للبيع وقت الإصدار، status (issued/cancelled)
 ```
 
-**ملاحظة تصميمية مهمة لعمود `payments.method`**: هذا العمود لا يُقيَّد بقائمة
-ثابتة تتضمن "qeedha" بشكل مُدمَج. القيم الأساسية (`cash`, `card`, `transfer`)
-موجودة دائمًا. أي طريقة دفع إضافية من تكامل خارجي تُشتق من
-`integration_connections.provider_key` النشطة للمنشأة — أي عمود `payments`
-يحمل `integration_connection_id` اختياري بدل قيمة enum ثابتة. هذا يمنع ربط
-Core Schema بأي مزوّد خدمة بعينه.
+**انحراف موثَّق عن التصميم الأصلي لهذا القسم** (كان مكتوبًا في المرحلة 1 قبل
+بناء أي كود Sales فعليًا): التصميم الأصلي افترض `sale_returns`/
+`sale_return_items` (نظام مرتجعات كامل)، `held_carts` (سلات معلّقة محفوظة في
+قاعدة البيانات)، و`cash_sessions`/`cash_movements` (ورديات كاشير). **لم تُبنَ
+هذه الجداول في المرحلة 3** — قرار مقصود موثَّق في `docs/PROJECT_STATUS.md`
+"Deferred": نطاق Phase 3 المُتفَق عليه فعليًا هو POS + Sales + Payments +
+Invoices + أساس التكامل، وليس نظام ورديات/مرتجعات كاملًا. `sales.status` يدعم
+فقط `completed`/`cancelled` (إلغاء كامل للفاتورة، وليس مرتجع جزئي بالسطر) —
+كافٍ لعدم "تجميد" التصميم ضد إضافة مرتجعات لاحقًا (`docs/SALES.md` "Deferred:
+partial returns")، دون بناء ما لم يُطلَب بعد.
+
+**انحراف موثَّق آخر — عمود `payments.method`**: التصميم الأصلي هنا اقترح ألا
+يكون `method` عمود enum ثابتًا، بل `integration_connection_id` اختياريًا بدلًا
+منه. عمليًا، `method` بقي **enum ثابتًا** (`cash | card | transfer | other |
+external`) لأن القيم المحلية الأربع لا تحتاج ربطًا بأي تكامل خارجي إطلاقًا،
+والقيمة الخامسة العامة `external` (بلا أي اسم مزوّد مُدمَج) هي الوحيدة التي
+تفعّل عمودي `provider_key`/`external_reference` الاختياريين. هذا يحافظ على
+نفس المبدأ (لا اسم قيّدها أو أي مزوّد آخر مكتوب في الـSchema) بتصميم أبسط
+يناسب أن المرحلة 3 لا تحتوي Adapter خارجي فعلي بعد — راجع `docs/PAYMENTS.md`.
+
+**Idempotency**: `sales.client_reference_id` (فريد لكل `company_id`) هو مفتاح
+Idempotency على مستوى عملية البيع الكاملة (وليس لكل دفعة) — طلب مكرر بنفس
+المفتاح يُعيد نفس السجل بدل إنشاء بيع مكرر، حتى تحت تزامن حقيقي. تفاصيل
+كاملة في `docs/SALES.md` "Idempotency".
 
 ## 5. Purchasing (المرحلة 3)
 
@@ -242,7 +274,7 @@ webhook_events               صندوق وارد عام لأي Webhook خارج�
 
 ---
 
-## الحالة الحالية (منفّذ فعليًا في Prisma حتى نهاية المرحلة 2)
+## الحالة الحالية (منفّذ فعليًا في Prisma حتى نهاية المرحلة 3)
 
 الجداول المنفَّذة في `backend/prisma/schema.prisma`:
 
@@ -255,8 +287,12 @@ webhook_events`
 stock_levels, stock_movements, stock_adjustments, stock_counts,
 stock_count_lines, customers, suppliers`
 
-`integration_transactions` مؤجَّل حتى وجود Use-Case فعلي يستهلكه (مرحلة POS/
-Sales) — تعريفه موثّق هنا لكنه لن يُضاف للـSchema فارغًا بلا استخدام.
+**المرحلة 3**: `sales, sale_items, payments, invoice_sequences, invoices`
 
-باقي الجداول (Sales, Purchasing, Accounting, Import, ZATCA) ستُضاف عبر
-Migrations جديدة في مراحلها، وليس دفعة واحدة الآن.
+`integration_transactions` لا يزال مؤجَّلًا حتى وجود Adapter خارجي فعلي
+يستهلكه — لم يُستهلَك في المرحلة 3 لأن الدفع المحلي (نقدي/بطاقة/تحويل) لا
+يمر عبر `integrations` إطلاقًا (`docs/PAYMENTS.md`)، وتعريفه يبقى موثّقًا هنا
+دون إضافته فارغًا بلا استخدام.
+
+باقي الجداول (Purchasing, Accounting, Import, ZATCA) ستُضاف عبر Migrations
+جديدة في مراحلها، وليس دفعة واحدة الآن.

@@ -1,161 +1,201 @@
 # حالة المشروع (Project Status)
 
 **آخر تحديث**: 2026-08-15
-**المرحلة الحالية**: Phase 2.1 — Branch/Warehouse Authorization Hardening
-— **مكتملة ومُختبرة**، بانتظار موافقتك الصريحة لبدء المرحلة 3
+**المرحلة الحالية**: Phase 3 — POS + Sales + Payments + Invoices + أساس
+التكامل — **مكتملة ومُختبرة**، بانتظار موافقتك الصريحة لبدء المرحلة 4
 
-## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة 3
+## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة 4
 
-## ملخص: ما هذه الدورة (2.1) وما ليست
+## ملخص: ما هذه المرحلة وما ليست
 
-هذه **ليست** المرحلة 3. لم يُبنَ أي من POS/Sales/Purchases/Accounting/ZATCA/
-تكامل قيّدها/Control Center/Website. هذه دورة تعزيز أمني ضيقة: إغلاق الفجوة
-التي وثَّقها التقرير النهائي للمرحلة 2 صراحة تحت بند "Branch/Warehouse
-Security ⚠️ جزئي" — عضو يملك صلاحية مخزون كان يستطيع التأثير على أي مستودع
-تابع لمنشأته، بصرف النظر عن نطاق الفرع المُسنَد له.
+قلب qeedha B الأول القابل للاستخدام فعليًا: بيع حقيقي من نقطة بيع حقيقية،
+بدفع محلي، بخصم مخزون ذرّي، وفاتورة برقم مضمون التفرّد — كل ذلك بلا أي
+اعتماد على قيّدها. لم تُبنَ في هذه المرحلة: محاسبة كاملة (دفتر أستاذ، قيود)،
+ZATCA فعلي، Qeedha Connector فعلي، Control Center، Website، اشتراكات فعلية،
+نظام مرتجعات جزئي، ورديات كاشير، أو سلات معلّقة على الخادم — كلها موثَّقة
+صراحة أدناه تحت "مؤجَّل عمدًا".
 
-## ما تم إنجازه في هذه الدورة (المرحلة 2.1)
+## ما تم إنجازه في هذه الدورة (المرحلة 3)
 
-- [x] **`BranchScopeService`** (وحدة `iam`، جديد): يحسب لعضوية معيّنة، ولصلاحية
-      معيّنة، مجموعة الفروع التي يُغطّيها إسنادها لتلك الصلاحية —
-      `MembershipRole.branchId = null` ⇐ كل الفروع، `branchId` محدَّد ⇐ ذلك
-      الفرع وكل مستودعاته. لا جدول جديد — تفعيل لعمود موجود أصلًا منذ إعادة
-      هيكلة Auth/IAM ولم يكن يُقرَأ من قبل.
-- [x] **إنفاذ Permission + Scope معًا** في `InventoryService`/
-      `StockCountService`: `assertWarehouseOwned` يقبل الآن `scope` اختياري
-      ويرفض بـ403 إن كان المستودع تابعًا للمنشأة الصحيحة لكن لفرع خارج
-      النطاق (متمايز عن 404 لعدم الانتماء للمنشأة إطلاقًا). مُطبَّق على: رصيد
-      افتتاحي، تسوية، تحويل (كلا الطرفين)، إنشاء/قراءة-بمعرّف/تحديث سطور/
-      اعتماد/إلغاء جرد.
-- [x] **قوائم القراءة تُصفَّى لا تُرفض**: `GET /inventory/stock-levels`,
-      `/movements`, `/stock-counts` تدمج شرط النطاق داخل استعلام Prisma
-      نفسه (نتيجة فارغة صامتة لخارج النطاق)، بنفس اتفاقية عزل المستأجرين
-      المعتمدة في كل قوائم النظام — بلا كسر أي اختبار قائم.
-- [x] **`PermissionsGuard` لم يتغيّر** (لا يزال يفحص فقط "هل تملك هذه
-      العضوية هذه الصلاحية في أي مكان بالمنشأة؟") — فحص النطاق قرار معماري
-      واعٍ وُضع في طبقة الخدمة، حيث يُعرَف المورد (`warehouseId`) فعليًا، لا
-      في الـGuard.
-- [x] **Products/Customers/Suppliers لم تُمَس** — تبقى tenant-wide بلا أي
-      قيد فرع، كما هي منذ المرحلة 2، بقرار مقصود موثَّق.
-- [x] **لا أدوار جديدة** (لا `BranchManager`/`WarehouseManager`) — نفس نظام
-      RBAC الحالي (Permission)، مع طبقة Scope فوقه فقط.
-- [x] **5 اختبارات e2e جديدة** في `test/phase2.e2e-spec.ts` (قسم "نطاق
-      الفروع/المستودعات") تغطي مصفوفة الاختبار كاملة: فرع مُصرَّح/غير
-      مُصرَّح بنفس المنشأة، نطاق فرع يشمل كل مستودعاته، اتحاد نطاقين
-      بإسنادَي دور، نطاق كامل تلقائي لفرع جديد (Owner)، عضوية معلَّقة تفقد
-      الوصول فورًا، وسيناريو متعدد المستأجرين كامل (منشأتان، ثلاثة فروع،
-      أربعة مستخدمين بنطاقات مختلفة). **33 اختبار المرحلة 2 استمرت بالنجاح
-      كاملة بلا تراجع، بما فيها اختبار التزامن بـ10 طلبات — المجموع 38/38.**
-- [x] توثيق كامل محدَّث: `DOMAIN_MODEL.md`, `SECURITY.md`, `MODULES.md`,
-      `TESTING.md`, `PROJECT_STATUS.md` (هذا الملف).
+- [x] Prisma schema: 5 جداول جديدة (`sales, sale_items, payments,
+      invoice_sequences, invoices`) — كل جدول بـ`FORCE ROW LEVEL SECURITY`
+      + policy `tenant_isolation` مستقل. لا تعديل على أي جدول من المراحل
+      السابقة.
+- [x] 4 صلاحيات RBAC جديدة (`sales.read`, `sales.create`, `sales.cancel`,
+      `invoices.read`)، تحديث الأدوار الافتراضية (Cashier يبيع بلا إلغاء؛
+      Manager/Owner كل الصلاحيات؛ Accountant قراءة فقط).
+- [x] وحدة `sales`: معاملة بيع ذرّية واحدة تغطي التحقق الكامل (مستودع، نطاق
+      فرع العضوية، جهاز POS إن وُجد، عميل إن وُجد، كل منتج) → حساب المبالغ
+      في الخادم فقط → Sale → SaleItems (Snapshot) → خصم مخزون عبر
+      `InventoryService.recordMovement` الموجود أصلًا من المرحلة 2 (بلا أي
+      تعديل عليه) → Payments (يدعم Split) → رقم فاتورة ذرّي → Invoice →
+      Audit. إلغاء بيع كامل (لا مرتجعات جزئية بعد). Idempotency عبر
+      `clientReferenceId` فريد لكل منشأة، مع معالجة سباق تزامن حقيقي.
+- [x] وحدة `invoices` (قراءة فقط): `InvoiceNumberService` بترقيم تسلسلي ذرّي
+      لكل منشأة، نفس نمط `recordMovement` الذرّي بالضبط.
+- [x] `BranchScopeService`/`PosDevice` (من المرحلتين 2.1/1) استُهلكا فعليًا
+      لأول مرة خارج وحدة `inventory` — بلا أي تعديل على نموذجهما.
+- [x] واجهة أمامية حقيقية (`/pos`): بحث/مسح باركود، سلة، كمية وخصم لكل سطر،
+      عميل اختياري، دفع (بما فيه Split payment)، إتمام بيع، نتيجة فاتورة؛
+      شاشة `/sales` للقراءة. **اختُبرت عبر متصفح حقيقي (Playwright)**: مسار
+      كامل ناجح (دخول → بحث → إضافة → كمية → عميل → دفع نقدي → إتمام → تحقق
+      فاتورة/مخزون عبر الـAPI) + سيناريو فشل (مخزون غير كافٍ، بلا تغيّر في
+      الرصيد، رسالة خطأ واضحة).
+- [x] `test/phase3.e2e-spec.ts`: 25 اختبارًا جديدًا (تفويض/وظيفي/تزامن
+      حقيقي/RBAC/RLS) — **63/63 إجمالًا بلا أي تراجع** عن المراحل 1/2/2.1.
+- [x] توثيق جديد: `SALES.md`, `PAYMENTS.md`, `INVOICES.md`, `INTEGRATION.md`؛
+      تحديث `POS.md` (من تصميم مرجعي لتوثيق تنفيذ فعلي)،
+      `QEEDHA_INTEGRATION.md`, `SECURITY.md`, `DOMAIN_MODEL.md`,
+      `DATABASE.md`, `API.md`, `TESTING.md`, `MODULES.md`, `CHANGELOG.md`.
 
 ## التقرير النهائي (بالصيغة المطلوبة)
 
-# Phase 2.1 — Branch/Warehouse Authorization Hardening
+# Phase 3 — POS + Sales + Payments + Invoices
 
 **Status**: Completed
 
-**Branch Authorization**: PASS
-**Warehouse Authorization**: PASS
-**Tenant Isolation**: PASS (غير مُتأثرة — RLS + `assertWarehouseOwned` كما
-كانت، طبقة النطاق فوقها لا بديلة عنها)
-**RLS**: PASS (لم تُعدَّل أي policy؛ لم تُستخدَم RLS لتطبيق نطاق الفرع —
-قرار مسجَّل أدناه)
-**RBAC**: PASS (لا أدوار جديدة، لا تعديل على نموذج Permission؛ `Permission +
-Scope` طبقتان منفصلتان كما طُلب)
-**IDOR Protection**: PASS (`inventory.adjust` صالحة + `warehouseId` لمنشأة
-صحيحة لكن فرع خارج النطاق ⇐ 403، مُختبَر صراحة)
-**Inventory Security**: PASS (كل مسارات الكتابة على مستودع محدد تفرض
-Permission + Scope معًا)
-**Tests**: PASS (38/38 — 33 قائمة + 5 جديدة، `npx jest --config
-./test/jest-e2e.json --runInBand`)
-**Build**: PASS (`nest build` بدون أخطاء)
-**Lint**: PASS (`eslint . --ext .ts` — 0 أخطاء)
-**Typecheck**: PASS (`tsc --noEmit` — 0 أخطاء)
-**Documentation**: PASS (5 ملفات محدَّثة)
+**POS**: PASS
+**Sales**: PASS
+**Payments**: PASS
+**Invoices**: PASS
+**Inventory Integration**: PASS (خصم ذرّي عبر `recordMovement` الموجود أصلًا،
+لا مسار كتابة جديد)
+**Branch Scope**: PASS (يُشتق من `warehouse.branchId`، مُتحقَّق عبر
+`BranchScopeService` نفسه من المرحلة 2.1)
+**Warehouse Scope**: PASS
+**POS Device Security**: PASS (نفس فرع المستودع + نشط + نفس المنشأة)
+**Tenant Isolation**: PASS (RLS + فحوصات تطبيقية صريحة، كما في كل مرحلة سابقة)
+**RLS**: PASS (`FORCE ROW LEVEL SECURITY` على كل جدول جديد + اختبار RLS
+مباشر)
+**RBAC**: PASS (4 صلاحيات جديدة، مُختبَرة برفض 403 عند غيابها)
+**Audit**: PASS (`sales.sale.complete`, `sales.sale.cancel`)
+**Idempotency**: PASS (`clientReferenceId`، مُختبَر تسلسليًا و5 طلبات متزامنة
+حقيقية)
+**Concurrency**: PASS (عمليتا بيع متزامنتان حقيقيتان على نفس المنتج: واحدة
+تنجح فقط، الرصيد لا يصبح سالبًا أبدًا؛ 10 طلبات متزامنة تُنتج 10 أرقام فاتورة
+فريدة)
+**Frontend**: PASS (شاشة POS حقيقية متصلة بالكامل بالـAPI)
+**Browser Tests**: PASS (Playwright، مسار كامل + سيناريو فشل)
+**E2E**: PASS (63/63، `npx jest --config ./test/jest-e2e.json --runInBand`)
+**Build**: PASS (`nest build` + frontend `tsc --noEmit && vite build`، بلا
+أخطاء)
+**Lint**: PASS (`eslint . --ext .ts` / `--ext ts,tsx` — 0 أخطاء في الطرفين)
+**Typecheck**: PASS (`tsc --noEmit` — 0 أخطاء في الطرفين)
+**Security**: PASS (IDOR، نطاق فرع/مستودع/جهاز POS، لا ثقة بمدخلات العميل —
+راجع `docs/SECURITY.md`)
+**SaaS Readiness**: PASS (كل جدول جديد tenant-scoped بـRLS، كل عملية تمر عبر
+نفس سلسلة الحراسة، لا انحراف عن نموذج Company/Membership/Role/Permission)
+**Qeedha Integration Foundation**: PASS (`PaymentIntegrationPort`/
+`IntegrationRegistry` من المرحلة 1 جاهزان بلا تعديل، `PaymentMethod.external`
+محجوزة، لا API مخترع)
+**Qeedha Independence**: PASS (لا استيراد واحد من `integrations/providers/*`
+في `sales`/`payments`/`invoices` — النظام يعمل بالكامل بدون قيّدها، وهذا هو
+الوضع الوحيد المُختبَر فعليًا)
+**Documentation**: PASS (13 ملف توثيق جديد/محدَّث)
+
+**Tests**: 63/63 (38 سابقًا + 25 جديدة)
 
 ### Files Changed
-- **Backend (جديد)**: `src/modules/iam/branch-scope.service.ts`.
-- **Backend (معدَّل)**: `src/modules/iam/iam.module.ts` (تصدير
-  `BranchScopeService`), `src/modules/inventory/inventory.module.ts`
-  (استيراد `IamModule`), `src/modules/inventory/inventory.service.ts`
-  (`assertWarehouseOwned` + `warehouseScopeFilter` + قوائم/عمليات محدَّثة),
-  `src/modules/inventory/stock-count.service.ts` (نفس النمط لكل عمليات
-  الجرد), `src/modules/inventory/inventory.controller.ts` (تمرير
-  `membershipId`)، `test/phase2.e2e-spec.ts` (+5 اختبارات).
-- **Docs (معدَّل)**: `DOMAIN_MODEL.md`, `SECURITY.md`, `MODULES.md`,
-  `TESTING.md`, `PROJECT_STATUS.md` (هذا الملف).
-- **لا تغيير على Prisma schema** — لا migration جديدة، `MembershipRole.branchId`
-  و`Warehouse.branchId` كانا موجودين أصلًا منذ مراحل سابقة.
-- **لا تغيير على الواجهة الأمامية** — رسائل 403 الجديدة تمر عبر نفس مسار
-  معالجة أخطاء `ApiError` الموجود أصلًا (`frontend/src/api/client.ts`)، الذي
-  يعرض بالفعل أي رسالة خطأ من الخادم دون حاجة لكود خاص بها. لم تُبنَ أي واجهة
-  اختيار فرع/مستودع جديدة — كانت ستُعتبر إفراطًا في البناء خارج نطاق هذه
-  الدورة الأمنية الضيقة.
+- **Backend (جديد)**: `src/modules/sales/**` (module, controllers, services,
+  DTOs)، `src/modules/iam/branch-scope.service.ts` (إضافة
+  `assertBranchInScope`)، `prisma/migrations/
+  20260815180000_phase3_pos_sales_payments_invoices/`، `test/phase3.e2e-spec.ts`.
+- **Backend (معدَّل)**: `prisma/schema.prisma`, `src/app.module.ts`,
+  `src/modules/iam/constants/permissions.ts`,
+  `src/modules/iam/constants/default-roles.ts`.
+- **Frontend (جديد)**: `src/pages/PosPage.tsx`, `src/pages/InvoicesPage.tsx`.
+- **Frontend (معدَّل)**: `src/App.tsx`, `src/components/Layout.tsx` (مسارا
+  `/pos`, `/sales`).
+- **Docs (جديد)**: `SALES.md`, `PAYMENTS.md`, `INVOICES.md`, `INTEGRATION.md`.
+- **Docs (معدَّل)**: `POS.md`, `QEEDHA_INTEGRATION.md`, `SECURITY.md`,
+  `DOMAIN_MODEL.md`, `DATABASE.md`, `API.md`, `TESTING.md`, `MODULES.md`,
+  `CHANGELOG.md`, `PROJECT_STATUS.md` (هذا الملف).
+
+### Database Changes
+Migration واحدة (`20260815180000_phase3_pos_sales_payments_invoices`) — 5
+جداول جديدة + 4 enums (`SaleStatus`, `PaymentMethod`, `PaymentStatus`,
+`InvoiceStatus`) + RLS policies لكل جدول. طُبِّقت بنجاح على قاعدتي التطوير
+والاختبار. لا تعديل ولا حذف لأي جدول من المراحل السابقة. أُنشئت عبر
+`prisma migrate diff` + تطبيق يدوي (البيئة غير تفاعلية، فلا يمكن استخدام
+`prisma migrate dev` مباشرة) — نفس الناتج المُولَّد تلقائيًا، بلا فرق.
+
+### API Changes
+راجع `docs/API.md` قسم "Endpoints المرحلة الثالثة": 4 مسارات تحت `/sales`
+(قائمة/تفصيل/إنشاء/إلغاء)، مسارا قراءة تحت `/invoices`. كلها خلف نفس سلسلة
+الحراسة (`JwtAuthGuard → MembershipGuard → PermissionsGuard`) + طبقة نطاق
+الفرع من المرحلة 2.1.
+
+### Frontend Changes
+شاشة POS حقيقية (`/pos`) وشاشة مبيعات/فواتير للقراءة (`/sales`)، بنفس الهوية
+البصرية الحالية (لم تُغيَّر). راجع `docs/POS.md` للتفصيل الكامل وما هو
+مؤجَّل عمدًا في تصميم الواجهة.
 
 ### Architectural Decisions (قرارات مسجَّلة)
-- **الفحص في طبقة التطبيق (Service)، وليس في `PermissionsGuard`**:
-  `PermissionsGuard` يبقى بلا تغيير لأن سؤاله ("هل تملك هذه الصلاحية؟") عام
-  وثابت الشكل، بينما سؤال النطاق ("أي فرع يتبعه هذا المورد المحدد؟") يحتاج
-  معرفة جسم/معاملات الطلب التي تختلف شكلًا بين DTO وآخر (`warehouseId` مقابل
-  `fromWarehouseId`/`toWarehouseId` مثلًا) — فرضه في نفس نقطة الفحص الموجودة
-  أصلًا لسلامة المراجع عبر المنشآت (`assertWarehouseOwned`) أبسط وأكثر
-  اتساقًا من إضافة طبقة Guard عامة تحتاج تفسير كل DTO.
-- **403 لخرق النطاق، 404 لعدم الانتماء للمنشأة**: تمييز متعمَّد. 404 يبقى
-  "هذا غير موجود لديك إطلاقًا" (سلامة مرجعية عبر المنشآت، كما في المرحلة 2).
-  403 جديد يعني "هذا موجود في منشأتك فعلًا، لكن نطاقك لا يغطيه".
-- **قوائم القراءة تُصفَّى بصمت، لا تُرفض**: خيار مقصود ليس اعتباطيًا — أول
-  محاولة استخدمت `assertWarehouseOwned` (ترفض) في مسارات القوائم أيضًا،
-  فكسرت اختبار عزل مستأجرين قائم من المرحلة 2 كان يتوقع 200 بنتيجة فارغة عند
-  تمرير `warehouseId` من منشأة أخرى في استعلام قائمة. صُحِّح ليطابق الاتفاقية
-  الموجودة أصلًا في كل قوائم هذا النظام (فلترة صامتة)، ويقتصر الرفض الصريح
-  على عمليات المورد الواحد المحدد (تسوية/تحويل/جرد).
-- **لا استخدام لـRLS لفرض نطاق الفرع**: RLS يبقى مخصصًا حصرًا لعزل
-  المستأجرين (tenant isolation) — وهو الحد الذي طلبه المستخدم صراحة ("Tenant
-  isolation must remain enforced at database level. Branch/warehouse
-  authorization must be enforced at the appropriate application/domain
-  boundary"). إضافة RLS policy تعتمد على `current_setting` لعضوية/نطاق فرع
-  كانت ستُعقّد نموذج RLS الحالي (المبني على `company_id` فقط) دون فائدة
-  تناسب حجم هذه الدورة.
-- **`Permission` + `Scope`، وليس أدوار جديدة**: لا `BranchManager` ولا
-  `WarehouseManager` — دور `Inventory Manager` الموجود يُسنَد الآن بنطاق فرع
-  اختياري عبر `MembershipRole.branchId` الموجود أصلًا، بدل اختراع نظام صلاحية
-  موازٍ.
-- **Products/Customers/Suppliers تبقى tenant-wide**: لا مبرر عمل حقيقي حاليًا
-  لتقييدها بفرع؛ تقييدها الآن كان سيُخالف "لا تُفرط في البناء".
+- **لا طبقة Payment abstraction ثانية**: أُعيد استخدام `PaymentIntegrationPort`/
+  `IntegrationRegistry` من المرحلة 1 حرفيًا بلا تعديل، بدل بناء طبقة جديدة.
+  طرق الدفع المحلية لا تمر عبرهما إطلاقًا — راجع `docs/PAYMENTS.md`.
+- **Split payment مدعوم بنيويًا من اليوم الأول**: `Payment` علاقة واحد-إلى-
+  متعدد مع `Sale`، تفاديًا لـMigration كاسرة لاحقًا لإضافته.
+- **فحص النطاق في طبقة الخدمة، ليس Guard جديد**: نفس قرار المرحلة 2.1 يمتد
+  حرفيًا — `BranchScopeService` بلا أي تعديل على نموذجه.
+- **403 لخرق النطاق، 404 لعدم الانتماء للمنشأة، 409 لتعارض حالة** (جهاز POS
+  غير نشط أو من فرع مختلف، بيع ملغى بالفعل): نفس اتفاقية رموز الحالة من
+  المراحل السابقة، بلا استثناء.
+- **قوائم القراءة تُصفَّى بصمت، لا تُرفض**: نفس اتفاقية المرحلة 2.1، مطبَّقة
+  الآن على `/sales`/`/invoices`.
+- **Idempotency على مستوى البيع الكامل، لا لكل دفعة على حدة**:
+  `Sale.clientReferenceId` يغطي البيع وبنوده ودفعاته وفاتورته معًا، لأن كل
+  هذه الكيانات تُنشأ فقط داخل نفس المعاملة الذرّية — راجع `docs/SALES.md`.
+- **لا تجاوز سعر (Price override)**: `SaleItem.unitPrice` يُنسَخ دائمًا من
+  السعر الحالي للمنتج؛ الخصم لكل سطر هو الآلية الوحيدة لتعديل القيمة، ومتاح
+  لأي عضو يملك `sales.create` (بلا صلاحية تجاوز منفصلة في هذه المرحلة).
+- **إلغاء كامل فقط، لا مرتجعات جزئية**: `Sale.status` يدعم فقط
+  `completed`/`cancelled` — كافٍ لعدم "تجميد" التصميم ضد مرتجعات لاحقة دون
+  بناء نظام كامل لم يُطلَب بعد.
 
 ### Known Limitations (موثَّقة صراحة، وليست ثغرات مسكوت عنها)
-- **إنشاء/تعديل الفروع والمستودعات نفسها** (`tenancy.branches.manage`/
-  `tenancy.warehouses.manage`) بلا فحص نطاق فرع — منطقي لأنها عمليات على
-  مستوى المنشأة كاملة، لا على فرع قائم مسبقًا.
-- **`IamService.assignRole`/`createUser`** يتحققان أن الفرع المُسنَد ينتمي
-  لنفس المنشأة، لكن بلا فحص "هل مُسنِد الدور نفسه مخوَّل بهذا الفرع؟" — أي
-  عضو يملك `iam.users.manage` (عادة نطاق كامل) يستطيع إسناد أي فرع لأي عضو.
-  هذا امتداد منطقي لصلاحية إدارة المستخدمين نفسها في هذه المرحلة، وليس ثغرة؛
-  تحسين مستقبلي محتمل إن احتاج العمل تفويض إدارة مستخدمين لمدير فرع واحد
-  فقط.
-- **POS (المرحلة 3)** لم يُبنَ بعد؛ `PosDevice.branchId` موجود من المرحلة 1
-  وسيُعاد استخدام `BranchScopeService` نفسه حين تُبنى وحدة POS، لا نظام
-  موازٍ جديد.
+- **لا ورديات كاشير (Cash sessions)، لا سلات معلّقة على الخادم (Held carts)**
+  — السلة تعيش في حالة المتصفح حتى الإتمام فقط. راجع `docs/POS.md` "مؤجَّل".
+- **لا مرتجعات جزئية بالسطر** — إلغاء كامل للفاتورة فقط.
+- **`IamService.assignRole`** لا يزال بلا فحص "هل مُسنِد الدور مخوَّل بهذا
+  الفرع؟" (نفس القيد الموثَّق في تقرير المرحلة 2.1، لم يتغيّر).
+- **`Payment.status = pending`** مدعوم في النموذج لكن غير مُنتَج فعليًا عبر
+  أي تدفق HTTP حقيقي بعد — لا مزوّد خارجي يُنتج حالة معلّقة فعلية.
+- **لا طابعة/PDF/QR فعلي للفاتورة** — العرض داخل الواجهة فقط.
+
+### What is intentionally deferred (مؤجَّل عمدًا — وليس نسيانًا)
+- نظام مرتجعات جزئي كامل (`sale_returns`) — يحتاج قرار عمل حول سياسة
+  الاسترجاع أولًا.
+- ورديات الكاشير (`cash_sessions`/`cash_movements`).
+- السلات المعلّقة على الخادم (Hold/Resume عبر أجهزة مختلفة).
+- Offline-first الكامل (طابور محلي، مزامنة تلقائية، حل تعارض المخزون) —
+  الأساس (`clientReferenceId`) جاهز، التنفيذ الكامل لاحقًا.
+- تجاوز السعر يدويًا بصلاحية منفصلة.
+- طباعة/PDF/QR فعلي للفاتورة، والفوترة الإلكترونية ZATCA الكاملة.
+- Qeedha Connector الفعلي (لا API مخترع، بانتظار عقد رسمي).
+- Purchasing، Expenses، Accounting الكاملة، Control Center، Website،
+  اشتراكات فعلية — **لم تُبنَ ولن تُبنى في هذه المرحلة**، كما هو مطلوب صراحة.
 
 ### Commit
-commit منفصل ونظيف لهذه الدورة فقط (بدون تعديل أو إعادة كتابة commit المرحلة
-2)، **بدون push** حسب التعليمات الصريحة. راجع رسالة الـcommit للـhash
+commit منفصل ونظيف لهذه المرحلة فقط (بدون تعديل أو إعادة كتابة `6528174` أو
+`5ac78e0`)، **بدون push** حسب التعليمات الصريحة. راجع رسالة الـcommit للـhash
 النهائي.
+
+### Push
+NOT PUSHED
 
 ## ما لم يبدأ بعد (بانتظار إذنك للانتقال)
 
-المرحلة 3 (POS/Sales/Purchases/Expenses جزئيًا حسب الخطة، محاسبة أساسية) —
-راجع `ROADMAP.md`. لا كود لأي من هذه الوحدات بعد. **لن يبدأ التنفيذ إلا بعد
-موافقتك الصريحة، ولن يُبدأ تلقائيًا.**
+المرحلة 4 (محاسبة أساسية، وفق `ROADMAP.md`) — لا كود لأي من وحداتها بعد.
+**لن يبدأ التنفيذ إلا بعد موافقتك الصريحة، ولن يُبدأ تلقائيًا.**
 
 ## قرارات تحتاج نقاشًا معك لاحقًا (مؤجَّلة عمدًا، ليست الآن)
 
+- سياسة المرتجعات (جزئي بالسطر أم كامل فقط؟) — قبل بناء `sale_returns`.
+- الحاجة الفعلية لورديات الكاشير قبل بناء `cash_sessions`.
+- استراتيجية Offline-first الكاملة (طابور محلي، حل تعارض) — عند الحاجة
+  الفعلية لدعم اتصال غير مستقر.
 - خوارزمية تقييم المخزون (FIFO/Weighted Average) — عند المرحلة 4.
-- تفاصيل Offline POS الكاملة — عند المرحلة 3.
-- واجهة أمامية لاختيار/عرض نطاق الفرع عند إسناد دور — لم تُطلَب في هذه
-  الدورة، ولم تُبنَ لتفادي الإفراط في البناء؛ يمكن إضافتها كتحسين لاحق على
-  شاشة IAM الحالية.
 - الموجة/الحد المالي المطبَّق لـZATCA Phase 2 — عند المرحلة 6.
 - عقد API الفعلي لقيّدها (Endpoints, Auth, Fields) — عند المرحلة 7، بانتظار
   توثيق منك.
@@ -163,7 +203,7 @@ commit منفصل ونظيف لهذه الدورة فقط (بدون تعديل �
 ## كيف تتحقق من الحالة الحالية محليًا
 
 Backend: `cd backend && npm install && npx prisma migrate deploy && npm run
-prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (38/38 حاليًا).
+prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (63/63 حاليًا).
 Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعمل
 على `http://localhost:3000`).
 
@@ -179,3 +219,6 @@ Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعم
 - 2026-08-15: المرحلة 2.1 (Branch/Warehouse Authorization Hardening) مكتملة
   ومُختبرة (38/38، build/lint/typecheck نظيفة) — بانتظار موافقة صريحة لبدء
   المرحلة 3.
+- 2026-08-15: المرحلة 3 (POS/Sales/Payments/Invoices + أساس التكامل) مكتملة
+  ومُختبرة (63/63، build/lint/typecheck نظيفة في backend وfrontend، Playwright
+  ناجح) — بانتظار موافقة صريحة لبدء المرحلة 4.

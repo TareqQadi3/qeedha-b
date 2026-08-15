@@ -16,6 +16,7 @@ import { IamModule } from './modules/iam/iam.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PartiesModule } from './modules/parties/parties.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
 
 @Module({
@@ -32,6 +33,7 @@ import { TenancyModule } from './modules/tenancy/tenancy.module';
     CatalogModule,
     InventoryModule,
     PartiesModule,
+    SalesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

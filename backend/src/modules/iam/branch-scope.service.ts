@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { TenantClient } from '../../common/prisma/prisma.service';
 
 export interface BranchScope {
@@ -43,5 +43,18 @@ export class BranchScopeService {
       branchIds.add(mr.branchId);
     }
     return { allBranches: false, branchIds };
+  }
+
+  /**
+   * Rejects (403) a raw branchId not covered by `scope` - the same check
+   * `InventoryService.assertWarehouseOwned` does after resolving a
+   * warehouse's branch, exposed directly for callers (Phase 3 sales) that
+   * already have a branchId in hand (e.g. a POS device's branch) and don't
+   * need a warehouse lookup to get one.
+   */
+  assertBranchInScope(scope: BranchScope, branchId: string) {
+    if (!scope.allBranches && !scope.branchIds.has(branchId)) {
+      throw new ForbiddenException('هذا الفرع خارج نطاق الفروع المصرح بها لهذه العضوية');
+    }
   }
 }

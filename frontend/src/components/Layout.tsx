@@ -3,6 +3,8 @@ import { useAuth } from '../state/auth';
 
 const NAV_ITEMS = [
   { to: '/', label: 'لوحة التحكم', end: true },
+  { to: '/pos', label: 'نقطة البيع' },
+  { to: '/sales', label: 'المبيعات والفواتير' },
   { to: '/products', label: 'المنتجات' },
   { to: '/catalog', label: 'التصنيفات والعلامات والوحدات' },
   { to: '/inventory', label: 'المخزون' },
