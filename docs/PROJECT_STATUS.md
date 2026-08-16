@@ -1,13 +1,18 @@
 # حالة المشروع (Project Status)
 
 **آخر تحديث**: 2026-08-16
-**المرحلة الحالية**: Milestone 4 — ZATCA E-Invoicing Readiness (توليد رمز
-QR محلي وفق مواصفة Phase 1 المنشورة عند كل فاتورة، جدول امتثال منفصل
-`invoice_compliance`، طبقة `EInvoiceService` معزولة تمامًا عن SalesService/
-InvoicesService؛ **Phase 2 كاملة — XML/Hashing/التوقيع/CSID/الإرسال
-الفعلي — Blocked** بانتظار عقد ZATCA واعتمادات حقيقية) — **مكتملة
-ومُختبرة ضمن نطاقها المُنفَّذ**، بانتظار موافقتك الصريحة لبدء المرحلة
-القادمة
+**المرحلة الحالية**: Milestone 5 — Accounting Completion Verification
+(طلب Milestone 5 وصف Trial Balance/General Ledger/P&L/Balance Sheet/AR/AP/
+Fiscal Periods/Opening Balances كفجوات ناقصة؛ مراجعة معمارية فعلية للكود
+الحالي أثبتت أن هذا النطاق **بالكامل مُنفَّذ فعليًا مسبقًا** ضمن "Milestone 1:
+Accounting Completion" — لا نموذج/Endpoint/صفحة واحدة جديدة أُضيفت. العمل
+الفعلي في هذه الدورة: إغلاق فجوات اختبار حقيقية فقط (Vitest للصفحات الثلاث
+التي لم يكن لها أي اختبار، تمديد Playwright Golden Path ليغطي كل تبويبات
+التقارير + الفترات المحاسبية، اختبار Audit Log صريح لإقفال الفترة/الرصيد
+الافتتاحي) — بلا أي تغيير على `schema.prisma` أو أي منطق خلفي. **COGS/
+تقييم المخزون لا يزال DECISION REQUIRED** كما كان، لم يُمَس. راجع قسم
+"Milestone 5" أدناه للتفصيل الكامل) — **مكتملة ومُختبرة ضمن نطاقها**،
+بانتظار موافقتك الصريحة لبدء المرحلة القادمة
 
 ## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة القادمة
 
@@ -1011,6 +1016,87 @@ NOT PUSHED
 
 ---
 
+# Milestone 5 — Accounting Completion Verification
+
+**Status**: Completed (لا فجوات تنفيذية جديدة — تحقق + إغلاق فجوات اختبار فقط)
+
+## ملخص: ما هذا الـMilestone وما ليس
+
+طلب هذا الـMilestone وصف Trial Balance/General Ledger/Profit & Loss/
+Balance Sheet/AR/AP Subledger/Fiscal Periods/Accounting Opening Balances
+كفجوات محاسبية ناقصة يجب بناؤها، مع تعليمة صريحة بمراجعة الكود الفعلي أولًا
+قبل أي تنفيذ ("لا تعيد بناء شيء يعمل"). **المراجعة المعمارية الفعلية لكل
+ملف في `backend/src/modules/accounting/` (`journal.service.ts`،
+`accounting.service.ts`، `accounting-reports.service.ts`،
+`subledger.service.ts`، `fiscal-periods.service.ts`،
+`opening-balance.service.ts`، الستة Controllers، `schema.prisma`،
+`docs/ACCOUNTING.md`، `test/milestone1.e2e-spec.ts`، وصفحات الواجهة
+الأمامية الثلاث `ReportsPage.tsx`/`ReceivablesPayablesPage.tsx`/
+`AccountingPage.tsx`) أثبتت أن هذا النطاق بالكامل — الأربعة تقارير حية
+مبنية على `groupBy`/`aggregate` مباشرة على `JournalLine`، AR/AP Subledger
+حقيقي، فترات مالية بحارس `assertTodayNotLocked` فعلي داخل
+`JournalService.postJournalEntry`/`reverseJournalEntry`، وأرصدة افتتاحية
+محاسبية عبر نفس نقطة الترحيل الوحيدة بحارس تزامن `P2002` حقيقي — **كان
+مُنفَّذًا فعليًا ومُختبَرًا مسبقًا** ضمن "Milestone 1: Accounting Completion"
+(نفس هذه الجلسة، تسمية مختلفة). راجع commit `2871835` وقسم "Milestone 1"
+أعلاه لتفاصيل ذلك التنفيذ الأصلي — لم يُعَد بناؤه هنا، ولا داعي له.
+
+**العمل الفعلي المُنفَّذ في هذه الدورة** هو إغلاق فجوات **اختبار** حقيقية
+تركها Milestone 1، عثر عليها الاستعراض المعماري لا أكثر ولا أقل — بدون أي
+تغيير على `schema.prisma`، منطق الخدمات، الـControllers، أو أي صفحة واجهة
+أمامية:
+
+1. لا يوجد أي ملف Vitest للصفحات الثلاث `ReportsPage.tsx` /
+   `ReceivablesPayablesPage.tsx` / `AccountingPage.tsx` (تبويبَي الأرصدة
+   الافتتاحية والفترات) — أُضيفت.
+2. `frontend/e2e/golden-path.spec.ts` كان يزور فقط تبويب ميزان المراجعة
+   وAP من كل السطح المحاسبي — مُدَّد ليمر فعليًا عبر دفتر الأستاذ/الأرباح
+   والخسائر/الميزانية العمومية/AR (يتحقق من نص الفجوة الهيكلية الموثَّقة)
+   وإنشاء فترة محاسبية فعلية.
+3. `test/milestone1.e2e-spec.ts` كان يختبر نجاح إقفال الفترة/تسجيل الرصيد
+   الافتتاحي دون التحقق المباشر من دخول سجل فعلي في `AuditLog` (خلافًا
+   لنمط `phase4.e2e-spec.ts` المُستخدَم لعمليات حساسة أخرى) — أُضيف تحقق
+   مباشر (`tx.auditLog.findFirst`) لـ`accounting.period.close` و
+   `accounting.opening_balance.create`.
+
+لا Model جديد، لا Migration جديدة، لا Endpoint جديد، لا صفحة واجهة أمامية
+جديدة، لا صلاحية RBAC جديدة — كل ذلك كان موجودًا وكاملًا مسبقًا.
+
+## COGS / تقييم المخزون — لا يزال DECISION REQUIRED
+
+لم يُمَس هذا القرار إطلاقًا في هذه الدورة، تمامًا كما لم يُمَس في
+Milestone 1. راجع القسم المخصَّص في التقرير النهائي أدناه (ونفس التفصيل في
+`docs/ACCOUNTING.md` "مؤجَّل") — لا يزال بلا طريقة تقييم مُختارة
+(FIFO/متوسط مرجّح)، وقيد البيع لا يزال بلا سطر مخزون/COGS.
+
+## Known Limitations (كما كانت في Milestone 1، لم تتغيّر)
+
+- AR فارغ هيكليًا دائمًا اليوم (لا بيع آجل في النظام) — موثَّق، ومُختبَر
+  الآن أيضًا عبر Playwright صراحة (نص الفجوة يظهر في الواجهة).
+- AP لا يتناقص أبدًا (لا خطوة "دفع لمورد" بعد).
+- لا قيد إقفال فترة فعلي يكنس صافي الدخل إلى Equity — الميزانية العمومية
+  تعرض بندًا محسوبًا (`computed: true`) بدلًا من ذلك، كما في Milestone 1.
+- COGS/تقييم المخزون: DECISION REQUIRED (أعلاه).
+- لا مرتجعات مشتريات، لا تسوية بنكية — خارج نطاق كل مرحلة حتى الآن.
+
+## Tests
+
+**139/139** خلفية e2e (نفس عدد Milestone 4 — الإضافتان الجديدتان تحققان
+إضافيان داخل اختبارَين موجودَين، وليسا حالتَي اختبار جديدتَين) + **30/30**
+Vitest (11 سابقة + 19 جديدة عبر 3 ملفات جديدة) + Playwright **4/4** (نفس
+العدد، `golden-path.spec.ts` مُمدَّد لا ملف جديد) — كلها مُتحقَّقة فعليًا
+بالتشغيل ضد Postgres حقيقي مُهاجَر ومزروع وBackend حقيقي يعمل.
+
+## Build / Lint / Typecheck
+Backend: build ✅ / lint ✅ / `tsc --noEmit` ✅ / `prisma migrate status`:
+up to date، لا drift (لا Migration جديدة). Frontend: build ✅ / lint ✅ /
+`tsc --noEmit` ✅.
+
+## Push
+NOT PUSHED
+
+---
+
 ## سجل تحديثات هذا الملف
 
 - 2026-08-15: إنشاء الملف عند بدء المرحلة 1.
@@ -1051,3 +1137,12 @@ NOT PUSHED
   Blocked صراحة بانتظار عقد ZATCA واعتمادات حقيقية) مكتمل ومُختبر ضمن
   نطاقه (139/139 خلفية بلا تراجع + 4/4 Unit جديدة + 11/11 Vitest +
   Playwright 4/4) — بانتظار موافقة صريحة لبدء المرحلة القادمة.
+- 2026-08-16: Milestone 5 (Accounting Completion Verification — المراجعة
+  المعمارية أثبتت أن Trial Balance/GL/P&L/Balance Sheet/AR/AP/Fiscal
+  Periods/Opening Balances المطلوبة كانت مُنفَّذة بالفعل ضمن Milestone 1؛
+  العمل الفعلي: 3 ملفات Vitest جديدة للصفحات التي لم يكن لها اختبار، تمديد
+  Golden Path Playwright ليغطي كل السطح المحاسبي، اختبار Audit Log صريح
+  لإقفال الفترة/الرصيد الافتتاحي — بلا أي تغيير على المخطط أو المنطق
+  الخلفي. COGS/تقييم المخزون لا يزال DECISION REQUIRED، لم يُمَس) مكتمل
+  ومُختبر (139/139 خلفية + 30/30 Vitest + Playwright 4/4) — بانتظار
+  موافقة صريحة لبدء المرحلة القادمة.

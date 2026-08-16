@@ -2,11 +2,13 @@ import { expect, test } from '@playwright/test';
 import { login, logout, registerMerchant, uniqueId } from './helpers';
 
 /**
- * Full merchant journey (Milestone 2 "Playwright" / "Full Trial"):
+ * Full merchant journey (Milestone 2 "Playwright" / "Full Trial", extended
+ * in Milestone 5 to cover the full Accounting reporting/period surface):
  * Register -> Product -> Inventory -> Customer -> Supplier -> Purchase ->
  * Receive -> POS sale -> Payment -> Invoice -> Expense -> Accounting ->
- * Reports -> Logout -> Login. Every step goes through the real UI against
- * the real backend API and database - no mocked requests.
+ * Trial Balance -> General Ledger -> P&L -> Balance Sheet -> AR/AP ->
+ * Fiscal Period -> Logout -> Login. Every step goes through the real UI
+ * against the real backend API and database - no mocked requests.
  */
 test('merchant can go from registration to a posted sale, expense, and see it all reflected in accounting', async ({
   page,
@@ -95,10 +97,39 @@ test('merchant can go from registration to a posted sale, expense, and see it al
   await page.goto('/reports');
   await expect(page.getByText('متوازن', { exact: true })).toBeVisible();
 
-  // ---- Receivables/Payables: AP shows the supplier ----
+  // ---- Reports: General Ledger shows a running balance for an account with activity ----
+  await page.getByRole('button', { name: 'دفتر الأستاذ' }).click();
+  await expect(page.getByText('الرصيد الافتتاحي:')).toBeVisible();
+  await expect(page.getByText('الرصيد الختامي:')).toBeVisible();
+
+  // ---- Reports: Profit & Loss reflects the sale and the expense ----
+  await page.getByRole('button', { name: 'الأرباح والخسائر' }).click();
+  await expect(page.getByText('صافي الربح / الخسارة')).toBeVisible();
+
+  // ---- Reports: Balance Sheet balances (Assets = Liabilities + Equity) ----
+  await page.getByRole('button', { name: 'الميزانية العمومية' }).click();
+  await expect(page.getByText('الميزانية متوازنة')).toBeVisible();
+
+  // ---- Receivables/Payables: AR is structurally empty (no credit-sale flow), AP shows the supplier ----
   await page.goto('/receivables-payables');
+  await expect(page.getByText(/لا يدعم البيع الآجل/)).toBeVisible();
   await page.getByRole('button', { name: 'ذمم الموردين (AP)' }).click();
   await expect(page.getByText(supplierName)).toBeVisible();
+
+  // ---- Fiscal Periods: create a period covering today and see it listed as open ----
+  const periodName = `فترة بلايرايت ${id}`;
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+  await page.goto('/accounting');
+  await page.getByRole('button', { name: 'الفترات المحاسبية' }).click();
+  await page.getByRole('button', { name: '+ فترة محاسبية جديدة' }).click();
+  await page.getByLabel('الاسم').fill(periodName);
+  await page.getByLabel('من تاريخ').fill(monthStart);
+  await page.getByLabel('إلى تاريخ').fill(monthEnd);
+  await page.getByRole('button', { name: 'إنشاء الفترة' }).click();
+  await expect(page.getByText(periodName)).toBeVisible();
+  await expect(page.getByText('مفتوحة').first()).toBeVisible();
 
   // ---- Logout -> Login again (session survives a fresh login) ----
   await logout(page);

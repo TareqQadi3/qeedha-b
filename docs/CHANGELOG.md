@@ -1,5 +1,50 @@
 # سجل التغييرات (Changelog)
 
+## [Milestone 5: Accounting Completion Verification] - 2026-08-16
+
+طلب هذا الـMilestone بناء Trial Balance/General Ledger/P&L/Balance Sheet/
+AR/AP Subledger/Fiscal Periods/Accounting Opening Balances، مع تعليمة
+صريحة بمراجعة الكود الفعلي أولًا. **المراجعة المعمارية أثبتت أن هذا
+النطاق بالكامل كان مُنفَّذًا ومُختبرًا مسبقًا** ضمن "Milestone 1: Accounting
+Completion" (نفس الجلسة، تسمية مختلفة، commit `2871835`) — لم يُعَد بناء
+أي جزء منه. العمل الفعلي هنا: إغلاق فجوات **اختبار** حقيقية فقط عثر عليها
+الاستعراض.
+
+### أُضيف
+
+- `frontend/src/pages/__tests__/ReportsPage.test.tsx` (جديد، 7 اختبارات):
+  بوابة صلاحية `accounting.reports.view`، تحميل/خطأ/فراغ لكل من ميزان
+  المراجعة/دفتر الأستاذ/الأرباح والخسائر/الميزانية العمومية، والتبديل بين
+  التبويبات يُطلق طلب API صحيحًا.
+- `frontend/src/pages/__tests__/ReceivablesPayablesPage.test.tsx` (جديد، 5
+  اختبارات): تركيبات صلاحية AR/AP، نص الفجوة الهيكلية لـAR (لا بيع آجل)،
+  فتح كشف حساب مورد.
+- `frontend/src/pages/__tests__/AccountingPage.test.tsx` (جديد، 7
+  اختبارات): تبويبَي الأرصدة الافتتاحية والفترات المحاسبية — الحالة
+  الفارغة، إخفاء أزرار الإدارة بلا `accounting.opening_balance.manage`/
+  `accounting.period.manage`، وإقفال فترة فعليًا.
+- تحقق `AuditLog` صريح (`tx.auditLog.findFirst`) لـ
+  `accounting.period.close` و`accounting.opening_balance.create` داخل
+  اختبارين موجودَين في `test/milestone1.e2e-spec.ts` — لم يكونا يتحققان
+  من دخول سجل Audit فعلي سابقًا.
+- `frontend/e2e/golden-path.spec.ts` مُمدَّد (لا ملف جديد): يزور الآن فعليًا
+  دفتر الأستاذ/الأرباح والخسائر/الميزانية العمومية/تبويب AR، وينشئ فترة
+  محاسبية حقيقية عبر `/accounting`.
+
+لا Model/Migration/Endpoint/صفحة واجهة أمامية/صلاحية RBAC جديدة — كل ذلك
+كان كاملًا مسبقًا.
+
+### COGS / تقييم المخزون
+لا يزال **DECISION REQUIRED** — لم يُمَس في هذا الـMilestone، تمامًا كما لم
+يُمَس في Milestone 1. راجع `docs/ACCOUNTING.md` "مؤجَّل".
+
+### Tests
+
+**139/139** خلفية (بدون تغيير في العدد — تحققان إضافيان داخل اختبارين
+موجودَين) + **30/30** Vitest (11 سابقة + 19 جديدة عبر 3 ملفات جديدة) +
+Playwright **4/4** (بدون ملف جديد، `golden-path.spec.ts` مُمدَّد) — كلها
+مُتحقَّقة فعليًا بالتشغيل ضد Postgres حقيقي وBackend حقيقي.
+
 ## [Milestone 4: ZATCA E-Invoicing Readiness] - 2026-08-16
 
 جعل qeedha B جاهزًا معماريًا وفنيًا لمتطلبات ZATCA بدون اختراع أي متطلب

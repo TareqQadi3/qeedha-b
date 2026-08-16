@@ -470,6 +470,17 @@ describe('Milestone 1: Accounting Completion (e2e)', () => {
         .expect(200);
       expect(fetched.body.id).toBe(created.body.id);
 
+      const audit = await prisma.withTenant(tenant.companyId, (tx) =>
+        tx.auditLog.findFirst({
+          where: {
+            companyId: tenant.companyId,
+            action: 'accounting.opening_balance.create',
+            entityId: created.body.id,
+          },
+        }),
+      );
+      expect(audit).not.toBeNull();
+
       await request(server)
         .post('/api/v1/accounting/opening-balance')
         .set(auth(tenant.accessToken))
@@ -643,6 +654,17 @@ describe('Milestone 1: Accounting Completion (e2e)', () => {
         .post(`/api/v1/accounting/fiscal-periods/${period.body.id}/close`)
         .set(auth(tenant.accessToken))
         .expect(201);
+
+      const closeAudit = await prisma.withTenant(tenant.companyId, (tx) =>
+        tx.auditLog.findFirst({
+          where: {
+            companyId: tenant.companyId,
+            action: 'accounting.period.close',
+            entityId: period.body.id,
+          },
+        }),
+      );
+      expect(closeAudit).not.toBeNull();
 
       const categories = await request(server)
         .get('/api/v1/expenses/categories')
