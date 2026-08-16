@@ -349,9 +349,14 @@ describe('Milestone 1: Accounting Completion (e2e)', () => {
         .get('/api/v1/accounting/reports/profit-and-loss')
         .set(auth(tenant.accessToken))
         .expect(200);
+      // Milestone 6: the sale now also posts COGS (2 units x costPrice 5,
+      // the opening-stock fallback cost, since setOpeningStock here passes
+      // no unitCost) = 10, on top of the manual expense (8).
       expect(pl.body.totalRevenue).toBe(20);
-      expect(pl.body.totalExpense).toBe(8);
-      expect(pl.body.netProfit).toBe(12);
+      expect(pl.body.costOfGoodsSold).toBe(10);
+      expect(pl.body.grossProfit).toBe(10);
+      expect(pl.body.totalExpense).toBe(18);
+      expect(pl.body.netProfit).toBe(2);
 
       const bs = await request(server)
         .get('/api/v1/accounting/reports/balance-sheet')
@@ -359,7 +364,7 @@ describe('Milestone 1: Accounting Completion (e2e)', () => {
         .expect(200);
       expect(bs.body.totals.isBalanced).toBe(true);
       const retainedEarnings = bs.body.equity.find((e: any) => e.computed);
-      expect(retainedEarnings.balance).toBe(12);
+      expect(retainedEarnings.balance).toBe(2);
     });
 
     it('عضو بلا صلاحية accounting.reports.view يُرفض بـ403 على كلا التقريرين', async () => {

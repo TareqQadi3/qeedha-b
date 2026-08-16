@@ -537,6 +537,14 @@ model StockLevel {
   // availableQuantity = quantityOnHand - reservedQuantity, computed at read
   // time (never stored, to avoid drift).
   reservedQuantity Decimal  @default(0) @map("reserved_quantity") @db.Decimal(14, 3)
+  // Milestone 6: moving weighted-average cost per unit (docs/ACCOUNTING.md
+  // "COGS / Inventory Valuation") - Decimal(14,4), one more fractional digit
+  // than money columns, since this is a per-unit RATE that gets multiplied by
+  // quantity, not a money amount itself; rounding it to 2dp before storing
+  // would compound drift over many receipts. Written ONLY by
+  // InventoryService.recordMovement's atomic guarded UPDATE, in the same
+  // statement as quantityOnHand - never updated independently.
+  averageCost      Decimal  @default(0) @map("average_cost") @db.Decimal(14, 4)
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   company   Company   @relation(fields: [companyId], references: [id])
@@ -810,6 +818,16 @@ model SaleItem {
   lineSubtotal   Decimal @map("line_subtotal") @db.Decimal(14, 2)
   lineTax        Decimal @map("line_tax") @db.Decimal(14, 2)
   lineTotal      Decimal @map("line_total") @db.Decimal(14, 2)
+
+  // Milestone 6: the weighted-average cost per unit AT THE MOMENT OF SALE,
+  // captured from InventoryValuationService.recordIssue so the COGS journal
+  // line is reproducible/auditable after the fact, and so cancelSale can
+  // return stock to inventory at the SAME cost it left at (not whatever the
+  // average happens to be after later purchases) - see docs/ACCOUNTING.md
+  // "COGS / Inventory Valuation" "Returns". NULL for every SaleItem created
+  // before this migration (docs/ACCOUNTING.md "Legacy data") - those sales
+  // never posted a COGS line, so there is nothing to reproduce.
+  unitCost Decimal? @map("unit_cost") @db.Decimal(14, 4)
 
   company Company @relation(fields: [companyId], references: [id])
   sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)

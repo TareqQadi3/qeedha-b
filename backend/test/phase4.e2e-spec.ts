@@ -876,7 +876,10 @@ describe('Phase 4: Purchases/Expenses/Accounting (e2e)', () => {
       const debitSum = originalEntry!.lines.reduce((s, l) => s + Number(l.debit), 0);
       const creditSum = originalEntry!.lines.reduce((s, l) => s + Number(l.credit), 0);
       expect(debitSum).toBe(creditSum);
-      expect(debitSum).toBe(23);
+      // 23 (cash) + 10 (COGS: 2 units x costPrice 5, Milestone 6 - opening
+      // stock here has no explicit unitCost, so it falls back to
+      // Product.costPrice) = 33.
+      expect(debitSum).toBe(33);
 
       await request(server)
         .post(`/api/v1/sales/${sale.body.id}/cancel`)

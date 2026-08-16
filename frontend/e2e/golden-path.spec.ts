@@ -3,12 +3,14 @@ import { login, logout, registerMerchant, uniqueId } from './helpers';
 
 /**
  * Full merchant journey (Milestone 2 "Playwright" / "Full Trial", extended
- * in Milestone 5 to cover the full Accounting reporting/period surface):
- * Register -> Product -> Inventory -> Customer -> Supplier -> Purchase ->
- * Receive -> POS sale -> Payment -> Invoice -> Expense -> Accounting ->
- * Trial Balance -> General Ledger -> P&L -> Balance Sheet -> AR/AP ->
- * Fiscal Period -> Logout -> Login. Every step goes through the real UI
- * against the real backend API and database - no mocked requests.
+ * in Milestone 5 to cover the full Accounting reporting/period surface, and
+ * in Milestone 6 to verify weighted-average inventory valuation/COGS):
+ * Register -> Product -> Inventory (opening stock + average cost/value) ->
+ * Customer -> Supplier -> Purchase -> Receive -> POS sale -> Payment ->
+ * Invoice -> Expense -> Accounting -> Trial Balance -> General Ledger ->
+ * P&L (COGS/Gross Profit) -> Balance Sheet -> AR/AP -> Fiscal Period ->
+ * Logout -> Login. Every step goes through the real UI against the real
+ * backend API and database - no mocked requests.
  */
 test('merchant can go from registration to a posted sale, expense, and see it all reflected in accounting', async ({
   page,
@@ -31,13 +33,17 @@ test('merchant can go from registration to a posted sale, expense, and see it al
   await page.getByRole('button', { name: 'حفظ المنتج' }).click();
   await expect(page.getByText(productName)).toBeVisible();
 
-  // ---- Inventory: opening stock ----
+  // ---- Inventory: opening stock (no explicit unit cost -> falls back to
+  // Product.costPrice = 5, so average cost = 5 and inventory value = 500) ----
   await page.goto('/inventory');
   await page.getByRole('button', { name: 'رصيد افتتاحي' }).click();
   await page.getByLabel('المنتج').selectOption({ label: `${productName} (${productSku})` });
   await page.getByLabel('الكمية').fill('100');
   await page.getByRole('button', { name: 'حفظ' }).click();
   await expect(page.getByText(productSku)).toBeVisible();
+  const inventoryRow = page.getByRole('row').filter({ hasText: productSku });
+  await expect(inventoryRow.getByText('5.00')).toBeVisible();
+  await expect(inventoryRow.getByText('500.00')).toBeVisible();
 
   // ---- Customer ----
   await page.goto('/customers');
@@ -102,9 +108,11 @@ test('merchant can go from registration to a posted sale, expense, and see it al
   await expect(page.getByText('الرصيد الافتتاحي:')).toBeVisible();
   await expect(page.getByText('الرصيد الختامي:')).toBeVisible();
 
-  // ---- Reports: Profit & Loss reflects the sale and the expense ----
+  // ---- Reports: Profit & Loss reflects the sale, the expense, and COGS ----
   await page.getByRole('button', { name: 'الأرباح والخسائر' }).click();
   await expect(page.getByText('صافي الربح / الخسارة')).toBeVisible();
+  await expect(page.getByText('تكلفة البضاعة المباعة (COGS)')).toBeVisible();
+  await expect(page.getByText('إجمالي الربح (Gross Profit)')).toBeVisible();
 
   // ---- Reports: Balance Sheet balances (Assets = Liabilities + Equity) ----
   await page.getByRole('button', { name: 'الميزانية العمومية' }).click();

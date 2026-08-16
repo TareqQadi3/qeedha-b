@@ -21,8 +21,13 @@ interface StockRow {
   productSku: string;
   quantityOnHand: string;
   availableQuantity: string;
+  averageCost: string;
+  inventoryValue: number;
   isLowStock: boolean;
 }
+
+// Western digits, matching every other page's money display - see ReportsPage.tsx for rationale.
+const money = (n: number | string) => Number(n).toFixed(2);
 
 export function InventoryPage() {
   const { hasPermission } = useAuth();
@@ -31,7 +36,7 @@ export function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [rows, setRows] = useState<StockRow[]>([]);
   const [modalMode, setModalMode] = useState<'adjust' | 'opening' | null>(null);
-  const [form, setForm] = useState({ productId: '', quantity: '', reason: '' });
+  const [form, setForm] = useState({ productId: '', quantity: '', reason: '', unitCost: '' });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
@@ -74,7 +79,7 @@ export function InventoryPage() {
   };
 
   const openModal = (mode: 'adjust' | 'opening') => {
-    setForm({ productId: '', quantity: '', reason: '' });
+    setForm({ productId: '', quantity: '', reason: '', unitCost: '' });
     setError(null);
     setModalMode(mode);
   };
@@ -84,11 +89,13 @@ export function InventoryPage() {
     setError(null);
     setLoading(true);
     try {
+      const unitCost = form.unitCost !== '' ? Number(form.unitCost) : undefined;
       if (modalMode === 'opening') {
         await api.post('/inventory/opening-balance', {
           warehouseId,
           productId: form.productId,
           quantity: Number(form.quantity),
+          ...(unitCost !== undefined ? { unitCost } : {}),
         });
       } else {
         await api.post('/inventory/adjustments', {
@@ -96,6 +103,7 @@ export function InventoryPage() {
           productId: form.productId,
           quantityDelta: Number(form.quantity),
           reason: form.reason,
+          ...(unitCost !== undefined && Number(form.quantity) > 0 ? { unitCost } : {}),
         });
       }
       setModalMode(null);
@@ -147,6 +155,8 @@ export function InventoryPage() {
                 <th className="py-2">المنتج</th>
                 <th className="py-2">الرصيد الحالي</th>
                 <th className="py-2">المتاح</th>
+                <th className="py-2">متوسط التكلفة</th>
+                <th className="py-2">قيمة المخزون</th>
                 <th className="py-2">الحالة</th>
               </tr>
             </thead>
@@ -157,6 +167,8 @@ export function InventoryPage() {
                   <td className="py-2">{r.productName}</td>
                   <td className="py-2">{r.quantityOnHand}</td>
                   <td className="py-2">{r.availableQuantity}</td>
+                  <td className="py-2 text-slate-500">{money(r.averageCost)}</td>
+                  <td className="py-2 font-medium">{money(r.inventoryValue)}</td>
                   <td className="py-2">
                     {r.isLowStock ? (
                       <span className="text-amber-600">منخفض</span>
@@ -168,7 +180,7 @@ export function InventoryPage() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-slate-400">
+                  <td colSpan={7} className="py-6 text-center text-slate-400">
                     لا يوجد رصيد مسجَّل في هذا المستودع بعد
                   </td>
                 </tr>
@@ -205,6 +217,17 @@ export function InventoryPage() {
               required
             />
           </Field>
+          {(modalMode === 'opening' || (modalMode === 'adjust' && Number(form.quantity) > 0)) && (
+            <Field label="تكلفة الوحدة (اختياري - يُستخدم متوسط التكلفة الحالي افتراضيًا)">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.unitCost}
+                onChange={(e) => setForm({ ...form, unitCost: e.target.value })}
+              />
+            </Field>
+          )}
           {modalMode === 'adjust' && (
             <Field label="السبب">
               <Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} required />

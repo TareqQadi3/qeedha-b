@@ -97,7 +97,11 @@ products                sku (فريد لكل منشأة)، الاسم، الوص
 product_barcodes         باركود إضافي (فريد لكل منشأة، وليس عالميًا)
 stock_levels             رصيد صنف لكل (مستودع) - عمودا quantity_on_hand
                         وreserved_quantity (الأخير غير مُستخدَم بعد، أساس
-                        لحجز POS في المرحلة 3)
+                        لحجز POS في المرحلة 3)، وaverage_cost
+                        (Decimal(14,4)، Milestone 6 — متوسط التكلفة المرجّح
+                        المتحرك، يُكتب فقط ضمن نفس UPDATE الذرّي الذي يكتب
+                        quantity_on_hand، راجع docs/ACCOUNTING.md "COGS /
+                        تقييم المخزون")
 stock_movements           سجل append-only لكل حركة (IN موجب/OUT سالب):
                         opening_balance/purchase/sale/return/adjustment/
                         transfer_in/transfer_out/damage/expiry/manual_correction
@@ -162,7 +166,11 @@ sales               عملية بيع مكتملة (company_id, branch_id [مُ�
                     actor_membership_id, cancelled_at)
 sale_items          بند بيع، Snapshot كامل وقت البيع (product_id + product_name
                     + product_sku + unit_price + vat_rate منسوخة، بحيث لا
-                    يتأثر سطر بيع تاريخي بتعديل لاحق على المنتج)
+                    يتأثر سطر بيع تاريخي بتعديل لاحق على المنتج)، وunit_cost
+                    (Decimal(14,4)? قابل لأن يكون NULL، Milestone 6 — تكلفة
+                    الوحدة من محرّك التقييم وقت البيع نفسه، تُستخدَم عند
+                    الإلغاء لإعادة المخزون بنفس التكلفة الأصلية بدل المتوسط
+                    الحالي؛ NULL لأي سطر بيع سابق لهذه المرحلة)
 payments            دفعة على عملية بيع (تدعم Split — عدة صفوف لكل sale)،
                     method: cash | card | transfer | other | external،
                     status: pending | success | failed | cancelled | refunded،

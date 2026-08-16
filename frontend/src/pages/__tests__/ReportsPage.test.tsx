@@ -102,10 +102,15 @@ describe('ReportsPage - Trial Balance / General Ledger / P&L / Balance Sheet', (
       if (path === '/accounting/reports/profit-and-loss') {
         return Promise.resolve({
           revenue: [{ accountId: 'r1', accountName: 'إيرادات المبيعات', amount: 200 }],
-          expenses: [{ accountId: 'e1', accountName: 'مصروفات تشغيلية', amount: 50 }],
+          expenses: [
+            { accountId: 'e1', accountName: 'مصروفات تشغيلية', amount: 50 },
+            { accountId: 'e2', accountCode: '5010', accountName: 'تكلفة البضاعة المباعة', amount: 80 },
+          ],
           totalRevenue: 200,
-          totalExpense: 50,
-          netProfit: 150,
+          totalExpense: 130,
+          costOfGoodsSold: 80,
+          grossProfit: 120,
+          netProfit: 70,
           range: {},
         });
       }
@@ -117,7 +122,10 @@ describe('ReportsPage - Trial Balance / General Ledger / P&L / Balance Sheet', (
 
     expect(await screen.findByText('إيرادات المبيعات')).toBeInTheDocument();
     expect(screen.getByText('مصروفات تشغيلية')).toBeInTheDocument();
-    expect(screen.getByText('150.00')).toBeInTheDocument();
+    expect(screen.getByText('70.00')).toBeInTheDocument(); // net profit
+    expect(screen.getByText('تكلفة البضاعة المباعة (COGS)')).toBeInTheDocument();
+    expect(screen.getByText('إجمالي الربح (Gross Profit)')).toBeInTheDocument();
+    expect(screen.getByText('120.00')).toBeInTheDocument(); // gross profit
   });
 
   it('Balance Sheet tab marks the unclosed-retained-earnings line as computed and shows balance status', async () => {

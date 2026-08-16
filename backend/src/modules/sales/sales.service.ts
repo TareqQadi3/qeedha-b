@@ -15,7 +15,7 @@ import { JournalLineInput, JournalService } from '../accounting/journal.service'
 import { EInvoiceService } from '../einvoice/einvoice.service';
 import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
-import { InventoryService } from '../inventory/inventory.service';
+import { InventoryValuationService } from '../inventory/inventory-valuation.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { QuerySalesDto } from './dto/query-sales.dto';
 import { InvoiceNumberService } from './invoice-number.service';
@@ -37,7 +37,7 @@ export class SalesService {
   constructor(
     private readonly auditService: AuditService,
     private readonly branchScopeService: BranchScopeService,
-    private readonly inventoryService: InventoryService,
+    private readonly inventoryValuationService: InventoryValuationService,
     private readonly invoiceNumberService: InvoiceNumberService,
     private readonly journalService: JournalService,
     private readonly einvoiceService: EInvoiceService,
@@ -190,7 +190,27 @@ export class SalesService {
       },
     });
 
+    let totalCogs = 0;
     for (const line of lineData) {
+      // The ONLY write path to stock_levels (docs/SECURITY.md "سلامة
+      // التزامن") - throws ConflictException if this would drive stock
+      // negative, which rolls back the entire sale transaction. Milestone 6
+      // (docs/ACCOUNTING.md "COGS / Inventory Valuation"): this ALSO returns
+      // the weighted-average cost in effect for this line, atomically with
+      // the stock deduction - the same number is stored on the SaleItem
+      // (for a future return/cancel to reproduce) and summed into the
+      // Dr COGS / Cr Inventory journal line below.
+      const issue = await this.inventoryValuationService.recordIssue(tx, companyId, {
+        warehouseId: warehouse.id,
+        productId: line.productId,
+        type: 'sale',
+        quantity: line.quantity,
+        referenceType: 'Sale',
+        referenceId: sale.id,
+        actorMembershipId: membershipId,
+      });
+      totalCogs = round2(totalCogs + issue.cogsAmount);
+
       await tx.saleItem.create({
         data: {
           companyId,
@@ -205,20 +225,8 @@ export class SalesService {
           lineSubtotal: line.lineSubtotal,
           lineTax: line.lineTax,
           lineTotal: line.lineTotal,
+          unitCost: issue.averageCost,
         },
-      });
-
-      // The ONLY write path to stock_levels (docs/SECURITY.md "سلامة
-      // التزامن") - throws ConflictException if this would drive stock
-      // negative, which rolls back the entire sale transaction.
-      await this.inventoryService.recordMovement(tx, companyId, {
-        warehouseId: warehouse.id,
-        productId: line.productId,
-        type: 'sale',
-        quantity: -line.quantity,
-        referenceType: 'Sale',
-        referenceId: sale.id,
-        actorMembershipId: membershipId,
       });
     }
 
@@ -258,10 +266,11 @@ export class SalesService {
     await this.einvoiceService.generateForInvoice(tx, companyId, actorUserId, invoice);
 
     // Dr Cash/Bank (per payment) / Cr Sales Revenue (net of discount) / Cr
-    // VAT Payable. Deliberately no COGS/Inventory line yet - no inventory
-    // valuation method (FIFO/weighted average) has been chosen, see
-    // docs/ACCOUNTING.md "Deferred: COGS / inventory valuation" - flagged
-    // explicitly rather than guessed.
+    // VAT Payable / Dr COGS / Cr Inventory (Milestone 6, docs/ACCOUNTING.md
+    // "COGS / Inventory Valuation") - the COGS amount is the SUM of what
+    // inventoryValuationService.recordIssue already computed and wrote per
+    // line above, never recomputed here from a client-supplied or
+    // Product.costPrice value.
     const revenueNet = round2(subtotal - discountTotal);
     const journalLines: JournalLineInput[] = dto.payments.map((payment) => ({
       accountCode: cashOrBankAccountCode(payment.method),
@@ -270,6 +279,10 @@ export class SalesService {
     journalLines.push({ accountCode: ACCOUNT_CODES.SALES_REVENUE, credit: revenueNet });
     if (taxTotal > 0) {
       journalLines.push({ accountCode: ACCOUNT_CODES.VAT_PAYABLE, credit: taxTotal });
+    }
+    if (totalCogs > 0) {
+      journalLines.push({ accountCode: ACCOUNT_CODES.COST_OF_GOODS_SOLD, debit: totalCogs });
+      journalLines.push({ accountCode: ACCOUNT_CODES.INVENTORY, credit: totalCogs });
     }
     await this.journalService.postJournalEntry(tx, companyId, {
       branchId: warehouse.branchId,
@@ -291,6 +304,7 @@ export class SalesService {
       afterState: {
         totalAmount,
         itemCount: lineData.length,
+        totalCogs,
         paymentMethods: dto.payments.map((p) => p.method),
         invoiceNumber,
         customerId,
@@ -411,11 +425,21 @@ export class SalesService {
     }
 
     for (const item of sale.items) {
-      await this.inventoryService.recordMovement(tx, companyId, {
+      // Milestone 6 (docs/ACCOUNTING.md "COGS / Inventory Valuation"
+      // "Returns"): returns stock at the SAME unit cost it left at
+      // (item.unitCost, captured on the SaleItem at sale time), not
+      // whatever the average happens to be now - otherwise a purchase at a
+      // different price between the sale and its cancellation would corrupt
+      // the average. `undefined` for a pre-Milestone-6 SaleItem (unitCost
+      // was never captured, no COGS was ever posted for it) - the guarded
+      // UPDATE then falls back to the current average cost, a documented,
+      // value-neutral default (see recordMovement's SQL comment).
+      await this.inventoryValuationService.recordReceipt(tx, companyId, {
         warehouseId: sale.warehouseId,
         productId: item.productId,
         type: 'return',
         quantity: Number(item.quantity),
+        unitCost: item.unitCost !== null ? Number(item.unitCost) : undefined,
         referenceType: 'Sale',
         referenceId: sale.id,
         actorMembershipId: membershipId,

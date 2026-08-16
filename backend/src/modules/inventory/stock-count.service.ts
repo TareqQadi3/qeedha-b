@@ -12,6 +12,7 @@ import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { CreateStockCountDto } from './dto/create-stock-count.dto';
 import { QueryStockCountsDto } from './dto/query-stock-counts.dto';
 import { UpdateStockCountLinesDto } from './dto/update-stock-count-lines.dto';
+import { InventoryValuationService } from './inventory-valuation.service';
 import { InventoryService } from './inventory.service';
 
 /**
@@ -27,6 +28,7 @@ export class StockCountService {
   constructor(
     private readonly auditService: AuditService,
     private readonly inventoryService: InventoryService,
+    private readonly inventoryValuationService: InventoryValuationService,
     private readonly branchScopeService: BranchScopeService,
   ) {}
 
@@ -224,7 +226,15 @@ export class StockCountService {
       const difference = line.countedQuantity.minus(line.expectedQuantity);
       if (difference.isZero()) continue;
 
-      await this.inventoryService.recordMovement(tx, companyId, {
+      // Milestone 6 (docs/ACCOUNTING.md "COGS / Inventory Valuation"
+      // "Stock Count"): a "found more" line (difference > 0) values the
+      // extra units at the current average cost of this product/warehouse
+      // (or Product.costPrice if it never carried stock) - recordMovement's
+      // documented fallback, since a count has no other cost information. A
+      // "found less" line (difference < 0) never touches average_cost, only
+      // quantity. Deliberately still NO journal entry here, same as before
+      // this milestone - see "Known Limitations" for why.
+      await this.inventoryValuationService.recordReceipt(tx, companyId, {
         warehouseId: stockCount.warehouseId,
         productId: line.productId,
         type: 'adjustment',

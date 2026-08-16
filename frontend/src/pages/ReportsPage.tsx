@@ -330,6 +330,16 @@ function ProfitAndLossTab() {
             </table>
             </div>
           </Card>
+          <Card>
+            <div className="flex justify-between text-sm text-slate-600">
+              <span>تكلفة البضاعة المباعة (COGS)</span>
+              <span>{money(data.costOfGoodsSold ?? 0)}</span>
+            </div>
+            <div className="mt-2 flex justify-between border-t pt-2 text-sm font-medium text-slate-700">
+              <span>إجمالي الربح (Gross Profit)</span>
+              <span>{money(data.grossProfit ?? data.totalRevenue)}</span>
+            </div>
+          </Card>
           <Card className="bg-brand-50">
             <div className="flex justify-between text-base font-bold">
               <span>صافي الربح / الخسارة</span>

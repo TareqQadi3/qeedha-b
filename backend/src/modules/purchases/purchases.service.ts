@@ -13,7 +13,7 @@ import { ACCOUNT_CODES } from '../accounting/constants/default-chart-of-accounts
 import { JournalService } from '../accounting/journal.service';
 import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
-import { InventoryService } from '../inventory/inventory.service';
+import { InventoryValuationService } from '../inventory/inventory-valuation.service';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { QueryPurchasesDto } from './dto/query-purchases.dto';
 import { PurchaseNumberService } from './purchase-number.service';
@@ -34,7 +34,7 @@ export class PurchasesService {
   constructor(
     private readonly auditService: AuditService,
     private readonly branchScopeService: BranchScopeService,
-    private readonly inventoryService: InventoryService,
+    private readonly inventoryValuationService: InventoryValuationService,
     private readonly journalService: JournalService,
     private readonly purchaseNumberService: PurchaseNumberService,
   ) {}
@@ -241,12 +241,16 @@ export class PurchasesService {
 
     for (const item of purchase.items) {
       // The ONLY write path to stock_levels (docs/SECURITY.md "سلامة
-      // التزامن") - unchanged from Phase 2/3.
-      await this.inventoryService.recordMovement(tx, companyId, {
+      // التزامن") - unchanged from Phase 2/3. Milestone 6: each item's
+      // recorded unitCost feeds the weighted-average cost basis atomically
+      // in the same guarded UPDATE (docs/ACCOUNTING.md "COGS / Inventory
+      // Valuation").
+      await this.inventoryValuationService.recordReceipt(tx, companyId, {
         warehouseId: purchase.warehouseId,
         productId: item.productId,
         type: 'purchase',
         quantity: Number(item.quantity),
+        unitCost: Number(item.unitCost),
         referenceType: 'Purchase',
         referenceId: purchase.id,
         actorMembershipId: membershipId,

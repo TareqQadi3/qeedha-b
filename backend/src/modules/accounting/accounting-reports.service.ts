@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { AccountType, Prisma } from '@prisma/client';
 import { TenantClient } from '../../common/prisma/prisma.service';
 import { round2 } from '../../common/utils/money';
+import { ACCOUNT_CODES } from './constants/default-chart-of-accounts';
 import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { QueryBalanceSheetDto } from './dto/query-balance-sheet.dto';
@@ -241,11 +242,20 @@ export class AccountingReportsService {
     const totalRevenue = round2(revenue.reduce((s, r) => s + r.amount, 0));
     const totalExpense = round2(expenses.reduce((s, r) => s + r.amount, 0));
 
+    // Milestone 6 (docs/ACCOUNTING.md "COGS / Inventory Valuation"): COGS is
+    // just one more row already inside `expenses` (account 5010, posted by
+    // SalesService like any other expense) - picked out here for the
+    // separate Gross Profit figure, not queried again.
+    const costOfGoodsSold =
+      expenses.find((e) => e.accountCode === ACCOUNT_CODES.COST_OF_GOODS_SOLD)?.amount ?? 0;
+
     return {
       revenue,
       expenses,
       totalRevenue,
       totalExpense,
+      costOfGoodsSold,
+      grossProfit: round2(totalRevenue - costOfGoodsSold),
       netProfit: round2(totalRevenue - totalExpense),
       range: { dateFrom: query.dateFrom ?? null, dateTo: query.dateTo ?? null },
     };

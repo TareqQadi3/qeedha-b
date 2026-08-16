@@ -1,5 +1,61 @@
 # سجل التغييرات (Changelog)
 
+## [Milestone 6: Weighted-Average Inventory Valuation & COGS] - 2026-08-16
+
+حسم قرار COGS/تقييم المخزون المُؤجَّل صراحة منذ Milestone 1/5. القرار:
+**Weighted Average (متوسط مرجّح متحرك)** — بعد مراجعة الكود الفعلي
+(`StockLevel` صف واحد لكل Product×Warehouse، لا مفهوم Lot في المخطط
+بأكمله)، وليس FIFO الذي كان سيتطلب طبقة Cost Lot/Layer جديدة كاملة.
+
+### أُضيف
+
+- **Schema**: `stock_levels.average_cost` (Decimal(14,4)، افتراضي 0)،
+  `sale_items.unit_cost` (Decimal(14,4)?، NULL للبيانات القديمة).
+  Migration واحدة (`20260816150000_milestone6_weighted_average_cogs`).
+- **`InventoryValuationService`** (جديد،
+  `backend/src/modules/inventory/inventory-valuation.service.ts`) —
+  المصدر الوحيد لحساب COGS، يُستخدَم من Sales/Purchases/Inventory/
+  StockCount.
+- **`InventoryService.recordMovement` مُمدَّدة**: نفس الـUPDATE الذرّي
+  المحروس الذي يكتب `quantity_on_hand` منذ Phase 2 يكتب الآن
+  `average_cost` أيضًا، بصيغة `CASE`/`COALESCE` كاملة داخل SQL واحد —
+  لا كتابة منفصلة، لا فجوة تزامن جديدة.
+- **`Dr COGS(5010) / Cr Inventory(1200)`** على كل بيع
+  (`SalesService.createSale`) — القيمة مُشتقّة حصرًا من محرّك التقييم،
+  لا مسار يقبلها من العميل (`SaleItemInputDto` لا يحمل حقل تكلفة أصلًا).
+  الحساب `5010` كان مزروعًا منذ Phase 4 ومعلَّقًا "Reserved, unused" —
+  أصبح مُستخدَمًا الآن.
+- **مرتجعات (`cancelSale`)**: تُعيد المخزون بتكلفة البيع الأصلية
+  (`SaleItem.unitCost` المُخزَّن وقت البيع)، لا بالمتوسط الحالي.
+- حقلا `unitCost` اختياريان جديدان على `SetOpeningBalanceDto` و
+  `AdjustStockDto` (fallback موثَّق إلى `Product.costPrice`/المتوسط
+  الحالي إن حُذفا).
+- حقلا `costOfGoodsSold`/`grossProfit` جديدان في استجابة `GET
+  /accounting/reports/profit-and-loss` (إضافة متوافقة خلفيًا).
+- واجهة أمامية: عمودا متوسط التكلفة/قيمة المخزون في `InventoryPage.tsx`،
+  حقل تكلفة اختياري في نموذجَي الرصيد الافتتاحي/التسوية، عرض COGS/Gross
+  Profit في تبويب P&L بـ`ReportsPage.tsx`.
+- اختبارات: 22 اختبار e2e جديد (`milestone6.e2e-spec.ts`، يشمل اختبارَي
+  تزامن حقيقيَّين ومثالًا محسوبًا كاملًا مُتحقَّقًا رقميًا)، 4 اختبارات
+  Vitest جديدة (`InventoryPage.test.tsx`) + تمديد `ReportsPage.test.tsx`،
+  و`golden-path.spec.ts` Playwright مُمدَّد.
+
+### قرارات معمارية مسجَّلة
+
+- **Weighted Average لا FIFO** — الأنسب لشكل `StockLevel` الحالي بأقل
+  تغيير، مُبرَّر بمراجعة الكود لا افتراضًا.
+- **لا ترحيل محاسبي للتسويات/الجرد** — قرار متعمَّد وموثَّق، ليس نسيانًا؛
+  ربطها بالمحاسبة قرار عمل منفصل لم يُطلَب حسمه هنا.
+- **لا تخمين لتكلفة تاريخية** — `SaleItem.unitCost` يبقى NULL لأي سطر
+  بيع سابق لهذه المرحلة، بلا Migration بيانات اختراعية.
+
+### Tests
+
+**161/161** خلفية (139 سابقة + 22 جديدة، صفر تراجع؛ اختباران في
+`milestone1`/`phase4` عُدِّلا ليعكسا سلوك COGS الجديد الصحيح) + **34/34**
+Vitest (30 + 4 جديدة) + Playwright **4/4** — كلها مُتحقَّقة فعليًا
+بالتشغيل. Docker: BLOCKED BY ENVIRONMENT (daemon غير متاح).
+
 ## [Milestone 5: Accounting Completion Verification] - 2026-08-16
 
 طلب هذا الـMilestone بناء Trial Balance/General Ledger/P&L/Balance Sheet/
