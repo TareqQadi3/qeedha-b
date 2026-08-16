@@ -9,6 +9,7 @@ export function RegisterPage() {
   const { refreshMe } = useAuth();
   const [form, setForm] = useState({
     legalName: '',
+    vatNumber: '',
     ownerFullName: '',
     ownerEmail: '',
     password: '',
@@ -24,7 +25,8 @@ export function RegisterPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await api.post('/auth/register-company', form, true);
+      const payload = { ...form, vatNumber: form.vatNumber.trim() || undefined };
+      const res = await api.post('/auth/register-company', payload, true);
       setSession(res.accessToken, res.refreshToken);
       await refreshMe();
       navigate('/');
@@ -44,6 +46,9 @@ export function RegisterPage() {
           <ErrorBanner message={error} />
           <Field label="اسم المنشأة">
             <Input value={form.legalName} onChange={update('legalName')} required />
+          </Field>
+          <Field label="الرقم الضريبي (اختياري)">
+            <Input value={form.vatNumber} onChange={update('vatNumber')} />
           </Field>
           <Field label="اسمك الكامل">
             <Input value={form.ownerFullName} onChange={update('ownerFullName')} required />

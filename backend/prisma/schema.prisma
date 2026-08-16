@@ -66,6 +66,7 @@ model Company {
   journalLines           JournalLine[]
   fiscalPeriods          FiscalPeriod[]
   importJobs             ImportJob[]
+  invoiceCompliance      InvoiceCompliance[]
 
   @@map("companies")
 }
@@ -876,14 +877,72 @@ model Invoice {
   issuedAt    DateTime  @default(now()) @map("issued_at")
   cancelledAt DateTime? @map("cancelled_at")
 
-  company  Company   @relation(fields: [companyId], references: [id])
-  branch   Branch    @relation(fields: [branchId], references: [id])
-  sale     Sale      @relation(fields: [saleId], references: [id])
-  customer Customer? @relation(fields: [customerId], references: [id])
+  company    Company            @relation(fields: [companyId], references: [id])
+  branch     Branch             @relation(fields: [branchId], references: [id])
+  sale       Sale               @relation(fields: [saleId], references: [id])
+  customer   Customer?          @relation(fields: [customerId], references: [id])
+  compliance InvoiceCompliance?
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, customerId])
   @@map("invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 4: ZATCA E-Invoicing Readiness (Phase 1 only - see docs/ZATCA.md)
+// ---------------------------------------------------------------------------
+//
+// Deliberately a SEPARATE table from Invoice, not new columns bolted onto it
+// (matches the placeholder already sketched in docs/DATABASE.md §9 before
+// this milestone) - Invoice stays the internal business record; this table
+// is the "does ZATCA know about this invoice, and how" record, kept
+// entirely out of SalesService/InvoicesService's own concerns. Every
+// Invoice this system produces originates from a POS Sale to a walk-in/
+// retail customer, so it is always a ZATCA "simplified" (B2C) tax invoice -
+// there is no B2B sales-invoicing path in this system, so no separate
+// invoice_type column is needed (see docs/ZATCA.md "Invoice classification").
+
+enum EInvoiceStatus {
+  // The only value ever actually set today - Phase 1 (Generation) is local
+  // QR generation only, no external submission exists (no Phase 2 adapter,
+  // no ZATCA credentials/contract - see EInvoiceService and
+  // ports/zatca-provider.port.ts).
+  not_submitted
+  // Reserved for Phase 2 (Integration), once a real ZATCA API
+  // contract/CSID/credentials exist and a ZatcaProvider adapter is built -
+  // NOT used by any code path in this milestone. Declared now purely so a
+  // future Phase 2 migration doesn't need an enum ALTER (see
+  // docs/DATABASE.md §9 for the full reasoning).
+  pending
+  reported
+  cleared
+  rejected
+}
+
+model InvoiceCompliance {
+  id        String         @id @default(uuid()) @db.Uuid
+  companyId String         @map("company_id") @db.Uuid
+  invoiceId String         @unique @map("invoice_id") @db.Uuid
+  status    EInvoiceStatus @default(not_submitted)
+
+  // Base64-encoded TLV (Tag-Length-Value) payload per ZATCA Phase 1's
+  // published QR specification for simplified tax invoices - see
+  // EInvoiceService/TlvQrService for the encoder and docs/ZATCA.md for the
+  // verified field list and sourcing. NULL when the seller's VAT
+  // registration number isn't on file yet (Company.vatNumber is optional at
+  // registration) - never generated with a blank/placeholder VAT number,
+  // since that would not be a correct QR payload.
+  qrCode      String?   @map("qr_code")
+  generatedAt DateTime? @map("generated_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([companyId, status])
+  @@map("invoice_compliance")
 }
 
 // ---------------------------------------------------------------------------

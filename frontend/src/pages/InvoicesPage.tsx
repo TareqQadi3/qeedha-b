@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 import { api, ApiError } from '../api/client';
-import { Card, ErrorBanner, PageHeader, Pagination } from '../components/ui';
+import { Card, ErrorBanner, Modal, PageHeader, Pagination } from '../components/ui';
 import { useAuth } from '../state/auth';
+
+interface InvoiceCompliance {
+  status: 'not_submitted' | 'pending' | 'reported' | 'cleared' | 'rejected';
+  qrCode: string | null;
+}
 
 interface InvoiceRow {
   id: string;
@@ -12,6 +18,7 @@ interface InvoiceRow {
   issuedAt: string;
   customer: { name: string } | null;
   sale: { payments: { method: string }[] };
+  compliance: InvoiceCompliance | null;
 }
 
 /** Read-only sales/invoice history - see docs/POS.md. Creating a sale happens only on the POS screen; this page is for verification/lookup. */
@@ -21,6 +28,9 @@ export function InvoicesPage() {
   const [meta, setMeta] = useState({ page: 1, pageSize: 20, total: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [qrInvoice, setQrInvoice] = useState<InvoiceRow | null>(null);
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
 
   const load = async (page = meta.page) => {
     setLoading(true);
@@ -40,6 +50,19 @@ export function InvoicesPage() {
     if (hasPermission('invoices.read')) load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const openQr = async (invoice: InvoiceRow) => {
+    setQrInvoice(invoice);
+    setQrImage(null);
+    setQrError(null);
+    if (!invoice.compliance?.qrCode) return;
+    try {
+      const dataUrl = await QRCode.toDataURL(invoice.compliance.qrCode);
+      setQrImage(dataUrl);
+    } catch {
+      setQrError('تعذّر رسم رمز QR');
+    }
+  };
 
   if (!hasPermission('invoices.read')) {
     return <ErrorBanner message="لا تملك صلاحية عرض المبيعات والفواتير" />;
@@ -62,6 +85,7 @@ export function InvoicesPage() {
                   <th className="py-2">طريقة الدفع</th>
                   <th className="py-2">الإجمالي</th>
                   <th className="py-2">الحالة</th>
+                  <th className="py-2">QR</th>
                 </tr>
               </thead>
               <tbody>
@@ -83,11 +107,24 @@ export function InvoicesPage() {
                         {inv.status === 'issued' ? 'سارية' : 'ملغاة'}
                       </span>
                     </td>
+                    <td className="py-2">
+                      {inv.compliance?.qrCode ? (
+                        <button
+                          type="button"
+                          onClick={() => openQr(inv)}
+                          className="text-xs text-brand-600 hover:underline"
+                        >
+                          عرض QR
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {data.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-slate-400">
+                    <td colSpan={7} className="py-6 text-center text-slate-400">
                       لا توجد مبيعات بعد
                     </td>
                   </tr>
@@ -98,6 +135,26 @@ export function InvoicesPage() {
           <Pagination page={meta.page} pageSize={meta.pageSize} total={meta.total} onChange={load} />
         </Card>
       )}
+
+      <Modal
+        open={!!qrInvoice}
+        onClose={() => setQrInvoice(null)}
+        title={`رمز QR - فاتورة ${qrInvoice?.invoiceNumber ?? ''}`}
+      >
+        <ErrorBanner message={qrError} />
+        {qrImage && (
+          <div className="flex flex-col items-center gap-3">
+            <img src={qrImage} alt="رمز QR للفاتورة" className="h-48 w-48" />
+            <p className="text-center text-xs text-slate-500">
+              وفق مواصفة المرحلة الأولى (Phase 1) لهيئة الزكاة والضريبة والجمارك -
+              مُولَّد محليًا، لم يُرسَل بعد لأي واجهة برمجية خارجية.
+            </p>
+          </div>
+        )}
+        {!qrImage && !qrError && (
+          <div className="py-6 text-center text-slate-400">...جارٍ التحضير</div>
+        )}
+      </Modal>
     </div>
   );
 }

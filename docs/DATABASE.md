@@ -338,14 +338,21 @@ File Storage).
 من اسم الملف الأصلي) يشير إلى ملف حقيقي عبر `StorageService`
 (`backend/src/modules/storage`) — راجع `docs/IMPORT_EXCEL.md` "File Storage".
 
-## 9. ZATCA (المرحلة 6)
+## 9. ZATCA (Milestone 4 — Phase 1 فقط منفَّذ)
 
 ```text
-invoice_compliance     حالة الإرسال لكل فاتورة (pending/cleared/reported/rejected)،
-                       UUID، الهاش، previous_invoice_hash، QR payload، رد ZATCA
+invoice_compliance     سجل امتثال منفصل، واحد لكل Invoice (1:1) - status
+                       (فعليًا: not_submitted فقط اليوم)، qr_code (Base64
+                       TLV، NULL إن لم يوجد رقم ضريبي للمنشأة)، generated_at
 ```
-تصميم مفصّل في `ZATCA.md`. لا تُنفَّذ تفاصيل التوقيع/العقدة إلا بعد التأكد من
-المتطلبات الحالية للهيئة عند الوصول لهذه المرحلة.
+
+**منفَّذ فعليًا** (Milestone 4): جدول `invoice_compliance` بنفس نمط
+`FORCE ROW LEVEL SECURITY` + `tenant_isolation` كأي جدول تجاري آخر
+(migration `20260816140000_milestone4_zatca_readiness`)، علاقة 1:1 مع
+`invoices` عبر `invoice_id` الفريد. **لا عمود hash/previous_invoice_hash/
+CSID/signing metadata** أُضيف بعد — تُرِكت هذه عمدًا حتى حسم نطاق سلسلة
+التجزئة (لكل جهاز/فرع/منشأة) وتوفر عقد ZATCA الفعلي، بدل تخمين أسماء/بنية
+حقول ستبقى فارغة إلى أجل غير مسمى. تصميم مفصّل في `docs/ZATCA.md`.
 
 ## 10. Integration Layer (بنية عامة تُبنى في المرحلة 1، بدون أي Provider فعلي)
 
@@ -374,7 +381,7 @@ webhook_events               صندوق وارد عام لأي Webhook خارج�
 
 ---
 
-## الحالة الحالية (منفّذ فعليًا في Prisma حتى Milestone 3)
+## الحالة الحالية (منفّذ فعليًا في Prisma حتى Milestone 4)
 
 الجداول المنفَّذة في `backend/prisma/schema.prisma`:
 
@@ -415,13 +422,16 @@ migration `20260815220000_milestone1_accounting_completion`) — بالإضاف�
 الخدمات الموجودة أصلًا (`ProductsService.create`،
 `InventoryService.setOpeningBalance`، ...).
 
+**Milestone 4 (ZATCA E-Invoicing Readiness — Phase 1 فقط)**: جدول جديد
+واحد فقط — `invoice_compliance` (نفس نمط RLS، migration
+`20260816140000_milestone4_zatca_readiness`، علاقة 1:1 مع `invoices`).
+لا عمود جديد على `invoices` نفسه أو أي جدول آخر. راجع القسم 9 أعلاه
+و`docs/ZATCA.md` للتفصيل الكامل، خصوصًا "ما لم يُنفَّذ، ولماذا".
+
 `integration_transactions` لا يزال مؤجَّلًا حتى وجود Adapter خارجي فعلي
 يستهلكه — لم يُستهلَك بعد لأن الدفع المحلي (نقدي/بطاقة/تحويل) لا يمر عبر
 `integrations` إطلاقًا (`docs/PAYMENTS.md`)، وتعريفه يبقى موثّقًا هنا دون
 إضافته فارغًا بلا استخدام.
-
-باقي الجداول (ZATCA) ستُضاف عبر Migrations جديدة في مراحلها، وليس
-دفعة واحدة الآن.
 
 **Milestone 2 (Production Hardening + Demo/Staging Readiness)**: **لا
 تغييرات على المخطط إطلاقًا** — لا Migration جديدة، لا جدول جديد، لا عمود

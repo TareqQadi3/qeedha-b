@@ -424,3 +424,14 @@ OpeningBalance — ليس كيانًا/جدولًا منفصلًا، بل Journa
 `MembershipRole` نفسها. راجع `docs/IMPORT_EXCEL.md` للتصميم الكامل،
 `docs/DATABASE.md` §8 للجدول، و`docs/SECURITY.md` "استيراد من Excel"
 للاعتبارات الأمنية.
+
+## Milestone 4 (ZATCA E-Invoicing Readiness — Phase 1 فقط)
+
+**لا تغيير على نموذج الهوية/المنشآت نفسه.** جدول جديد واحد فقط
+(`InvoiceCompliance`، tenant-scoped، علاقة 1:1 مع `Invoice` عبر
+`invoiceId` الفريد) — كيان "هل تعرف ZATCA بهذه الفاتورة، وكيف"، منفصل
+تمامًا عن `Invoice` نفسه (الذي يبقى سجل الأعمال الداخلي بلا أي تلوّث
+بتفاصيل امتثال خارجي). لا صلاحيات RBAC جديدة (لا Endpoint مخصص - رمز
+QR يظهر ضمن استجابة `GET /invoices` الموجودة أصلًا، محكومًا بنفس صلاحية
+`invoices.read`). راجع `docs/ZATCA.md` للتصميم الكامل و"ما لم يُنفَّذ،
+ولماذا"، و`docs/DATABASE.md` §9 للجدول.

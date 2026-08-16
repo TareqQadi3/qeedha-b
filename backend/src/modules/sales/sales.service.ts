@@ -12,6 +12,7 @@ import { round2 } from '../../common/utils/money';
 import { AuditService } from '../audit/audit.service';
 import { ACCOUNT_CODES } from '../accounting/constants/default-chart-of-accounts';
 import { JournalLineInput, JournalService } from '../accounting/journal.service';
+import { EInvoiceService } from '../einvoice/einvoice.service';
 import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { InventoryService } from '../inventory/inventory.service';
@@ -39,6 +40,7 @@ export class SalesService {
     private readonly inventoryService: InventoryService,
     private readonly invoiceNumberService: InvoiceNumberService,
     private readonly journalService: JournalService,
+    private readonly einvoiceService: EInvoiceService,
   ) {}
 
   /**
@@ -235,7 +237,7 @@ export class SalesService {
     }
 
     const invoiceNumber = await this.invoiceNumberService.issueNext(tx, companyId);
-    await tx.invoice.create({
+    const invoice = await tx.invoice.create({
       data: {
         companyId,
         branchId: warehouse.branchId,
@@ -249,6 +251,11 @@ export class SalesService {
         totalAmount,
       },
     });
+
+    // ZATCA e-invoicing readiness (Milestone 4, Phase 1 only - see
+    // docs/ZATCA.md): SalesService knows nothing about QR/TLV/compliance
+    // status beyond this one call - see EInvoiceService.
+    await this.einvoiceService.generateForInvoice(tx, companyId, actorUserId, invoice);
 
     // Dr Cash/Bank (per payment) / Cr Sales Revenue (net of discount) / Cr
     // VAT Payable. Deliberately no COGS/Inventory line yet - no inventory

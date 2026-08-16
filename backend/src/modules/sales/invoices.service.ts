@@ -9,6 +9,12 @@ import { QueryInvoicesDto } from './dto/query-invoices.dto';
 const INVOICE_INCLUDE = {
   sale: { include: { items: true, payments: true } },
   customer: true,
+  // Milestone 4 (ZATCA readiness, Phase 1 only) - null when no compliance
+  // record exists yet (should never happen for a real invoice, since
+  // SalesService.createSale always generates one) or when the seller has
+  // no VAT number on file (qrCode itself null in that case - see
+  // EInvoiceService).
+  compliance: true,
 } satisfies Prisma.InvoiceInclude;
 
 /**

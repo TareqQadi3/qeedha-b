@@ -152,6 +152,14 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 المرحلة 2.1 (`BranchScopeService`) المُطبَّقة الآن على `warehouseId`/
 `posDeviceId` أيضًا — راجع `docs/SECURITY.md` "POS/Sale — تفويض".
 
+**Milestone 4 (ZATCA readiness, Phase 1 فقط)**: كل استجابة `Invoice`
+(القائمة والتفاصيل) تتضمن الآن حقل `compliance` — `{status: 'not_submitted',
+qrCode: string | null, generatedAt: string | null}` أو `null` (حالة غير
+متوقَّعة عمليًا). `qrCode` (Base64 TLV، مواصفة ZATCA Phase 1) يكون `null`
+إن لم تملك المنشأة رقمًا ضريبيًا مسجَّلًا — لا `POST`/`PATCH` جديد، لا
+Endpoint مخصص، ولا صلاحية RBAC جديدة (يظهر ضمن `invoices.read` الموجودة
+أصلًا). راجع `docs/ZATCA.md` للتفصيل الكامل.
+
 ## Endpoints المرحلة الرابعة
 
 ### Purchases (`/api/v1/purchases`)
@@ -275,5 +283,7 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 
 ## Endpoints المراحل القادمة
 
-تُضاف تدريجيًا: `/zatca` — يوثَّق في ملف الوحدة الخاص به عند البناء
-الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.
+لا Endpoint مخصص لـZATCA حتى الآن — Phase 1 (توليد QR) مُدمَج ضمن استجابة
+`GET /invoices` الموجودة أصلًا (راجع أعلاه). أي Endpoint خاص بـPhase 2
+(إرسال/Clearance/Reporting) يُضاف لاحقًا فقط عند توفر عقد ZATCA
+واعتمادات حقيقية — راجع `docs/ZATCA.md` "Decision Required".

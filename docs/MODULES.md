@@ -23,7 +23,7 @@
 | `reports` | تقارير مالية وتشغيلية | 4 |
 | `storage` | File Storage abstraction (`FileStorageProvider`, `local` driver — Milestone 3) | 3 — منفَّذ |
 | `imports` | Excel Import Wizard (Upload→Detect→Map→Preview→Validate→Confirm) | 3 — منفَّذ |
-| `zatca` | الفوترة الإلكترونية | 6 |
+| `einvoice` | ZATCA Phase 1 QR generation فقط (`EInvoiceService`, `TlvQrService`, `ZatcaProvider` port غير مُنفَّذ) | 4 — Phase 1 منفَّذ، Phase 2 Blocked |
 | `integrations/providers/qeedha` | Adapter فعلي لقيّدها | 7 |
 
 **ملاحظة نطاق**: مرتجعات جزئية (`sale_returns`)، ورديات كاشير
@@ -82,3 +82,14 @@
 وصول مباشر لـProduct/Customer/Supplier/StockLevel Prisma models من داخل
 `ImportsService` نفسها، ونفس مبدأ الحدود بين الوحدات أعلاه. راجع
 `docs/IMPORT_EXCEL.md` للتصميم الكامل.
+
+## Milestone 4 — وحدة `einvoice`
+
+وحدة صغيرة ومعزولة (`TlvQrService` ترميز TLV بحت، `EInvoiceService`
+التنسيق) لا تستورد شيئًا من `sales`/`accounting`/`inventory` — العكس
+صحيح: `SalesModule` يستورد `EInvoiceModule` (وليس العكس)، فـ`einvoice` لا
+تعرف شيئًا عن Sale/POS/Accounting إطلاقًا، فقط تستقبل بيانات فاتورة جاهزة
+وتُنتج سجل امتثال. `ports/zatca-provider.port.ts` واجهة معرَّفة غير
+مُنفَّذة وغير مسجَّلة في أي مكان (لا `IntegrationRegistry`، لا أي Registry
+آخر) — نقطة توسّع موثَّقة لـPhase 2 فقط. راجع `docs/ZATCA.md` للتفاصيل
+الكاملة.

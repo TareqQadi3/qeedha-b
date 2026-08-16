@@ -1,10 +1,13 @@
 # حالة المشروع (Project Status)
 
 **آخر تحديث**: 2026-08-16
-**المرحلة الحالية**: Milestone 3 — Excel Import (File Storage abstraction
-+ Import Wizard كامل: Upload→Detect→Map→Preview→Validate→Confirm→Import→
-Audit لمنتجات/باركود/تصنيفات/وحدات/عملاء/موردين/رصيد افتتاحي) —
-**مكتملة ومُختبرة**، بانتظار موافقتك الصريحة لبدء المرحلة القادمة
+**المرحلة الحالية**: Milestone 4 — ZATCA E-Invoicing Readiness (توليد رمز
+QR محلي وفق مواصفة Phase 1 المنشورة عند كل فاتورة، جدول امتثال منفصل
+`invoice_compliance`، طبقة `EInvoiceService` معزولة تمامًا عن SalesService/
+InvoicesService؛ **Phase 2 كاملة — XML/Hashing/التوقيع/CSID/الإرسال
+الفعلي — Blocked** بانتظار عقد ZATCA واعتمادات حقيقية) — **مكتملة
+ومُختبرة ضمن نطاقها المُنفَّذ**، بانتظار موافقتك الصريحة لبدء المرحلة
+القادمة
 
 ## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة القادمة
 
@@ -787,14 +790,17 @@ NOT PUSHED
 ## كيف تتحقق من الحالة الحالية محليًا
 
 Backend: `cd backend && npm install && npx prisma migrate deploy && npm run
-prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (**134/134** حاليًا).
+prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (**139/139**
+حاليًا) و`npx jest src` (**4/4** Unit، أول اختبارات Unit في الـBackend).
 Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعمل
-على `http://localhost:3000`)، ثم `npm run test` (**9/9** Vitest) و
-`npm run test:e2e` (Playwright، **3/3** — يتطلب backend يعمل ومهاجَر
+على `http://localhost:3000`)، ثم `npm run test` (**11/11** Vitest) و
+`npm run test:e2e` (Playwright، **4/4** — يتطلب backend يعمل ومهاجَر
 ومزروع).
 Docker/Demo/DEPLOYMENT: راجع `docs/DEPLOYMENT.md` و`docs/DEMO.md`
 (Milestone 2) — تذكَّر أن Docker/CI جاهزان لكن غير مُختبَرين فعليًا بعد.
 Excel Import: راجع `docs/IMPORT_EXCEL.md` للتصميم الكامل (Milestone 3).
+ZATCA: راجع `docs/ZATCA.md` — Phase 1 (QR) فقط مُنفَّذ (Milestone 4)،
+Phase 2 بالكامل Blocked.
 
 # Milestone 3 — Excel Import
 
@@ -900,7 +906,112 @@ excel-import) — كلها مُتحقَّقة فعليًا بالتشغيل.
 ## Push
 NOT PUSHED
 
+---
 
+# Milestone 4 — ZATCA E-Invoicing Readiness
+
+**Status**: Completed (ضمن النطاق القابل للتنفيذ بدون اعتمادات خارجية)
+
+## ملخص: ما هذا الـMilestone وما ليس
+
+جعل qeedha B جاهزًا معماريًا وفنيًا لمتطلبات ZATCA، دون اختراع أي متطلب
+قانوني/تقني غير مؤكَّد. **المُنفَّذ فعليًا**: توليد رمز QR محلي (TLV،
+Base64) وفق مواصفة ZATCA Phase 1 المنشورة على كل فاتورة، عبر طبقة
+`EInvoiceService` معزولة تمامًا (السطر الوحيد الذي تعرفه `SalesService`
+عن ZATCA هو استدعاء واحد بعد إنشاء الفاتورة)، وجدول امتثال منفصل
+(`invoice_compliance`، RLS كاملة). **غير المُنفَّذ، وBlocked صراحة**: أي
+شيء يحتاج اعتمادات/عقد ZATCA حقيقيَين — XML/UBL، Hashing وسلسلة Previous
+Invoice Hash، التوقيع الرقمي، CSID، أو أي اتصال شبكي فعلي بواجهات
+Clearance/Reporting. لم يُخترَع أي عقد API أو بيانات اعتماد وهمية لإنجاح
+الاختبارات.
+
+## ما تم إنجازه
+
+- [x] **Architecture Review حقيقي قبل أي تعديل**: قراءة فعلية لـ
+      `schema.prisma`، `sales.service.ts`، `invoices.service.ts`،
+      `integrations` (ports/registry/webhooks)، و`docs/ZATCA.md` —
+      تأكيد أنه **لا يوجد أي كود ZATCA سابق على الإطلاق** (لا QR، لا
+      XML، لا Hash، لا CSID، لا اتصال خارجي) قبل البدء.
+- [x] **توليد رمز QR (Phase 1)**: `TlvQrService`
+      (`backend/src/modules/einvoice/tlv-qr.service.ts`) — ترميز TLV
+      بايت-بايت (Tag 1 بايت + Length 1 بايت بطول UTF-8 الحقيقي + Value)
+      للحقول الخمسة المنشورة (اسم البائع، الرقم الضريبي، الطابع الزمني
+      ISO 8601، إجمالي الفاتورة، إجمالي الضريبة)، Base64 للناتج الكامل.
+      **مُتحقَّق منه بفك ترميز فعلي واسترجاع القيم بالضبط** (اختبارات
+      Unit + e2e)، وليس افتراضًا. تحقق من المواصفة عبر مصادر تقنية ثانوية
+      متعددة مستقلة (الوصول المباشر لملف zatca.gov.sa الرسمي كان محظورًا
+      في بيئة التطوير) — موثَّق بصراحة في `docs/ZATCA.md`.
+- [x] **تصنيف الفاتورة**: كل فاتورة في هذا النظام "مبسّطة" (B2C) لأنها
+      تُصدَر حصرًا من POS — قرار مبني على واقع نطاق المنتج (بقالة/سوبرماركت)،
+      موثَّق كسبب لعدم وجود عمود `invoiceType`، وليس تبسيطًا اعتباطيًا.
+- [x] **`invoice_compliance` (جدول جديد منفصل)**: 1:1 مع `Invoice`، RLS
+      كاملة (`FORCE ROW LEVEL SECURITY` + `tenant_isolation`)، بدون أي
+      عمود hash/CSID/signing وهمي — تُرِكت هذه الأعمدة كاملةً بدل تخمين
+      أسماء/بنية ستبقى فارغة لأجل غير مسمى.
+      `EInvoiceStatus.not_submitted` هي القيمة الوحيدة المُستخدَمة فعليًا؛
+      باقي القيم (`pending`/`reported`/`cleared`/`rejected`) محجوزة
+      لـPhase 2 فقط، موثَّق صراحة أنها غير مُستخدَمة اليوم.
+- [x] **عزل معماري حقيقي**: `SalesService.createSale` تستدعي
+      `EInvoiceService.generateForInvoice(...)` **مرة واحدة فقط** بعد
+      `tx.invoice.create(...)` — لا تغيير آخر على منطق البيع/المخزون/
+      المحاسبة. مُتحقَّق منه: **134 اختبارًا سابقًا لا تزال 134/134
+      ناجحة بعد هذا الربط**، صفر تراجع.
+- [x] **`ZatcaProvider` (port لـPhase 2)**: واجهة معرَّفة بوضوح
+      (`checkCompliance`/`clearInvoice`/`reportInvoice`) — **غير مُنفَّذة
+      وغير مسجَّلة في أي مكان**، بنفس مبدأ `IntegrationRegistry` قبل وجود
+      أي Payment adapter فعلي. أسماء الدوال تصميم هذا المشروع، وليست نسخة
+      عن عقد ZATCA فعلي (لم يُراجَع).
+- [x] **Audit**: كل توليد سجل امتثال يُسجَّل عبر `AuditService` الموجود
+      أصلًا (`einvoice.compliance.generate`) — لا Audit system جديد.
+- [x] **واجهة أمامية حقيقية**: زر "عرض QR" في صفحة المبيعات/الفواتير
+      يظهر **فقط** للفواتير التي تملك رمزًا فعليًا (لا حالة وهمية)، يفتح
+      نافذة تعرض صورة QR حقيقية (مكتبة `qrcode`) مع تنويه صريح "مُولَّد
+      محليًا، لم يُرسَل بعد لأي واجهة برمجية خارجية" — لا ادّعاء امتثال.
+      حقل "الرقم الضريبي (اختياري)" أُضيف لنموذج التسجيل تحديدًا لأن
+      الميزة كانت ستبقى غير قابلة للوصول من أي مستخدم حقيقي بدونه رغم
+      اكتمالها في الخادم (لا شاشة إعدادات منشأة كاملة أُنشئت — حقل واحد
+      فقط في نموذج موجود أصلًا).
+- [x] **اختبارات شاملة، لا Fake Compliance**: 5 اختبارات e2e جديدة
+      (`einvoice.e2e-spec.ts`) + 4 اختبارات Unit جديدة
+      (`tlv-qr.service.spec.ts`، أول ملف Unit test في الـBackend) + 2
+      اختبار Vitest + 1 مجموعة Playwright جديدة (تسجيل حقيقي برقم ضريبي
+      → بيع → رمز QR حقيقي `data:image/png;base64,...` على الشاشة). لا
+      اختبار واحد يفترض `status === 'CLEARED'` أو أي حالة إرسال لم تحدث
+      فعليًا.
+
+## Not Implemented (بوضوح، وليس نسيانًا)
+
+- توليد XML/UBL.
+- Hashing (SHA-256) وسلسلة Previous Invoice Hash.
+- التوقيع الرقمي (Cryptographic Stamp).
+- تسجيل/Onboarding لدى ZATCA للحصول على CSID.
+- أي اتصال شبكي فعلي بواجهات Clearance/Reporting/Compliance.
+- `CertificateProvider`/`SecretProvider` (لا حاجة فعلية لهما بدون شيء
+  حقيقي ليُخزَّن بعد).
+
+## Blocked (يحتاج قرارًا/اعتمادات منك)
+
+- **الموجة (Wave) والحد المالي**: هل يحتاج هذا التاجر تحديدًا Phase 1
+  فقط أم Phase 1+2 مباشرة؟ قرار تجاري/قانوني لا يُستنتَج من الكود.
+- **نطاق سلسلة Previous Invoice Hash**: لكل جهاز POS أم لكل فرع أم عام
+  للمنشأة؟ موثَّق كسؤال مفتوح في `docs/ZATCA.md` منذ ما قبل هذا
+  الـMilestone، لا يزال غير محسوم.
+- **عقد ZATCA API الفعلي**: Endpoints، صيغ الطلب/الاستجابة — لم يُراجَع.
+- **CSID + شهادة + مفتاح خاص**: يحتاج عملية Onboarding فعلية لدى ZATCA
+  لهذا التاجر تحديدًا.
+
+## Tests
+
+**139/139** خلفية e2e (134 سابقة + 5 جديدة، صفر تراجع) + **4/4** Unit
+جديدة (أول ملف Unit في الـBackend) + **11/11** Vitest (9 + 2 جديدة) +
+Playwright **4/4** (3 سابقة + 1 جديدة) — كلها مُتحقَّقة فعليًا بالتشغيل.
+
+## Push
+NOT PUSHED
+
+---
+
+## سجل تحديثات هذا الملف
 
 - 2026-08-15: إنشاء الملف عند بدء المرحلة 1.
 - 2026-08-15: المرحلة 1 مكتملة ومُختبرة (10/10 اختبارات e2e ناجحة، build/lint نظيفان).
@@ -933,3 +1044,10 @@ NOT PUSHED
   فوق الخدمات الموجودة أصلًا، بلا منطق موازٍ) مكتمل ومُختبر (134/134 خلفية
   بلا تراجع + 9/9 Vitest + Playwright 3/3 مُلتزَمة، جدول جديد واحد فقط
   `import_jobs` بـRLS كامل) — بانتظار موافقة صريحة لبدء المرحلة القادمة.
+- 2026-08-16: Milestone 4 (ZATCA E-Invoicing Readiness — توليد رمز QR
+  محلي Phase 1 فقط، معزول تمامًا عن SalesService/InvoicesService عبر
+  `EInvoiceService`، جدول جديد واحد فقط `invoice_compliance` بـRLS
+  كامل؛ Phase 2 بالكامل — XML/Hashing/التوقيع/CSID/الإرسال الفعلي —
+  Blocked صراحة بانتظار عقد ZATCA واعتمادات حقيقية) مكتمل ومُختبر ضمن
+  نطاقه (139/139 خلفية بلا تراجع + 4/4 Unit جديدة + 11/11 Vitest +
+  Playwright 4/4) — بانتظار موافقة صريحة لبدء المرحلة القادمة.
