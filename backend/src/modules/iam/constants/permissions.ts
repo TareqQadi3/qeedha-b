@@ -150,6 +150,18 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'accounting',
     description: 'إنشاء وإقفال وإعادة فتح الفترات المحاسبية',
   },
+
+  // Milestone 3: Excel Import
+  {
+    key: 'import.read',
+    category: 'import',
+    description: 'عرض عمليات الاستيراد من Excel وسجلها',
+  },
+  {
+    key: 'import.create',
+    category: 'import',
+    description: 'رفع ملف Excel وتنفيذ استيراد بيانات (منتجات/عملاء/موردون/مخزون افتتاحي...)',
+  },
 ];
 
 export const PERMISSION_KEYS = {
@@ -199,6 +211,8 @@ export const PERMISSION_KEYS = {
   ACCOUNTING_AP_VIEW: 'accounting.ap.view',
   ACCOUNTING_OPENING_BALANCE_MANAGE: 'accounting.opening_balance.manage',
   ACCOUNTING_PERIOD_MANAGE: 'accounting.period.manage',
+  IMPORT_READ: 'import.read',
+  IMPORT_CREATE: 'import.create',
 } as const;
 
 export const ALL_PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);

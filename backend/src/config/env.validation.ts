@@ -49,6 +49,20 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   CORS_ALLOWED_ORIGINS?: string;
+
+  // File storage driver for Excel Import uploads (docs/IMPORT_EXCEL.md "File
+  // Storage") - only "local" is implemented; see StorageModule. Optional,
+  // defaults to "local".
+  @IsOptional()
+  @IsString()
+  STORAGE_DRIVER?: string;
+
+  // Local-disk directory the "local" storage driver writes uploaded files
+  // under (never web-served, never inside the built frontend). Optional,
+  // defaults to "./storage-data".
+  @IsOptional()
+  @IsString()
+  STORAGE_LOCAL_DIR?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

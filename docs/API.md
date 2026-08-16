@@ -252,7 +252,28 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 كلاهما يمران عبر `JournalService` الموجودة أصلًا، وليس عبر أي مسار جديد
 للتلاعب المباشر بقيد.
 
+## Endpoints Milestone 3: Excel Import
+
+راجع `docs/IMPORT_EXCEL.md` للتصميم الكامل خلف كل خطوة. رفع الملف
+(`POST /imports/jobs`) هو الوحيد `multipart/form-data`؛ باقي الجسم عبر
+`application/json` كالمعتاد.
+
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/imports/entity-types` | أنواع البيانات المدعومة + حقولها المطلوبة/الاختيارية | `import.read` |
+| GET | `/imports/jobs` | قائمة مهام الاستيراد لهذه المنشأة (مرقَّمة) | `import.read` |
+| GET | `/imports/jobs/:id` | تفاصيل مهمة استيراد واحدة | `import.read` |
+| POST | `/imports/jobs` | رفع ملف Excel (حقل `file`) + `entityType` (+ `targetWarehouseId` إلزامي لـ`opening_stock`) + `clientReferenceId` اختياري (idempotency) — يحلّل الملف فورًا ويقترح ربط الأعمدة | `import.create` |
+| PATCH | `/imports/jobs/:id/mapping` | حفظ/تعديل ربط الأعمدة (`{mapping: {field: columnIndex}}`) | `import.create` |
+| GET | `/imports/jobs/:id/preview` | معاينة كاملة (عدد صالح/به أخطاء + عيّنة) — **بلا أي كتابة** | `import.create` |
+| POST | `/imports/jobs/:id/validate` | تحقق كامل من كل الصفوف، يُخزَّن على المهمة | `import.create` |
+| POST | `/imports/jobs/:id/confirm` | التنفيذ الفعلي — يكتب كل صف صالح عبر الخدمة الموجودة أصلًا لنوعه؛ مؤمَّن (idempotent) على مستوى المهمة | `import.create` |
+| POST | `/imports/jobs/:id/cancel` | إلغاء مهمة لم تُنفَّذ بعد | `import.create` |
+
+لا `GET` لتنزيل الملف الخام لأي مهمة — غير مطلوب في هذه المرحلة، وتقليل
+سطح الهجوم عمدًا (راجع `docs/IMPORT_EXCEL.md` "الأمان").
+
 ## Endpoints المراحل القادمة
 
-تُضاف تدريجيًا: `/import`, `/zatca` — كل منها يوثَّق في ملف الوحدة
-الخاص بها عند البناء الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.
+تُضاف تدريجيًا: `/zatca` — يوثَّق في ملف الوحدة الخاص به عند البناء
+الفعلي، تجنبًا لتوثيق Endpoints غير موجودة.

@@ -65,6 +65,7 @@ model Company {
   journalEntries         JournalEntry[]
   journalLines           JournalLine[]
   fiscalPeriods          FiscalPeriod[]
+  importJobs             ImportJob[]
 
   @@map("companies")
 }
@@ -1190,4 +1191,86 @@ model FiscalPeriod {
   @@index([companyId, startDate, endDate])
   @@index([companyId, status])
   @@map("fiscal_periods")
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 3: Excel Import
+// ---------------------------------------------------------------------------
+//
+// File bytes never live in the database - only a storage key
+// ("imports/<companyId>/<jobId>/source.xlsx", always server-generated, never
+// derived from the client's filename - see StorageService/ImportsService) and
+// small metadata do. This mirrors the existing Product.imageKey convention
+// (a plain string column, no separate "Files" table) rather than inventing a
+// new generic file model - the StorageService abstraction (code, not a
+// table) is what's reusable across future features.
+
+enum ImportEntityType {
+  products
+  barcodes
+  categories
+  units
+  customers
+  suppliers
+  opening_stock
+}
+
+enum ImportJobStatus {
+  uploaded
+  analyzing
+  ready
+  validating
+  validated
+  importing
+  completed
+  failed
+  cancelled
+}
+
+model ImportJob {
+  id                String            @id @default(uuid()) @db.Uuid
+  companyId         String            @map("company_id") @db.Uuid
+  actorMembershipId String            @map("actor_membership_id") @db.Uuid
+  actorUserId       String            @map("actor_user_id") @db.Uuid
+  entityType        ImportEntityType  @map("entity_type")
+  status            ImportJobStatus   @default(uploaded)
+
+  // Set only for entityType = opening_stock (the warehouse every row's
+  // quantity is applied to - chosen once for the whole job, never read from
+  // a spreadsheet column, since it must pass the same branch-scope check as
+  // every other inventory write).
+  targetWarehouseId String?           @map("target_warehouse_id") @db.Uuid
+
+  fileKey          String  @map("file_key")
+  // Sanitized (path separators/control characters stripped) for display
+  // only - never used to construct a filesystem path. See StorageService.
+  originalFilename String  @map("original_filename")
+  fileSizeBytes    Int     @map("file_size_bytes")
+
+  detectedColumns Json? @map("detected_columns")
+  columnMapping   Json? @map("column_mapping")
+
+  totalRows    Int? @map("total_rows")
+  validRows    Int? @map("valid_rows")
+  errorRows    Int? @map("error_rows")
+  importedRows Int? @map("imported_rows")
+  // Capped list of {row, field, message} - see IMPORT_MAX_STORED_ERRORS.
+  // Never the row's full raw data, just the specific offending value(s).
+  validationErrors Json? @map("validation_errors")
+  failureReason    String? @map("failure_reason")
+
+  // Idempotency, same pattern as Sale/Purchase/Expense.clientReferenceId.
+  clientReferenceId String? @map("client_reference_id")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  validatedAt DateTime? @map("validated_at")
+  importedAt  DateTime? @map("imported_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, clientReferenceId])
+  @@index([companyId, status])
+  @@index([companyId, entityType, createdAt])
+  @@map("import_jobs")
 }

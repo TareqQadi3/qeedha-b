@@ -23,6 +23,8 @@ import { TenancyModule } from './modules/tenancy/tenancy.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
+import { StorageModule } from './modules/storage/storage.module';
+import { ImportsModule } from './modules/imports/imports.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { ExpensesModule } from './modules/expenses/expenses.module';
     AccountingModule,
     PurchasesModule,
     ExpensesModule,
+    StorageModule,
+    ImportsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

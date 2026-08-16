@@ -1,5 +1,69 @@
 # سجل التغييرات (Changelog)
 
+## [Milestone 3: Excel Import] - 2026-08-16
+
+نظام استيراد بيانات جماعي حقيقي من ملفات Excel (.xlsx)، مبني بالكامل فوق
+الخدمات الموجودة أصلًا (`ProductsService`، `CatalogService`،
+`CustomersService`، `SuppliersService`،
+`InventoryService.setOpeningBalance`) — بلا منطق أعمال موازٍ جديد، وبلا
+تغيير على أي جدول موجود سوى جدول جديد واحد (`import_jobs`).
+
+### أُضيف
+
+- **File Storage abstraction**: `backend/src/modules/storage` —
+  `FileStorageProvider` interface + `LocalFileStorageProvider` (المُنفَّذ
+  الوحيد، مُتحقَّق منه بالتشغيل) + `StorageService`. مزوّد S3-compatible
+  **مصمَّم له، غير مُنفَّذ** (لا اعتمادات حقيقية لاختباره بصدق). مفاتيح
+  التخزين مولَّدة من الخادم دائمًا (`imports/<companyId>/<jobId>/source.xlsx`)
+  — Path traversal غير ممكن بنيويًا.
+- **`ImportJob` (جدول جديد، RLS كامل)**: `backend/src/modules/imports` —
+  حالات `uploaded → analyzing → ready → validating → validated →
+  importing → completed`/`failed`/`cancelled`. 7 أنواع بيانات: منتجات،
+  باركود، تصنيفات، وحدات، عملاء، موردون، رصيد افتتاحي للمخزون.
+- **التدفق الكامل**: Upload (تحقق بصمة ZIP حقيقية + حد حجم 5MB) → Detect
+  (اقتراح ربط أعمدة تلقائي) → Map (`PATCH .../mapping`) → Preview (بلا أي
+  كتابة، مُختبَر e2e) → Validate (تحقق شامل: حقول مطلوبة، تكرار داخل
+  الملف ومقابل البيانات الموجودة، مراجع تصنيف/علامة/وحدة، حد أقصى 5000
+  صف) → Confirm (الكتابة الفعلية الوحيدة، كل صف بمعاملة منفصلة فلا
+  يُفسِد فشل صف واحد البقية) → Audit (كل خطوة حسّاسة مُدقَّقة).
+- **Idempotency**: `clientReferenceId` عند الرفع (نفس نمط
+  Sale/Purchase/Expense) + `confirm` مؤمَّن على مستوى المهمة (استدعاؤه
+  مرتين لا يستورد الصفوف مرتين) — كلاهما مُختبَر e2e.
+- **RBAC**: صلاحيتان جديدتان فقط (`import.read`/`import.create`) في نظام
+  RBAC الموجود أصلًا.
+- **أمان**: بصمة ملف حقيقية، حد حجم/صفوف صريح، حماية Formula/CSV
+  injection (`sanitizeImportedText`)، لا Endpoint لتنزيل ملف خام، عزل
+  مستأجرين + IDOR (404 على مهمة منشأة أخرى، مُختبَر e2e)، نطاق
+  الفروع/المستودعات لاستيراد الرصيد الافتتاحي (مُختبَر e2e).
+- **واجهة أمامية**: `frontend/src/pages/ImportPage.tsx` (`/import`) —
+  صفحة واحدة تتبع حالة `ImportJob` الحقيقية، لا بيانات وهمية، RBAC
+  gating، Loading/Error/Success لكل خطوة، متوافقة مع RTL والتصميم
+  المتجاوب من Milestone 2.
+- **اختبارات**: 22 اختبار e2e خلفي جديد (`imports.e2e-spec.ts`)، اختباران
+  Vitest جديدان (`ImportPage.test.tsx`)، ومجموعة Playwright جديدة
+  (`excel-import.spec.ts`، بملف `.xlsx` حقيقي مُلتزَم بالمستودع
+  `frontend/e2e/fixtures/import-products.xlsx`) — كلها نُفِّذت فعليًا
+  ونجحت.
+- توثيق جديد/مُحدَّث: `docs/IMPORT_EXCEL.md` (أُعيدت كتابته بالكامل من
+  تصميم مرجعي إلى توثيق التنفيذ الفعلي)، `docs/DATABASE.md`،
+  `docs/DOMAIN_MODEL.md`، `docs/MODULES.md`، `docs/SECURITY.md`،
+  `docs/TESTING.md`، `docs/API.md`، `docs/PROJECT_STATUS.md`.
+
+### قرارات معمارية مسجَّلة
+
+- **لا جدول `import_job_rows` منفصل** — نتيجة كل صف تُعاد حسابها من
+  الملف المخزَّن عند كل خطوة، لا صف قاعدة بيانات مستقل لكل سطر Excel.
+- **لا تحديث سجل موجود عبر الاستيراد** — إنشاء فقط؛ SKU/مرجع مكرر يُرفَض
+  كخطأ، لا يُحدِّث السجل القائم (تبسيط متعمَّد يتجنّب مخاطر Overwrite).
+- **مراجع الأسماء لا تُنشَأ تلقائيًا** إن لم توجد — تُرفَض كخطأ.
+- **لا Queue/معالجة خلفية** — الملفات صغيرة بما يكفي (5MB/5000 صف) لتُعالَج
+  ضمن دورة الطلب/الاستجابة نفسها.
+
+### Tests
+
+**134/134** خلفية (112 سابقة + 22 جديدة، صفر تراجع) + **9/9** Vitest (7 +
+2 جديدة) + Playwright **3/3** — كلها مُتحقَّقة فعليًا بالتشغيل.
+
 ## [Milestone 2: Production Hardening + Demo/Staging Readiness] - 2026-08-15
 
 لا منطق أعمال جديد ولا تغيير على المخطط — تصليب تشغيلي/أمني للنظام

@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/customers', label: 'العملاء' },
   { to: '/suppliers', label: 'الموردون' },
   { to: '/purchases', label: 'المشتريات' },
+  { to: '/import', label: 'استيراد من Excel' },
   { to: '/expenses', label: 'المصروفات' },
   { to: '/accounting', label: 'الحسابات والقيود' },
   { to: '/reports', label: 'التقارير المحاسبية' },

@@ -7,3 +7,5 @@ dist/
 *.log
 coverage/
 .DS_Store
+storage-data/
+storage-data-test/

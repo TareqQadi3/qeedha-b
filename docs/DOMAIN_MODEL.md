@@ -411,3 +411,16 @@ OpeningBalance — ليس كيانًا/جدولًا منفصلًا، بل Journa
 (`GET /iam/users`) أصبح مُرقَّمًا (`{data, meta}`) بدل مصفوفة مسطّحة غير
 محدودة — لا تغيير على `Membership`/`Role`/`Permission` نفسها، راجع
 `docs/API.md` و`docs/PROJECT_STATUS.md` قسم Milestone 2.
+
+## Milestone 3 (Excel Import)
+
+**لا تغيير على نموذج الهوية/المنشآت نفسه.** جدول جديد واحد فقط
+(`ImportJob`، tenant-scoped بنفس نمط RLS المعتاد) يُضاف كيان أعمال جديد
+بحت — `Company` → `ImportJob` مباشرة (`companyId`)، بالإضافة لمرجعَين
+لهوية المنفِّذ (`actorMembershipId`/`actorUserId`) بنفس نمط كل كيان أعمال
+آخر في هذا النظام (`Sale.actorMembershipId`، إلخ) — **وليس نموذج هوية
+جديدًا موازيًا**. صلاحيتان جديدتان فقط في جدول `Permission` الموجود أصلًا
+(`import.read`/`import.create`)، لا تغيير على `Role`/`RolePermission`/
+`MembershipRole` نفسها. راجع `docs/IMPORT_EXCEL.md` للتصميم الكامل،
+`docs/DATABASE.md` §8 للجدول، و`docs/SECURITY.md` "استيراد من Excel"
+للاعتبارات الأمنية.

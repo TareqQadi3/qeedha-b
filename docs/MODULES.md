@@ -21,7 +21,8 @@
 | `expenses` | المصروفات وفئاتها | 4 |
 | `accounting` | دليل الحسابات، القيود، الأستاذ، الميزانيات | 4 |
 | `reports` | تقارير مالية وتشغيلية | 4 |
-| `import` | Excel Import Wizard | 5 |
+| `storage` | File Storage abstraction (`FileStorageProvider`, `local` driver — Milestone 3) | 3 — منفَّذ |
+| `imports` | Excel Import Wizard (Upload→Detect→Map→Preview→Validate→Confirm) | 3 — منفَّذ |
 | `zatca` | الفوترة الإلكترونية | 6 |
 | `integrations/providers/qeedha` | Adapter فعلي لقيّدها | 7 |
 
@@ -69,3 +70,15 @@
 خدمة وسيطة، بنفس النمط المُتَّبع أصلًا في `InventoryService` (فحوصات ملكية
 مباشرة عبر `tx` المشترك، وليس عبر كل خدمة مالكة). راجع `docs/SALES.md`،
 `docs/PAYMENTS.md`، `docs/INVOICES.md` للتفاصيل الكاملة.
+
+## Milestone 3 — وحدتا `storage` و`imports`
+
+`storage` وحدة بنية تحتية صغيرة ومستقلة (لا تعرف شيئًا عن Excel/Import
+تحديدًا) — تُصدِّر `StorageService` فقط. `imports` تستوردها، وتستورد أيضًا
+`CatalogModule`/`InventoryModule`/`PartiesModule`/`AuditModule` الموجودة
+أصلًا لتستدعي خدماتها العامة مباشرة (`ProductsService.create`،
+`CatalogService.createCategory/createUnit`، `CustomersService.create`،
+`SuppliersService.create`، `InventoryService.setOpeningBalance`) — بلا أي
+وصول مباشر لـProduct/Customer/Supplier/StockLevel Prisma models من داخل
+`ImportsService` نفسها، ونفس مبدأ الحدود بين الوحدات أعلاه. راجع
+`docs/IMPORT_EXCEL.md` للتصميم الكامل.

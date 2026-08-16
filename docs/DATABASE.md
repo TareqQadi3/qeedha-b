@@ -312,14 +312,31 @@ CREATE UNIQUE INDEX "journal_entries_one_active_opening_balance"
 للآلية الكاملة (بما فيها العكس عبر `reversalOfEntryId`، لا التعديل
 المباشر).
 
-## 8. Import (المرحلة 5)
+## 8. Import (Milestone 3 — منفَّذ)
 
 ```text
-import_jobs         ملف مرفوع، النوع (منتجات/عملاء/موردون/مخزون/أرصدة)، الحالة
-import_job_rows       كل صف مع نتيجة المعالجة (نجاح/خطأ/تكرار) وسبب الخطأ
+import_jobs          ملف مرفوع، النوع (products/barcodes/categories/units/
+                      customers/suppliers/opening_stock)، الحالة، مفتاح
+                      التخزين، ربط الأعمدة (JSONB)، عدّادات الصفوف، أخطاء
+                      التحقق (JSONB، محدودة العدد)، clientReferenceId
 ```
-لا أعمدة ثابتة مفترضة لكل نوع بيانات — Mapping يُحفظ كـ JSONB لكل `import_job`
-لأن أعمدة ملفات Excel تختلف من تاجر لآخر (انظر `IMPORT_EXCEL.md`).
+
+تبسيط عمدي عن التصميم الأولي المخطَّط أعلاه: **لا يوجد جدول `import_job_rows`
+منفصل** — كل صف بيانات الملف يُعاد قراءته وتحقيقه من الملف المخزَّن عند
+كل خطوة (Preview/Validate/Confirm)، بدل تخزين صف مستقل بقاعدة البيانات لكل
+سطر Excel (قد يصل 5000 صف). النتيجة النهائية لكل صف (نجاح/خطأ) تُخزَّن على
+`import_jobs.validation_errors` كمصفوفة JSON **محدودة العدد** (أول 500 خطأ
+فقط - `MAX_STORED_VALIDATION_ERRORS`) للتدقيق، لا كل صف. لا أعمدة ثابتة
+مفترضة لأي نوع بيانات — الربط (`column_mapping`) يُحفظ كـJSONB لأن أعمدة
+ملفات Excel تختلف من تاجر لآخر، تمامًا كما كان مخطَّطًا. راجع
+`docs/IMPORT_EXCEL.md` للتصميم الكامل (State machine، Validation، Idempotency،
+File Storage).
+
+ملفات Excel المرفوعة نفسها **لا تُخزَّن في قاعدة البيانات إطلاقًا** — فقط
+مفتاح تخزين نصي (`import_jobs.file_key`، الصيغة
+`imports/<companyId>/<jobId>/source.xlsx`، مُولَّد من الخادم دائمًا وليس
+من اسم الملف الأصلي) يشير إلى ملف حقيقي عبر `StorageService`
+(`backend/src/modules/storage`) — راجع `docs/IMPORT_EXCEL.md` "File Storage".
 
 ## 9. ZATCA (المرحلة 6)
 
@@ -357,7 +374,7 @@ webhook_events               صندوق وارد عام لأي Webhook خارج�
 
 ---
 
-## الحالة الحالية (منفّذ فعليًا في Prisma حتى نهاية المرحلة 4)
+## الحالة الحالية (منفّذ فعليًا في Prisma حتى Milestone 3)
 
 الجداول المنفَّذة في `backend/prisma/schema.prisma`:
 
@@ -389,12 +406,21 @@ migration `20260815220000_milestone1_accounting_completion`) — بالإضاف�
 كلها تقرأ/تكتب عبر `journal_entries`/`journal_lines` الموجودتين أصلًا،
 بلا أي حالة مخزَّنة موازية. لا تعديل على أي جدول من المراحل السابقة.
 
+**Milestone 3 (Excel Import)**: جدول جديد واحد فقط — `import_jobs` (نفس
+نمط `FORCE ROW LEVEL SECURITY` + `tenant_isolation`، migration
+`20260816120000_milestone3_excel_import`). لا جدول `import_job_rows`
+منفصل (راجع القسم 8 أعلاه للسبب). لا تعديل على أي جدول من المراحل
+السابقة، ولا تعديل على `Product`/`Customer`/`Supplier`/`StockMovement`
+وغيرها من الجداول التي يكتب إليها الاستيراد — الكتابة تمر حصرًا عبر
+الخدمات الموجودة أصلًا (`ProductsService.create`،
+`InventoryService.setOpeningBalance`، ...).
+
 `integration_transactions` لا يزال مؤجَّلًا حتى وجود Adapter خارجي فعلي
 يستهلكه — لم يُستهلَك بعد لأن الدفع المحلي (نقدي/بطاقة/تحويل) لا يمر عبر
 `integrations` إطلاقًا (`docs/PAYMENTS.md`)، وتعريفه يبقى موثّقًا هنا دون
 إضافته فارغًا بلا استخدام.
 
-باقي الجداول (Import, ZATCA) ستُضاف عبر Migrations جديدة في مراحلها، وليس
+باقي الجداول (ZATCA) ستُضاف عبر Migrations جديدة في مراحلها، وليس
 دفعة واحدة الآن.
 
 **Milestone 2 (Production Hardening + Demo/Staging Readiness)**: **لا

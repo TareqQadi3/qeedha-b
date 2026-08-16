@@ -50,6 +50,11 @@ database}}`، أو `503` إن فشل فحص قاعدة البيانات — را
 `durationMs`) — لا رؤوس/query/body تصل إلى الـLog أبدًا، فلا سرّ يمكن أن
 يتسرب إليه (راجع `docs/SECURITY.md` "Logging المهيكل").
 
+**استيراد من Excel (Milestone 3)**: `STORAGE_DRIVER` (افتراضي `local`) و
+`STORAGE_LOCAL_DIR` (افتراضي `./storage-data`، مجلد ملفات الاستيراد
+المرفوعة — خارج git) اختياريان في `.env.example`. راجع
+`docs/IMPORT_EXCEL.md` للتصميم الكامل.
+
 ## لماذا يوجد دوران لقاعدة البيانات (roles)؟
 
 `qeedha_dev`: الدور الرئيسي للتطبيق، خاضع لـRow-Level Security بالكامل

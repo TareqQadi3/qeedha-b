@@ -1,9 +1,9 @@
 # حالة المشروع (Project Status)
 
-**آخر تحديث**: 2026-08-15
-**المرحلة الحالية**: Milestone 2 — Production Hardening + Demo/Staging
-Readiness (CORS/Health/Logging + إصلاحات أداء + Docker/CI + بذر بيانات
-تجريبية + إصلاحات RBAC/استجابة/اختبارات آلية في الواجهة الأمامية) —
+**آخر تحديث**: 2026-08-16
+**المرحلة الحالية**: Milestone 3 — Excel Import (File Storage abstraction
++ Import Wizard كامل: Upload→Detect→Map→Preview→Validate→Confirm→Import→
+Audit لمنتجات/باركود/تصنيفات/وحدات/عملاء/موردين/رصيد افتتاحي) —
 **مكتملة ومُختبرة**، بانتظار موافقتك الصريحة لبدء المرحلة القادمة
 
 ## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة القادمة
@@ -787,14 +787,120 @@ NOT PUSHED
 ## كيف تتحقق من الحالة الحالية محليًا
 
 Backend: `cd backend && npm install && npx prisma migrate deploy && npm run
-prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (**112/112** حاليًا).
+prisma:seed && npm run start:dev`، ثم `npm run test:e2e` (**134/134** حاليًا).
 Frontend: `cd frontend && npm install && npm run dev` (يتطلب backend يعمل
-على `http://localhost:3000`)، ثم `npm run test` (**7/7** Vitest) و
-`npm run test:e2e` (Playwright — يتطلب backend يعمل ومهاجَر ومزروع).
+على `http://localhost:3000`)، ثم `npm run test` (**9/9** Vitest) و
+`npm run test:e2e` (Playwright، **3/3** — يتطلب backend يعمل ومهاجَر
+ومزروع).
 Docker/Demo/DEPLOYMENT: راجع `docs/DEPLOYMENT.md` و`docs/DEMO.md`
 (Milestone 2) — تذكَّر أن Docker/CI جاهزان لكن غير مُختبَرين فعليًا بعد.
+Excel Import: راجع `docs/IMPORT_EXCEL.md` للتصميم الكامل (Milestone 3).
 
-## سجل تحديثات هذا الملف
+# Milestone 3 — Excel Import
+
+**Status**: Completed
+
+## ملخص: ما هذا الـMilestone وما ليس
+
+نظام استيراد بيانات جماعي حقيقي وجاهز للاستخدام من ملفات Excel (.xlsx)،
+مبني بالكامل فوق الخدمات الموجودة أصلًا (`ProductsService`،
+`CatalogService`، `CustomersService`، `SuppliersService`،
+`InventoryService.setOpeningBalance`) — **بلا أي منطق أعمال موازٍ جديد،
+وبلا تغيير على أي جدول موجود**. بالإضافة إلى File Storage abstraction
+عامة وقابلة لإعادة الاستخدام (`backend/src/modules/storage`)، مُنفَّذة
+محليًا بالكامل ومُصمَّمة (لا مُنفَّذة) لمزوّد S3-compatible لاحقًا. **لم
+يُبنَ في هذا الـMilestone**: ZATCA، Qeedha Connector الحقيقي، Control
+Center، Website، Subscription/Billing، إعادة بناء POS/Accounting/
+Inventory/Auth — كلها ممنوعة صراحة بموجب نطاق هذه المرحلة ولم تُلمَس.
+
+## ما تم إنجازه
+
+- [x] **File Storage abstraction**: `FileStorageProvider` interface +
+      `LocalFileStorageProvider` (المُنفَّذ الوحيد، مُتحقَّق منه بالتشغيل
+      الفعلي) + `StorageService` (الواجهة الوحيدة المسموحة لبقية النظام).
+      مزوّد S3-compatible **مصمَّم له الواجهة لكن غير مُنفَّذ** — لا
+      اعتمادات S3 حقيقية متاحة لبنائه واختباره بصدق. مفاتيح التخزين
+      مولَّدة من الخادم دائمًا (`imports/<companyId>/<jobId>/source.xlsx`)
+      — Path traversal غير ممكن بنيويًا، لا بفحص فقط.
+- [x] **Import Job state machine كامل**: `ImportJob` (جدول جديد واحد،
+      RLS كأي جدول تجاري آخر) بحالات `uploaded → analyzing → ready →
+      validating → validated → importing → completed`، بالإضافة
+      `failed`/`cancelled`. التدفق الكامل Upload → Detect → Map → Preview
+      → Validate → Confirm → Import → Audit مُنفَّذ ومُختبَر e2e بالكامل.
+- [x] **7 أنواع بيانات مدعومة**: `products`، `barcodes`، `categories`،
+      `units`، `customers`، `suppliers`، `opening_stock` — تعريفات الحقول
+      المطلوبة/الاختيارية لكل نوع في مصدر حقيقة واحد
+      (`import-field-defs.ts`) يستهلكه الـBackend والـFrontend معًا.
+- [x] **اكتشاف واقتراح ربط أعمدة تلقائي** (`suggestMapping`) — اقتراح
+      فقط، يراجعه/يعدّله المستخدم دائمًا قبل أي معاينة أو تحقق.
+- [x] **Preview بلا أي كتابة فعلية** — مُختبَر e2e صراحة (لا يظهر المنتج
+      في `GET /products` قبل Confirm).
+- [x] **تحقق شامل**: حقول مطلوبة، أنواع البيانات، تكرار داخل الملف نفسه
+      (Set أثناء المرور)، تكرار مقابل بيانات موجودة فعليًا (استعلام
+      مجمَّع واحد `IN(...)` — لا N+1)، ملكية مراجع التصنيف/العلامة/
+      الوحدة لنفس المنشأة (بلا إنشاء تلقائي لمرجع غير موجود — قرار أمان
+      متعمَّد)، صحة الرصيد الافتتاحي.
+- [x] **فشل صف واحد لا يُفسِد الاستيراد**: كل صف يُستورَد في معاملة
+      منفصلة؛ صف فاشل يُسجَّل كخطأ محدَّد (رقم الصف + الحقل + الرسالة)
+      دون إيقاف بقية الصفوف الصالحة — نتيجة نهائية دقيقة (مستورَد/فاشل)
+      دائمًا، لا فساد صامت.
+- [x] **Idempotency على مستويين**: `clientReferenceId` عند إنشاء المهمة
+      (نفس نمط Sale/Purchase/Expense)، و`confirm` مؤمَّن على مستوى المهمة
+      نفسها (استدعاؤه مرتين لا يستورد الصفوف مرتين) — كلاهما مُختبَر e2e.
+- [x] **RBAC**: صلاحيتان جديدتان فقط (`import.read`/`import.create`) في
+      نظام RBAC الموجود أصلًا، بلا أي تعديل على `PermissionsGuard`.
+      Owner/Manager/Inventory Manager تملكهما، Accountant `import.read`
+      فقط، Cashier لا تملك أيًا منهما.
+- [x] **عزل مستأجرين + IDOR**: `import_jobs` بنفس نمط RLS، ومحاولة الوصول
+      لمهمة استيراد منشأة أخرى (Get/Mapping/Preview/Validate/Confirm)
+      تُرفَض بـ404 في كل حالة — مُختبَر e2e.
+- [x] **نطاق الفروع/المستودعات**: استيراد رصيد افتتاحي يمر عبر نفس فحص
+      `BranchScopeService` الذي يفرضه `InventoryService.setOpeningBalance`
+      أصلًا — عضو مقيَّد بفرع لا يستطيع استيراد رصيد لمستودع خارج فرعه،
+      حتى لو كان مملوكًا لنفس المنشأة — مُختبَر e2e.
+- [x] **أمان الملف**: بصمة ZIP حقيقية (لا اعتماد على الامتداد/
+      Content-Type)، حد حجم (5MB) وعدد صفوف (5000) صريحان، حماية
+      Formula/CSV injection (`sanitizeImportedText`)، لا Endpoint لتنزيل
+      ملف خام، لا محتوى ملفات في أي Log.
+- [x] **Audit كامل**: رفع/ربط/تحقق/بدء وانتهاء الاستيراد/إلغاء — كل
+      عملية حسّاسة مُدقَّقة (من، متى، أي منشأة، أي نوع، كم صف، النتيجة)،
+      بالإضافة لتدقيق كل صف يُنشأ فعليًا عبر تدقيق الخدمة المستهدفة نفسها.
+- [x] **واجهة أمامية حقيقية متصلة**: `ImportPage.tsx` (`/import`) — لا
+      بيانات وهمية، تتبع حالة `ImportJob` الحقيقية عبر كل خطوة، RBAC
+      gating، Loading/Error/Success لكل خطوة، متوافقة مع RTL والتصميم
+      المتجاوب من Milestone 2، بلا إعادة بناء لبنية الواجهة الأمامية.
+- [x] **اختبارات**: 22 اختبار e2e خلفي جديد (`imports.e2e-spec.ts`) +
+      اختبارا Vitest جديدان (`ImportPage.test.tsx`) + Playwright جديد
+      (`excel-import.spec.ts`، بملف `.xlsx` حقيقي مُلتزَم بالمستودع) — كلها
+      **نُفِّذت فعليًا ونجحت**، لا وصف نيّة.
+
+## قرارات معمارية مسجَّلة
+
+- **لا جدول `import_job_rows` منفصل**: نتيجة كل صف تُعاد حسابها من الملف
+  المخزَّن عند كل خطوة، والنتيجة النهائية (محدودة العدد، أول 500 خطأ)
+  تُخزَّن كـJSON على `import_jobs` نفسه — تبسيط متعمَّد لتجنّب صف قاعدة
+  بيانات مستقل لكل سطر Excel (حتى 5000 صف لكل ملف).
+- **لا تحديث سجل موجود عبر الاستيراد (Update)** — فقط إنشاء (Create). SKU/
+  مرجع مكرر مع بيانات موجودة **يُرفَض كخطأ**، لا يُحدِّث السجل القائم.
+  قرار تبسيط متعمَّد يتجنّب مخاطر Overwrite الأعلى بكثير التي يحملها
+  التحديث الجماعي الصامت.
+- **مراجع الأسماء (تصنيف/علامة/وحدة) لا تُنشَأ تلقائيًا** إن لم توجد —
+  تُرفَض كخطأ بدل افتراض mapping غير آمن.
+- **مزوّد S3-compatible مصمَّم له، غير مُنفَّذ** — لا اعتمادات حقيقية
+  لاختباره بصدق في هذه الجلسة.
+- **لا Queue/معالجة خلفية** — الملفات صغيرة بما يكفي (5MB/5000 صف) لتُعالَج
+  ضمن دورة الطلب/الاستجابة نفسها، تجنبًا لتعقيد غير ضروري في هذه المرحلة.
+
+## Tests
+
+**134/134** خلفية (112 سابقة + 22 جديدة، صفر تراجع) + **9/9** Vitest (7 +
+2 جديدة) + Playwright **3/3** (golden-path + tenant-isolation +
+excel-import) — كلها مُتحقَّقة فعليًا بالتشغيل.
+
+## Push
+NOT PUSHED
+
+
 
 - 2026-08-15: إنشاء الملف عند بدء المرحلة 1.
 - 2026-08-15: المرحلة 1 مكتملة ومُختبرة (10/10 اختبارات e2e ناجحة، build/lint نظيفان).
@@ -822,3 +928,8 @@ Docker/Demo/DEPLOYMENT: راجع `docs/DEPLOYMENT.md` و`docs/DEMO.md`
   آلية في الواجهة الأمامية) مكتمل ومُختبر (112/112 خلفية بلا تراجع + 7/7
   Vitest جديدة + Playwright 2/2 مُلتزَمة، بلا أي تغيير على المخطط) —
   بانتظار موافقة صريحة لبدء المرحلة القادمة.
+- 2026-08-16: Milestone 3 (Excel Import — File Storage abstraction محلية
+  (S3-compatible مصمَّم، غير مُنفَّذ) + Import Wizard كامل لـ7 أنواع بيانات
+  فوق الخدمات الموجودة أصلًا، بلا منطق موازٍ) مكتمل ومُختبر (134/134 خلفية
+  بلا تراجع + 9/9 Vitest + Playwright 3/3 مُلتزَمة، جدول جديد واحد فقط
+  `import_jobs` بـRLS كامل) — بانتظار موافقة صريحة لبدء المرحلة القادمة.

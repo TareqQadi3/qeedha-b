@@ -5,6 +5,7 @@ import { CatalogPage } from './pages/CatalogPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
+import { ImportPage } from './pages/ImportPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { LoginPage } from './pages/LoginPage';
@@ -49,6 +50,7 @@ export function App() {
         <Route path="/accounting" element={<AccountingPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/receivables-payables" element={<ReceivablesPayablesPage />} />
+        <Route path="/import" element={<ImportPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
