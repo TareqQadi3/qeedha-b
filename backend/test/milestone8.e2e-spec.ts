@@ -111,7 +111,9 @@ describe('Milestone 8: SaaS Subscription & Billing (e2e)', () => {
 
   /** Swaps a tenant's subscription onto a different plan directly at the DB layer - not a merchant API call, since Milestone 8 spec section 14 forbids one. Same pattern milestone7.e2e-spec.ts uses `prisma.withTenant` for test setup/verification. */
   const setPlan = (companyId: string, planId: string) =>
-    prisma.withTenant(companyId, (tx) => tx.subscription.update({ where: { companyId }, data: { planId } }));
+    prisma.withTenant(companyId, (tx) =>
+      tx.subscription.update({ where: { companyId }, data: { planId } }),
+    );
 
   const setTrialEndsAt = (companyId: string, trialEndsAt: Date) =>
     prisma.withTenant(companyId, (tx) =>
@@ -134,7 +136,9 @@ describe('Milestone 8: SaaS Subscription & Billing (e2e)', () => {
     maxBranches?: number | null;
     maxMonthlySales?: number | null;
   }) => {
-    const professional = await prisma.plan.findUniqueOrThrow({ where: { code: PLAN_CODES.PROFESSIONAL } });
+    const professional = await prisma.plan.findUniqueOrThrow({
+      where: { code: PLAN_CODES.PROFESSIONAL },
+    });
     const plan = await prisma.plan.create({
       data: {
         code: `test-limit-${unique()}`,
@@ -196,7 +200,9 @@ describe('Milestone 8: SaaS Subscription & Billing (e2e)', () => {
       const tenant = await registerTenant();
 
       const logs = await prisma.withTenant(tenant.companyId, (tx) =>
-        tx.auditLog.findMany({ where: { companyId: tenant.companyId, entityType: 'Subscription' } }),
+        tx.auditLog.findMany({
+          where: { companyId: tenant.companyId, entityType: 'Subscription' },
+        }),
       );
       const actions = logs.map((l) => l.action);
       expect(actions).toContain('subscription.created');
@@ -383,8 +389,14 @@ describe('Milestone 8: SaaS Subscription & Billing (e2e)', () => {
       const tenant = await registerTenant();
       await setTrialEndsAt(tenant.companyId, new Date(Date.now() - 24 * 60 * 60 * 1000));
 
-      await request(server).get('/api/v1/subscriptions/me').set(auth(tenant.accessToken)).expect(200);
-      await request(server).get('/api/v1/subscriptions/me').set(auth(tenant.accessToken)).expect(200);
+      await request(server)
+        .get('/api/v1/subscriptions/me')
+        .set(auth(tenant.accessToken))
+        .expect(200);
+      await request(server)
+        .get('/api/v1/subscriptions/me')
+        .set(auth(tenant.accessToken))
+        .expect(200);
 
       const logs = await prisma.withTenant(tenant.companyId, (tx) =>
         tx.auditLog.findMany({
@@ -405,7 +417,10 @@ describe('Milestone 8: SaaS Subscription & Billing (e2e)', () => {
 
       // Exempt recovery/visibility surface still works.
       await request(server).get('/api/v1/auth/me').set(auth(tenant.accessToken)).expect(200);
-      await request(server).get('/api/v1/subscriptions/me').set(auth(tenant.accessToken)).expect(200);
+      await request(server)
+        .get('/api/v1/subscriptions/me')
+        .set(auth(tenant.accessToken))
+        .expect(200);
     });
   });
 
@@ -414,11 +429,15 @@ describe('Milestone 8: SaaS Subscription & Billing (e2e)', () => {
       const tenantA = await registerTenant();
       const tenantB = await registerTenant();
 
-      const subsFromA = await prisma.withTenant(tenantA.companyId, (tx) => tx.subscription.findMany());
+      const subsFromA = await prisma.withTenant(tenantA.companyId, (tx) =>
+        tx.subscription.findMany(),
+      );
       expect(subsFromA).toHaveLength(1);
       expect(subsFromA[0].companyId).toBe(tenantA.companyId);
 
-      const subsFromB = await prisma.withTenant(tenantB.companyId, (tx) => tx.subscription.findMany());
+      const subsFromB = await prisma.withTenant(tenantB.companyId, (tx) =>
+        tx.subscription.findMany(),
+      );
       expect(subsFromB).toHaveLength(1);
       expect(subsFromB[0].companyId).toBe(tenantB.companyId);
     });

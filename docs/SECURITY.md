@@ -570,6 +570,78 @@ P&L/Balance Sheet) وSubledger الذمم تستدعي
   فقط ضمن نفس معاملة الكتابة — لا مسار API يقبل حقل `action`/`entityType`
   حرًا يسمح للتاجر بتزوير سجل Audit خاص باشتراكه.
 
+## تكامل قيّدها Inbound — مصادقة خارجية منفصلة، عزل، وسلامة تزامن (Milestone 9)
+
+- **طبقة مصادقة كاملة منفصلة عن JWT**: `QeedhaIntegrationAuthGuard`
+  تُطبَّق فقط على `QeedhaTransactionController` عبر `@Public()` (يتخطى
+  سلسلة الحراسة العادية بالكامل: JWT/Membership/Permissions/Subscription)
+  + `@UseGuards(QeedhaIntegrationAuthGuard)` الخاص بها. لا اختراع نظام
+  Auth ثانٍ من الصفر — تعيد استخدام `hashToken` (نفس دالة تجزئة
+  `refresh_tokens`) و`AuthLookupService`/دور Postgres الضيق
+  `qeedha_auth_lookup` (BYPASSRLS، موجود منذ الـMilestone الأول لتسجيل
+  دخول المستخدمين قبل توفر سياق Tenant) — امتداد صلاحيات جديد
+  (`prisma/manual-sql/003_auth_lookup_role_integration.sql`) بدل آلية
+  Bootstrap منفصلة.
+- **مقارنة السر بوقت ثابت**: `crypto.timingSafeEqual` على تجزئة السر
+  المُرسَل مقابل `secretHash` المخزَّن — يمنع تسريب توقيت مطابقة جزئية
+  لمهاجم يجرّب أسرارًا.
+- **لا `companyId` من الطالب على الإطلاق**: كل مسار تحت هذا الـGuard
+  يشتق سياق المنشأة **حصرًا** من الربط المُصادَق عليه
+  (`request.integrationConnection`) — لا DTO في هذه الوحدة يملك حقل
+  `companyId`. `externalMerchantId` المُرسَل من قيّدها يُقارَن دفاعًا في
+  العمق مع `connection.publicReference` المُصادَق عليه فعليًا، لا يُستخدَم
+  وحده لتحديد المنشأة.
+- **لا معرّفات قاعدة بيانات داخلية في العقد الخارجي**: `publicReference`
+  (وليس `IntegrationConnection.id`) هو "معرّف التاجر الخارجي"؛
+  `Branch.code`/`Invoice.invoiceNumber` الموجودان أصلًا (وليس أي `id`)
+  هما مرجعا الفرع/الفاتورة الخارجيان؛ لا استجابة (`toSafeView`/
+  `toResponse`) تُسرّب `secretHash` أو أي `id` داخلي.
+- **RLS كاملة على الجدولين الجديدين**: `integration_customer_mappings`
+  و`integration_transactions` بنفس نمط `FORCE ROW LEVEL SECURITY` +
+  `tenant_isolation` policy المُستخدَم في كل جدول تجاري — مُتحقَّقة مباشرة
+  عبر `prisma.withTenant` عابر للمنشآت في `test/milestone9.e2e-spec.ts`
+  ("منشأة لا يمكنها قراءة ربط تكامل منشأة أخرى عبر RLS المباشر"). رمز
+  ربط منشأة A لا يمكنه أبدًا حل/عرض/إلغاء أي شيء يخص منشأة B، حتى بمرجع
+  صحيح تمامًا (مُختبَر صراحة).
+- **حماية سباق التزامن بقيود قاعدة البيانات، لا قفل ذاكرة**: مسارَا
+  تزامن مختلفان بتقنيتين مختلفتين حسب طبيعة كل سباق —
+  1) **تسوية معاملة مكررة**: قيد Unique حقيقي
+     (`Payment.clientReferenceId`) داخل `recordPaymentCore` (نفس نمط
+     Milestone 7) — 10 طلبات متزامنة حقيقية (`Promise.all`) بنفس
+     `idempotencyKey` تُنشئ معاملة مالية واحدة بالضبط، الباقي يُلتقَط
+     `P2002` على مستوى الـController ويُعاد جلب النتيجة الأصلية بدل
+     تكرارها (نفس نمط `SalesController.createSale`).
+  2) **حل عميل خارجي مكرر**: قفل Postgres Advisory
+     (`SELECT pg_advisory_xact_lock(hashtext($1))`، ضمن المعاملة نفسها)
+     — تقنية جديدة في هذا المستودع، مُختارة تحديدًا لأن قيد Unique وحده
+     كان يسمح بسباق ينشئ صف `Customer` مكرر قبل أن يكتشف قيد Unique
+     الخاص بجدول Mapping المشكلة.
+- **معدل الطلبات (Rate limiting)**: يعيد استخدام `ThrottlerModule` العام
+  الموجود (`APP_GUARD`، 100/60 ثانية افتراضيًا لكل IP) — لا نظام محدود
+  معدل ثانٍ. `POST connection` محدود إضافيًا إلى 40/60 ثانية (نفس رتبة حد
+  تسجيل منشأة جديدة)؛ `POST transactions` محدود إلى 300/60 ثانية (أعلى
+  من الافتراضي، مسار عالي التكرار الشرعي). **قيد مُوثَّق بصدق**: الحد
+  مبني على IP لا على الربط — إن شاركت عدة منشآت IP قيّدها الصادر، الحد
+  يُطبَّق عليها تراكميًا.
+- **إلغاء لا يعكس دفعة مُسدَّدة بالفعل**: قرار أمان/سلامة محاسبية متعمَّد
+  — `cancel()` يرفض `409` حاسمًا أي محاولة إلغاء معاملة `SUCCESS`، بدل
+  اختراع منطق عكس محاسبي جديد قد يكسر توازن قيود موجودة. راجع
+  `docs/QEEDHA_INTEGRATION.md` §"تحديث Milestone 9" للتفصيل.
+- **لا تسريب سر بأي شكل**: السر الخام (`secret`) يُعاد **مرة واحدة فقط**
+  في استجابة `POST /qeedha-integration/connection` (JSON، عبر HTTPS في
+  الإنتاج) ولا يُخزَّن أبدًا بشكل قابل للاسترجاع (`secretHash` فقط) — لا
+  Log، لا Audit، لا استجابة أخرى يحتوي القيمة الخام. مُختبَر صراحة أن
+  `secretHash` ≠ السر الخام وأن الصف الكامل من قاعدة البيانات لا يحتوي
+  السر الخام كنص فرعي.
+- **Audit كامل لكل انتقال حالة**: `qeedha_integration.connection.link/
+  rotate/revoke`, `qeedha_integration.customer.resolve`,
+  `qeedha_integration.transaction.create/fail/cancel`,
+  `qeedha_integration.payment.record` — كلها ضمن نفس معاملة الكتابة، لا
+  مسار يقبل حقل Audit حرًا من الطالب.
+- **RBAC بحد أدنى**: صلاحيتان جديدتان فقط (`integration.read`،
+  `integration.manage`) على المسارات الموجّهة للتاجر — المسارات الخارجية
+  لا تستخدم RBAC إطلاقًا (المصادقة بالسر هي الحد الفاصل الوحيد).
+
 ## هذا الملف حي
 يُحدَّث مع كل مرحلة تُضيف سطح هجوم جديد (مثلًا: مرحلة ZATCA تضيف اعتبارات
 تواقيع رقمية ومفاتيح تشفير خاصة بالهيئة، مرحلة Integration تضيف اعتبارات

@@ -126,4 +126,18 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
       PERMISSION_KEYS.IMPORT_CREATE,
     ],
   },
+  {
+    name: 'Integration',
+    description:
+      'دور نظامي غير قابل لتسجيل الدخول - يُسنَد فقط للعضوية النظامية التي تمثّل ' +
+      'تكامل قيّدها داخل هذه المنشأة (docs/QEEDHA_INTEGRATION.md "System actor"). ' +
+      'أضيق ما يلزم فعليًا للتدفق الحالي: حل/إنشاء عملاء، قراءة المبيعات لأغراض ' +
+      'البحث عن الفاتورة، وتسوية دفعة على بيع قائم - لا شيء آخر.',
+    permissions: [
+      PERMISSION_KEYS.CUSTOMERS_READ,
+      PERMISSION_KEYS.CUSTOMERS_CREATE,
+      PERMISSION_KEYS.SALES_READ,
+      PERMISSION_KEYS.SALES_PAYMENT_RECORD,
+    ],
+  },
 ];

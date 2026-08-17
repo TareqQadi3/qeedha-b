@@ -33,47 +33,49 @@ model Company {
   updatedAt       DateTime      @updatedAt @map("updated_at")
   deletedAt       DateTime?     @map("deleted_at")
 
-  branches               Branch[]
-  memberships            Membership[]
-  roles                  Role[]
-  membershipRoles        MembershipRole[]
-  auditLogs              AuditLog[]
-  integrationConnections IntegrationConnection[]
-  units                  Unit[]
-  productCategories      ProductCategory[]
-  brands                 Brand[]
-  products               Product[]
-  productBarcodes        ProductBarcode[]
-  stockLevels            StockLevel[]
-  stockMovements         StockMovement[]
-  stockAdjustments       StockAdjustment[]
-  stockCounts            StockCount[]
-  stockCountLines        StockCountLine[]
-  customers              Customer[]
-  suppliers              Supplier[]
-  sales                  Sale[]
-  saleItems              SaleItem[]
-  payments               Payment[]
-  invoices               Invoice[]
-  invoiceSequence        InvoiceSequence?
-  purchases              Purchase[]
-  purchaseItems          PurchaseItem[]
-  purchaseSequence       PurchaseSequence?
-  expenseCategories      ExpenseCategory[]
-  expenses               Expense[]
-  accounts               Account[]
-  journalEntries         JournalEntry[]
-  journalLines           JournalLine[]
-  fiscalPeriods          FiscalPeriod[]
-  importJobs             ImportJob[]
-  invoiceCompliance      InvoiceCompliance[]
-  supplierPayments       SupplierPayment[]
-  saleReturns            SaleReturn[]
-  saleReturnItems        SaleReturnItem[]
-  purchaseReturns        PurchaseReturn[]
-  purchaseReturnItems    PurchaseReturnItem[]
-  bankReconciliations    BankReconciliation[]
-  subscription           Subscription?
+  branches                    Branch[]
+  memberships                 Membership[]
+  roles                       Role[]
+  membershipRoles             MembershipRole[]
+  auditLogs                   AuditLog[]
+  integrationConnections      IntegrationConnection[]
+  units                       Unit[]
+  productCategories           ProductCategory[]
+  brands                      Brand[]
+  products                    Product[]
+  productBarcodes             ProductBarcode[]
+  stockLevels                 StockLevel[]
+  stockMovements              StockMovement[]
+  stockAdjustments            StockAdjustment[]
+  stockCounts                 StockCount[]
+  stockCountLines             StockCountLine[]
+  customers                   Customer[]
+  suppliers                   Supplier[]
+  sales                       Sale[]
+  saleItems                   SaleItem[]
+  payments                    Payment[]
+  invoices                    Invoice[]
+  invoiceSequence             InvoiceSequence?
+  purchases                   Purchase[]
+  purchaseItems               PurchaseItem[]
+  purchaseSequence            PurchaseSequence?
+  expenseCategories           ExpenseCategory[]
+  expenses                    Expense[]
+  accounts                    Account[]
+  journalEntries              JournalEntry[]
+  journalLines                JournalLine[]
+  fiscalPeriods               FiscalPeriod[]
+  importJobs                  ImportJob[]
+  invoiceCompliance           InvoiceCompliance[]
+  supplierPayments            SupplierPayment[]
+  saleReturns                 SaleReturn[]
+  saleReturnItems             SaleReturnItem[]
+  purchaseReturns             PurchaseReturn[]
+  purchaseReturnItems         PurchaseReturnItem[]
+  bankReconciliations         BankReconciliation[]
+  subscription                Subscription?
+  integrationCustomerMappings IntegrationCustomerMapping[]
+  integrationTransactions     IntegrationTransaction[]
 
   @@map("companies")
 }
@@ -89,19 +91,20 @@ model Branch {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company             Company              @relation(fields: [companyId], references: [id])
-  warehouses          Warehouse[]
-  posDevices          PosDevice[]
-  membershipRoles     MembershipRole[]
-  sales               Sale[]
-  invoices            Invoice[]
-  purchases           Purchase[]
-  expenses            Expense[]
-  journalEntries      JournalEntry[]
-  supplierPayments    SupplierPayment[]
-  saleReturns         SaleReturn[]
-  purchaseReturns     PurchaseReturn[]
-  bankReconciliations BankReconciliation[]
+  company                 Company                  @relation(fields: [companyId], references: [id])
+  warehouses              Warehouse[]
+  posDevices              PosDevice[]
+  membershipRoles         MembershipRole[]
+  sales                   Sale[]
+  invoices                Invoice[]
+  purchases               Purchase[]
+  expenses                Expense[]
+  journalEntries          JournalEntry[]
+  supplierPayments        SupplierPayment[]
+  integrationTransactions IntegrationTransaction[]
+  saleReturns             SaleReturn[]
+  purchaseReturns         PurchaseReturn[]
+  bankReconciliations     BankReconciliation[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -217,10 +220,14 @@ model Membership {
   createdAt DateTime         @default(now()) @map("created_at")
   updatedAt DateTime         @updatedAt @map("updated_at")
 
-  company         Company          @relation(fields: [companyId], references: [id])
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  membershipRoles MembershipRole[]
-  refreshTokens   RefreshToken[]
+  company                             Company                 @relation(fields: [companyId], references: [id])
+  user                                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membershipRoles                     MembershipRole[]
+  refreshTokens                       RefreshToken[]
+  // Milestone 9: set on the ONE Membership (a dedicated non-human "Integration"
+  // system identity - see docs/QEEDHA_INTEGRATION.md "System actor") that acts
+  // as the audit/branch-scope actor for business calls this connection makes.
+  integrationConnectionsAsSystemActor IntegrationConnection[] @relation("IntegrationConnectionSystemMembership")
 
   @@unique([companyId, userId])
   @@index([userId])
@@ -378,8 +385,26 @@ model IntegrationConnection {
   createdAt            DateTime                    @default(now()) @map("created_at")
   updatedAt            DateTime                    @updatedAt @map("updated_at")
 
-  company  Company             @relation(fields: [companyId], references: [id])
-  provider IntegrationProvider @relation(fields: [providerKey], references: [key])
+  // Milestone 9 (docs/QEEDHA_INTEGRATION.md "Inbound API contract"): fields
+  // for the INBOUND direction - an external system (Qeedha) authenticating
+  // ITS calls into Qeedha B, as opposed to `credentialsEncrypted` above
+  // (reserved for the still-unbuilt OUTBOUND direction: Qeedha B calling out
+  // via PaymentIntegrationPort/IntegrationRegistry - untouched, unrelated).
+  // `publicReference` is the only "External Merchant ID" ever exposed to the
+  // caller - never this row's own `id`. `secretHash` is a SHA-256 hash (same
+  // `hashToken` utility as refresh tokens) of a secret shown to the merchant
+  // exactly once at link time and never stored/logged in raw form.
+  publicReference    String?   @unique @map("public_reference")
+  secretHash         String?   @map("secret_hash")
+  secretLastFour     String?   @map("secret_last_four")
+  systemMembershipId String?   @map("system_membership_id") @db.Uuid
+  revokedAt          DateTime? @map("revoked_at")
+
+  company          Company                      @relation(fields: [companyId], references: [id])
+  provider         IntegrationProvider          @relation(fields: [providerKey], references: [key])
+  systemMembership Membership?                  @relation("IntegrationConnectionSystemMembership", fields: [systemMembershipId], references: [id])
+  customerMappings IntegrationCustomerMapping[]
+  transactions     IntegrationTransaction[]
 
   @@unique([companyId, providerKey])
   @@map("integration_connections")
@@ -402,6 +427,77 @@ model WebhookEvent {
 
   @@index([providerKey, processingStatus])
   @@map("webhook_events")
+}
+
+// Milestone 9: External Customer Reference <-> Qeedha B Customer, scoped to
+// ONE connection (never global per company) so two different external
+// systems can never collide on the same reference string. Tenant-scoped,
+// RLS FORCE like every other business table - see docs/DATABASE.md
+// "Milestone 9".
+model IntegrationCustomerMapping {
+  id                        String   @id @default(uuid()) @db.Uuid
+  companyId                 String   @map("company_id") @db.Uuid
+  connectionId              String   @map("connection_id") @db.Uuid
+  externalCustomerReference String   @map("external_customer_reference")
+  customerId                String   @map("customer_id") @db.Uuid
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  company    Company               @relation(fields: [companyId], references: [id])
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id])
+  customer   Customer              @relation(fields: [customerId], references: [id])
+
+  @@unique([companyId, connectionId, externalCustomerReference])
+  @@index([companyId, customerId])
+  @@map("integration_customer_mappings")
+}
+
+enum IntegrationTransactionStatus {
+  success
+  failed
+  cancelled
+}
+
+// Milestone 9: the idempotency ledger + external-reference lookup table for
+// every inbound integration transaction. `idempotencyKey` is the real
+// dedup key (same `clientReferenceId` pattern used everywhere else in this
+// codebase - Sale/Purchase/Payment/Expense/ImportJob); `externalTransactionId`
+// is the caller's own descriptive reference, stored for lookup/display but
+// not itself the uniqueness guarantee (a caller's ID scheme is theirs to
+// manage, not ours to constrain). No amount/currency/accounting value here
+// is ever treated as authoritative on its own - `paymentId`/`saleId` point
+// at the real trusted rows created by SalesService.
+model IntegrationTransaction {
+  id                    String                       @id @default(uuid()) @db.Uuid
+  companyId             String                       @map("company_id") @db.Uuid
+  connectionId          String                       @map("connection_id") @db.Uuid
+  branchId              String                       @map("branch_id") @db.Uuid
+  saleId                String?                      @map("sale_id") @db.Uuid
+  paymentId             String?                      @unique @map("payment_id") @db.Uuid
+  customerId            String?                      @map("customer_id") @db.Uuid
+  externalTransactionId String                       @map("external_transaction_id")
+  idempotencyKey        String                       @map("idempotency_key")
+  status                IntegrationTransactionStatus
+  amount                Decimal                      @db.Decimal(14, 2)
+  currencyCode          String                       @map("currency_code")
+  invoiceReference      String                       @map("invoice_reference")
+  branchReference       String                       @map("branch_reference")
+  failureReason         String?                      @map("failure_reason")
+  cancelledAt           DateTime?                    @map("cancelled_at")
+  createdAt             DateTime                     @default(now()) @map("created_at")
+  updatedAt             DateTime                     @updatedAt @map("updated_at")
+
+  company    Company               @relation(fields: [companyId], references: [id])
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id])
+  branch     Branch                @relation(fields: [branchId], references: [id])
+  sale       Sale?                 @relation(fields: [saleId], references: [id])
+  payment    Payment?              @relation(fields: [paymentId], references: [id])
+  customer   Customer?             @relation(fields: [customerId], references: [id])
+
+  @@unique([companyId, connectionId, idempotencyKey])
+  @@index([companyId, connectionId, externalTransactionId])
+  @@index([companyId, status])
+  @@map("integration_transactions")
 }
 
 // ---------------------------------------------------------------------------
@@ -689,9 +785,11 @@ model Customer {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company  Company   @relation(fields: [companyId], references: [id])
-  sales    Sale[]
-  invoices Invoice[]
+  company                 Company                      @relation(fields: [companyId], references: [id])
+  sales                   Sale[]
+  invoices                Invoice[]
+  integrationMappings     IntegrationCustomerMapping[]
+  integrationTransactions IntegrationTransaction[]
 
   @@unique([companyId, reference])
   @@index([companyId, deletedAt])
@@ -794,15 +892,16 @@ model Sale {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  company     Company      @relation(fields: [companyId], references: [id])
-  branch      Branch       @relation(fields: [branchId], references: [id])
-  warehouse   Warehouse    @relation(fields: [warehouseId], references: [id])
-  posDevice   PosDevice?   @relation(fields: [posDeviceId], references: [id])
-  customer    Customer?    @relation(fields: [customerId], references: [id])
-  items       SaleItem[]
-  payments    Payment[]
-  invoice     Invoice?
-  saleReturns SaleReturn[]
+  company                 Company                  @relation(fields: [companyId], references: [id])
+  branch                  Branch                   @relation(fields: [branchId], references: [id])
+  warehouse               Warehouse                @relation(fields: [warehouseId], references: [id])
+  posDevice               PosDevice?               @relation(fields: [posDeviceId], references: [id])
+  customer                Customer?                @relation(fields: [customerId], references: [id])
+  items                   SaleItem[]
+  payments                Payment[]
+  invoice                 Invoice?
+  saleReturns             SaleReturn[]
+  integrationTransactions IntegrationTransaction[]
 
   @@unique([companyId, clientReferenceId])
   @@index([companyId, branchId, createdAt])
@@ -880,8 +979,9 @@ model Payment {
   actorMembershipId String   @map("actor_membership_id") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at")
 
-  company Company @relation(fields: [companyId], references: [id])
-  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  company                Company                 @relation(fields: [companyId], references: [id])
+  sale                   Sale                    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  integrationTransaction IntegrationTransaction?
 
   @@unique([companyId, clientReferenceId])
   @@index([companyId, saleId])
@@ -1576,21 +1676,21 @@ model ImportJob {
 // placeholder/demo pricing only - see docs/DEMO.md and the Milestone 8
 // final report for why real commercial pricing was never invented here.
 model Plan {
-  id               String   @id @default(uuid()) @db.Uuid
-  code             String   @unique
-  name             String
-  description      String?
-  isActive         Boolean  @default(true) @map("is_active")
-  trialEligible    Boolean  @default(true) @map("trial_eligible")
-  priceMonthlySar  Decimal? @db.Decimal(10, 2) @map("price_monthly_sar")
-  billingInterval  String   @default("monthly") @map("billing_interval")
+  id              String   @id @default(uuid()) @db.Uuid
+  code            String   @unique
+  name            String
+  description     String?
+  isActive        Boolean  @default(true) @map("is_active")
+  trialEligible   Boolean  @default(true) @map("trial_eligible")
+  priceMonthlySar Decimal? @map("price_monthly_sar") @db.Decimal(10, 2)
+  billingInterval String   @default("monthly") @map("billing_interval")
   // null = unlimited for that resource - see SubscriptionService.assertWithinLimit.
-  maxUsers         Int?     @map("max_users")
-  maxBranches      Int?     @map("max_branches")
-  maxMonthlySales  Int?     @map("max_monthly_sales")
-  features         Json
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  maxUsers        Int?     @map("max_users")
+  maxBranches     Int?     @map("max_branches")
+  maxMonthlySales Int?     @map("max_monthly_sales")
+  features        Json
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   subscriptions Subscription[]
 

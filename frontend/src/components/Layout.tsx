@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { to: '/reports', label: 'التقارير المحاسبية' },
   { to: '/receivables-payables', label: 'الذمم (العملاء والموردون)' },
   { to: '/subscription', label: 'الاشتراك والخطة' },
+  { to: '/integration', label: 'تكامل قيّدها' },
 ];
 
 /**

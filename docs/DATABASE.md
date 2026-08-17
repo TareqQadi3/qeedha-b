@@ -435,6 +435,53 @@ webhook_events               صندوق وارد عام لأي Webhook خارج�
 (إن وُجدت) تُخزَّن داخل `credentials_encrypted` و`request_payload`/
 `response_payload` كـ JSONB **بعد** توفر عقد API الرسمي، دون تعديل بنية الجدول.
 
+> **تحديث Milestone 9**: الجدولان `integration_transactions` أعلاه (بالشكل
+> العام الموصوف: `reference_type`/`request_payload`/`response_payload`)
+> **لم يُبنَيا بهذا الشكل إطلاقًا** — راجع القسم التالي "Qeedha Integration
+> (Inbound)" لما بُني فعليًا تحت اسم مشابه لكن بشكل مختلف تمامًا، ولماذا لا
+> تعارض Schema حقيقي رغم تشارك الاسم.
+
+## 10.1 Qeedha Integration — Inbound (Milestone 9 — منفَّذ)
+
+اتجاه **مختلف** عن الجدول العام أعلاه — قيّدها (نظام خارجي) تستدعي Qeedha B،
+لا العكس. راجع `docs/QEEDHA_INTEGRATION.md` §"تحديث Milestone 9" للتصميم
+الكامل. يعيد استخدام `integration_connections`/`integration_providers`
+الموجودين (أعمدة جديدة على الأول فقط، بلا تعديل الثاني):
+
+```text
+integration_connections      (أعمدة إضافية على الجدول الموجود، Inbound فقط)
+  - public_reference UNIQUE (مرجع عام - "qic_" + 24 خانة hex - ليس id الصف)
+  - secret_hash (SHA-256 - نفس hashToken لـ refresh_tokens)
+  - secret_last_four (عرض آمن فقط)
+  - system_membership_id -> memberships(id) (العميل النظامي، أنشئ كسولًا عند أول ربط)
+  - revoked_at
+
+integration_customer_mappings      خريطة مرجع عميل خارجي <-> Customer داخلي
+  - company_id, connection_id, external_customer_reference, customer_id
+  - UNIQUE(company_id, connection_id, external_customer_reference)
+  - FORCE ROW LEVEL SECURITY + tenant_isolation policy
+
+integration_transactions      سجل معاملات تسوية الدفعات الواردة من قيّدها
+  - company_id, connection_id, branch_id, sale_id?, payment_id? (UNIQUE),
+    customer_id?, external_transaction_id, idempotency_key,
+    status (success/failed/cancelled - بلا pending حقيقي، بلا refunded),
+    amount NUMERIC(14,2), currency_code, invoice_reference, branch_reference,
+    failure_reason?, cancelled_at?
+  - UNIQUE(company_id, connection_id, idempotency_key)
+  - INDEX(company_id, connection_id, external_transaction_id)
+  - FORCE ROW LEVEL SECURITY + tenant_isolation policy
+```
+
+`invoice_reference`/`branch_reference` **ليسا** جداول Mapping جديدة — يُحلان
+مباشرة عبر `Invoice.invoiceNumber`/`Branch.code` الموجودين أصلًا (مرجعان
+خارجيان آمنان بالفعل، لا حاجة لطبقة إضافية). `payment_id` فريد (`@unique`)
+لأن كل معاملة ناجحة تنتج صف `Payment` واحدًا بالضبط عبر
+`SalesService.recordExternalPayment` — لا علاقة عكسية متعددة ممكنة.
+
+**Migration**: `20260818000000_milestone9_qeedha_integration` — RLS مُضافة
+يدويًا في نفس ملف الـmigration (نفس نمط كل جدول تجاري سابق). لا تعديل على
+أي جدول من مرحلة سابقة عدا الأعمدة المذكورة أعلاه على `integration_connections`.
+
 ---
 
 ## الحالة الحالية (منفّذ فعليًا في Prisma حتى Milestone 4)
@@ -536,3 +583,24 @@ idempotent ضمن نفس الـmigration — راجع `docs/ACCOUNTING.md` "ال
 (راجع `docs/DOMAIN_MODEL.md` "Milestone 8" "لماذا لا Backfill في
 الـmigration" للسبب الدقيق المرتبط بـRLS) — أي منشأة قديمة بلا سطر
 اشتراك تحصل عليه بشكل كسول عند أول طلب مصادَق بعد النشر.
+
+**Milestone 9 (Qeedha Integration — Inbound)**: جدولان جديدان +
+أعمدة إضافية على جدول موجود، migration واحدة
+(`20260818000000_milestone9_qeedha_integration`) — راجع القسم 10.1 أعلاه
+للتفصيل الكامل:
+
+- `integration_connections`: 5 أعمدة جديدة (`public_reference` UNIQUE،
+  `secret_hash`، `secret_last_four`، `system_membership_id`، `revoked_at`)
+  — بلا حذف/تعديل أي عمود موجود.
+- **`integration_customer_mappings`** (جديد): `FORCE ROW LEVEL SECURITY`
+  + `tenant_isolation`.
+- **`integration_transactions`** (جديد — **ليس** الجدول العام الموصوف في
+  القسم 10 الأصلي، راجع ملاحظة التسمية أعلاه): `FORCE ROW LEVEL SECURITY`
+  + `tenant_isolation`.
+
+لا تعديل على `sales`/`payments`/`invoices`/`customers`/`branches` —
+القيم الخارجية (`invoiceReference`/`branchReference`) تُقرأ من أعمدة
+موجودة أصلًا (`invoiceNumber`/`code`) بلا أي عمود جديد عليها.
+`Payment.method = 'external'` (قيمة Enum محجوزة منذ Phase 1) و
+`Payment.providerKey`/`externalReference`/`idempotencyKey` (أعمدة موجودة
+منذ Milestone 7، لم تُكتَب فعليًا من قبل) هي أول استخدام حقيقي لها.

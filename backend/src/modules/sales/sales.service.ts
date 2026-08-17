@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { PaymentMethod, Prisma } from '@prisma/client';
 import { TenantClient } from '../../common/prisma/prisma.service';
 import { paginate, paginationSkip } from '../../common/utils/pagination';
 import { round2 } from '../../common/utils/money';
@@ -360,16 +360,85 @@ export class SalesService {
     saleId: string,
     dto: RecordSalePaymentDto,
   ) {
+    const { sale } = await this.recordPaymentCore(
+      tx,
+      companyId,
+      membershipId,
+      actorUserId,
+      saleId,
+      {
+        method: dto.method,
+        amount: dto.amount,
+        clientReferenceId: dto.clientReferenceId,
+        auditAction: 'sales.payment.record',
+        notes: dto.notes,
+      },
+    );
+    return sale;
+  }
+
+  /**
+   * Milestone 9 (docs/QEEDHA_INTEGRATION.md): the ONLY other entry point
+   * into the exact same locking/overpayment-guard/journal-posting logic
+   * `recordPayment` uses - QeedhaTransactionService's adapter layer calls
+   * this instead of duplicating any of it. `method: 'external'` was reserved
+   * on the Payment/PaymentMethod schema since Phase 1 specifically for a
+   * payment whose money movement is attributed to an integration - see the
+   * `PaymentMethod.external` enum comment. Never reachable through
+   * `RecordSalePaymentDto` (its `@IsIn` whitelist deliberately excludes
+   * 'external' - a merchant cannot fabricate one through the normal UI/API).
+   */
+  async recordExternalPayment(
+    tx: TenantClient,
+    companyId: string,
+    membershipId: string,
+    actorUserId: string,
+    saleId: string,
+    params: {
+      amount: number;
+      providerKey: string;
+      externalReference: string;
+      idempotencyKey: string;
+    },
+  ) {
+    return this.recordPaymentCore(tx, companyId, membershipId, actorUserId, saleId, {
+      method: 'external',
+      amount: params.amount,
+      clientReferenceId: params.idempotencyKey,
+      auditAction: 'qeedha_integration.payment.record',
+      providerKey: params.providerKey,
+      externalReference: params.externalReference,
+      idempotencyKey: params.idempotencyKey,
+    });
+  }
+
+  private async recordPaymentCore(
+    tx: TenantClient,
+    companyId: string,
+    membershipId: string,
+    actorUserId: string,
+    saleId: string,
+    params: {
+      method: PaymentMethod;
+      amount: number;
+      clientReferenceId: string;
+      auditAction: string;
+      notes?: string;
+      providerKey?: string;
+      externalReference?: string;
+      idempotencyKey?: string;
+    },
+  ) {
     const existingPayment = await tx.payment.findUnique({
       where: {
-        companyId_clientReferenceId: { companyId, clientReferenceId: dto.clientReferenceId },
+        companyId_clientReferenceId: { companyId, clientReferenceId: params.clientReferenceId },
       },
     });
     if (existingPayment) {
       if (existingPayment.saleId !== saleId) {
         throw new ConflictException('مفتاح الطلب هذا مستخدم بالفعل لعملية بيع مختلفة');
       }
-      return this.getOwned(tx, companyId, saleId);
+      return { sale: await this.getOwned(tx, companyId, saleId), payment: existingPayment };
     }
 
     const scope = await this.branchScopeService.getScopeForPermission(
@@ -394,9 +463,9 @@ export class SalesService {
     });
     const alreadyPaid = Number(paidAgg._sum.amount ?? 0);
     const outstanding = round2(Number(sale.totalAmount) - alreadyPaid);
-    if (dto.amount > outstanding + 0.005) {
+    if (params.amount > outstanding + 0.005) {
       throw new ConflictException(
-        `المبلغ المدفوع (${dto.amount}) أكبر من الرصيد المستحق (${outstanding})`,
+        `المبلغ المدفوع (${params.amount}) أكبر من الرصيد المستحق (${outstanding})`,
       );
     }
 
@@ -404,11 +473,14 @@ export class SalesService {
       data: {
         companyId,
         saleId,
-        method: dto.method,
+        method: params.method,
         status: 'success',
-        amount: dto.amount,
+        amount: params.amount,
         currency: sale.currency,
-        clientReferenceId: dto.clientReferenceId,
+        clientReferenceId: params.clientReferenceId,
+        providerKey: params.providerKey,
+        externalReference: params.externalReference,
+        idempotencyKey: params.idempotencyKey,
         actorMembershipId: membershipId,
       },
     });
@@ -417,12 +489,12 @@ export class SalesService {
       branchId: sale.branchId,
       referenceType: 'Sale',
       referenceId: sale.id,
-      description: `دفعة على بيع آجل${dto.notes ? `: ${dto.notes}` : ''}`,
+      description: `دفعة على بيع آجل${params.notes ? `: ${params.notes}` : ''}`,
       actorMembershipId: membershipId,
       actorUserId,
       lines: [
-        { accountCode: cashOrBankAccountCode(dto.method), debit: dto.amount },
-        { accountCode: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE, credit: dto.amount },
+        { accountCode: cashOrBankAccountCode(params.method), debit: params.amount },
+        { accountCode: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE, credit: params.amount },
       ],
     });
 
@@ -430,18 +502,18 @@ export class SalesService {
       companyId,
       actorUserId,
       branchId: sale.branchId,
-      action: 'sales.payment.record',
+      action: params.auditAction,
       entityType: 'Payment',
       entityId: payment.id,
       afterState: {
         saleId,
-        amount: dto.amount,
-        method: dto.method,
+        amount: params.amount,
+        method: params.method,
         outstandingBefore: outstanding,
       },
     });
 
-    return this.getOwned(tx, companyId, saleId);
+    return { sale: await this.getOwned(tx, companyId, saleId), payment };
   }
 
   /** Used by SalesController's fallback path after a caught unique-constraint race on clientReferenceId. */

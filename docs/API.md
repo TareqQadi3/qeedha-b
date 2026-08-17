@@ -323,6 +323,30 @@ Endpoint مخصص، ولا صلاحية RBAC جديدة (يظهر ضمن `invoic
 لكشف مسارات امتيازية بلا بنية مصادقة إدارية حقيقية بعد (راجع
 `docs/SECURITY.md` "Milestone 8").
 
+## Endpoints Milestone 9: Qeedha Integration (Inbound)
+
+### مسارات موجّهة للتاجر — JWT + RBAC عاديان
+
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/qeedha-integration/connection` | حالة ربط تكامل قيّدها الحالي (`not_connected`/`connected`/`disabled`، مرجع عام، آخر 4 خانات من السر، تواريخ) | `integration.read` |
+| POST | `/qeedha-integration/connection` | يربط (أو يدوّر إن كان مرتبطًا بالفعل) — **السر الخام يُعاد مرة واحدة فقط في هذه الاستجابة** | `integration.manage`، محدود بـ40 طلب/60 ثانية |
+| DELETE | `/qeedha-integration/connection` | يقطع الربط الحالي (`404` إن لم يوجد ربط نشط) | `integration.manage` |
+
+### مسارات خارجية — مصادقة بسر منفصلة (`Authorization: Bearer <publicReference>.<secret>`), `@Public()` + `QeedhaIntegrationAuthGuard` بدل سلسلة الحراسة العادية بالكامل
+
+| Method | Path | الوصف |
+|---|---|---|
+| POST | `/qeedha-integration/customers/resolve` | يحل `externalCustomerReference` إلى عميل داخلي — ينشئ عميلًا جديدًا فقط عند أول ظهور للمرجع (يتطلب `name`) |
+| POST | `/qeedha-integration/transactions` | يسوّي دفعة على فاتورة موجودة (`{externalMerchantId, externalCustomerReference, externalTransactionId, amount, currencyCode, invoiceReference, branchReference, idempotencyKey}`) — يُعيد `{status, externalTransactionId, transactionReference, amount, currency, invoiceReference, failureReason, processedAt}`. محدود بـ300 طلب/60 ثانية |
+| GET | `/qeedha-integration/transactions/:reference` | استعلام بـ`idempotencyKey` أو `externalTransactionId` |
+| POST | `/qeedha-integration/transactions/:reference/cancel` | معاملة `FAILED` → `CANCELLED` بأمان؛ معاملة `SUCCESS` → `409` دائمًا وحاسمًا؛ معاملة `CANCELLED` → نفس الحالة (Idempotent) |
+
+`status` في الاستجابة: `SUCCESS`/`FAILED` فقط لهذه العمليات المتزامنة — لا
+`PENDING` مزيّف (راجع `docs/QEEDHA_INTEGRATION.md` §"تحديث Milestone 9"
+لماذا). لا مسار هنا يقبل `companyId` من الطالب — سياق المنشأة يُشتَق
+حصرًا من الربط المُصادَق عليه عبر السر.
+
 ## Endpoints المراحل القادمة
 
 لا Endpoint مخصص لـZATCA حتى الآن — Phase 1 (توليد QR) مُدمَج ضمن استجابة

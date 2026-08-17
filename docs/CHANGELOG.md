@@ -1,5 +1,76 @@
 # سجل التغييرات (Changelog)
 
+## [Milestone 9: Qeedha Integration] - 2026-08-17
+
+يبني طبقة تكامل **Inbound** فعلية: قيّدها (منصة مستقلة، منفصلة تمامًا عن
+Qeedha B) تستدعي واجهة API جديدة لتسوية دفعات على فواتير موجودة أصلًا، عبر
+عقد صريح لا يعتمد على مخطط قاعدة بيانات قيّدها الداخلي. اتجاه **Outbound**
+(Qeedha B تستدعي قيّدها كمزوّد دفع عند الدفع في POS، موصوف في
+`docs/QEEDHA_INTEGRATION.md` منذ Phase 3) **لم يُمَس** — لا يزال تصميمًا
+معماريًا بلا Adapter فعلي. راجع `docs/QEEDHA_INTEGRATION.md`
+§"تحديث Milestone 9" للتصميم الكامل.
+
+### أُضيف
+
+**النموذج (Prisma)**:
+- `IntegrationCustomerMapping` — خريطة `externalCustomerReference` ↔
+  `Customer` داخلي، فريدة لكل (منشأة، ربط، مرجع خارجي)، RLS FORCE كاملة.
+- `IntegrationTransaction` — سجل معاملات تسوية الدفعات الواردة من قيّدها
+  (`status: success|failed|cancelled`، بلا `pending` مزيّف)، RLS FORCE
+  كاملة، مربوط اختياريًا بـ`Sale`/`Payment` (فريد)/`Customer`/`Branch`.
+- `IntegrationConnection` — 5 أعمدة جديدة: `publicReference` (فريد، مرجع
+  عام)، `secretHash`، `secretLastFour`، `systemMembershipId`،
+  `revokedAt`.
+- دور نظامي جديد `Integration` (`companyId: null`، غير قابل لتسجيل
+  الدخول) + مستخدم نظامي عام واحد (`status: disabled`) في seed.
+- صلاحيتان جديدتان: `integration.read`، `integration.manage`.
+
+**الواجهة الخلفية**:
+- `QeedhaConnectionService`/`QeedhaConnectionController` —
+  `GET/POST/DELETE /qeedha-integration/connection` (JWT+RBAC عاديان):
+  ربط/تدوير يُصدر مرجعًا عامًا وسرًّا يُعرَض مرة واحدة فقط، قطع اتصال
+  يُبطل السر فورًا.
+- `QeedhaIntegrationAuthGuard` — مصادقة خارجية كاملة
+  (`Bearer <publicReference>.<secret>`)، تعيد استخدام `AuthLookupService`/
+  دور Postgres `qeedha_auth_lookup` الموجود (امتداد صلاحيات جديد
+  `003_auth_lookup_role_integration.sql`)، مقارنة سر بوقت ثابت.
+- `QeedhaTransactionService`/`QeedhaTransactionController` —
+  `POST customers/resolve`، `POST transactions` (تسوية دفعة، لا بيع
+  جديد)، `GET transactions/:reference`، `POST transactions/:reference/cancel`
+  (فاشلة → تُلغى بأمان، ناجحة → `409` حاسم دائمًا).
+- `SalesService.recordExternalPayment` — طريقة عامة جديدة، تشارك منطق
+  `recordPayment` الموجود (بعد فصل داخلي لدالة خاصة مشتركة
+  `recordPaymentCore`) — لا محرك دفع ثانٍ.
+- `AuthModule` يُصدِّر الآن `AuthLookupService` (كان بلا `exports` من قبل).
+
+**الواجهة الأمامية**:
+- صفحة `/integration` جديدة (`QeedhaIntegrationPage.tsx`) — عرض حالة
+  الربط، ربط (يعرض المرجع العام والسر مرة واحدة فقط بتحذير واضح)، قطع
+  اتصال بتأكيد صريح. عنصر تنقّل جديد في `Layout.tsx`.
+
+**قاعدة البيانات**: migration واحدة
+(`20260818000000_milestone9_qeedha_integration`) — جدولان جديدان + أعمدة
+إضافية على `integration_connections`، لا تعديل على أي جدول آخر.
+
+### تغيّر
+- حد معدل الطلبات على `POST /qeedha-integration/connection`: من 10/60
+  ثانية إلى 40/60 ثانية (نفس رتبة حد تسجيل منشأة جديدة) — قرار مُوثَّق في
+  كود الـController، ليس تخفيفًا لحماية حقيقية.
+
+### الاختبارات
+- Backend: `test/milestone9.e2e-spec.ts` جديد (33 اختبارًا، 25 سيناريو
+  مسمّى). **242/242** إجماليًا.
+- Frontend: `QeedhaIntegrationPage.test.tsx` جديد (6 اختبارات). **53/53**
+  إجماليًا.
+- Playwright: `golden-path.spec.ts` مُمدَّد بقسم تكامل قيّدها (ربط/عرض
+  سر مرة واحدة/قطع اتصال). **4/4** إجماليًا.
+
+### القيود المعروفة
+لا اختبار ضد بيئة قيّدها خارجية حقيقية (لا بيانات اعتماد/بيئة متاحة). لا
+Webhooks جديدة (لا حاجة حقيقية في هذا التصميم المتزامن بالكامل). لا إلغاء
+لمعاملة ناجحة (قرار سلامة محاسبية مُتعمَّد). راجع `docs/PROJECT_STATUS.md`
+"Milestone 9" للتفصيل الكامل.
+
 ## [Milestone 8: SaaS / Subscription & Billing] - 2026-08-17
 
 يحوّل Qeedha B إلى منتج SaaS حقيقي: نموذج خطط (`Plan`) واشتراك

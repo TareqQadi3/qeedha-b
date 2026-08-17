@@ -27,6 +27,7 @@ import { ExpensesModule } from './modules/expenses/expenses.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { ImportsModule } from './modules/imports/imports.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { QeedhaIntegrationModule } from './modules/qeedha-integration/qeedha-integration.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     StorageModule,
     ImportsModule,
     SubscriptionsModule,
+    QeedhaIntegrationModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

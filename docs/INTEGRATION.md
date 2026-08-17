@@ -5,6 +5,16 @@
 `docs/QEEDHA_INTEGRATION.md`. راجع `docs/PAYMENTS.md` لكيف تستهلك وحدة
 `sales` هذه الطبقة (أو بالأحرى: لا تستهلكها بعد لطرق الدفع المحلية).
 
+> **تحديث Milestone 9**: كل ما في هذا الملف (`modules/integrations`،
+> `PaymentIntegrationPort`، `IntegrationRegistry`، Webhook inbox) يصف حصرًا
+> اتجاه **Outbound** (Qeedha B تستدعي مزوّدًا خارجيًا) ولم يُمَس في
+> Milestone 9. Milestone 9 أضاف وحدة **منفصلة تمامًا**
+> (`modules/qeedha-integration`) لاتجاه **Inbound** مختلف كليًا (قيّدها
+> تستدعي Qeedha B) — تعيد استخدام صفوف `integration_providers`/
+> `integration_connections` نفسها (كتالوج + حالة ربط لكل منشأة) لكن بمنطق
+> ومسارات API مختلفة تمامًا عن `IntegrationsController` هنا. راجع
+> `docs/QEEDHA_INTEGRATION.md` §"تحديث Milestone 9" للتفصيل الكامل.
+
 ## لماذا "Payment Provider" وليس اسم مزوّد بعينه
 
 قرار معماري ثابت منذ المرحلة 1، أُعيد تأكيده في المرحلة 3: لا تسمية أي

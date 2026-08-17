@@ -548,3 +548,58 @@ schema منذ Phase 1 لكنه **لم يكن مُفعَّلًا في أي Guard/
 راجع `docs/DATABASE.md` "Milestone 8" للجداول والفهارس،
 `docs/SECURITY.md` "Milestone 8" لتفصيل `SubscriptionGuard`/RLS/التزامن،
 و`docs/API.md` "Milestone 8" لعقد `/subscriptions/*`.
+
+## Milestone 9 (Qeedha Integration — Inbound)
+
+يضيف اتجاه تكامل **Inbound** جديدًا (قيّدها، نظام خارجي مستقل، تستدعي
+Qeedha B) — لا يمس اتجاه **Outbound** الموصوف في `docs/QEEDHA_INTEGRATION.md`
+(لا يزال تصميمًا معماريًا بلا تنفيذ). كيانان جديدان + أعمدة إضافية على
+`IntegrationConnection` الموجود:
+
+- **`IntegrationCustomerMapping`**: خريطة `externalCustomerReference`
+  (نص، من قيّدها) ↔ `Customer` داخلي، فريدة لكل (منشأة، ربط، مرجع خارجي).
+- **`IntegrationTransaction`**: سجل معاملات تسوية دفعات واردة من قيّدها —
+  **ليست عملية بيع جديدة**، بل تسوية دفعة على `Sale`/`Invoice` موجودين
+  أصلًا عبر `SalesService.recordExternalPayment` (طريقة عامة جديدة تشارك
+  نفس منطق `recordPayment` الموجود منذ Milestone 7 حرفيًا).
+
+### العميل النظامي (System actor) — قرار تصميم جوهري
+
+كل استدعاء تُطلقه قيّدها يحتاج فاعلًا (`actorMembershipId`/`actorUserId`)
+لتمريره إلى `SalesService`/`CustomersService` الموجودتين، تمامًا كأي مستخدم
+بشري — لكن لا مستخدم بشري حقيقي وراء استدعاء API خارجي. الحل: دور نظامي
+غير قابل لتسجيل الدخول (`Integration`، `companyId: null`، صلاحيات محدودة:
+`customers.read/create`, `sales.read`, `sales.payment.record`) + مستخدم
+نظامي **واحد عام** لكل النظام (`system+qeedha-integration@qeedha-b.internal`،
+`status: 'disabled'` يمنع تسجيل الدخول به تمامًا حتى لو سُرِّب) + عضوية
+(`Membership`) تُنشأ كسولًا **لكل منشأة على حدة** عند أول ربط لها. هذا
+يعيد استخدام RBAC/`BranchScopeService`/`AuditService` الموجودة **بلا أي
+تعديل عليها** — لا حالة استثنائية "بلا Actor" أُضيفت لأي خدمة أعمال
+موجودة، بعكس البديل (تمرير `null` كفاعل وتعديل كل خدمة تستهلكه).
+
+### لماذا "تسوية دفعة" لا "بيع جديد"
+
+حمولة طلب المعاملة الواردة من قيّدها لا تحمل بنود بضاعة (منتج/كمية) — فقط
+مرجع فاتورة موجودة، مبلغ، عملة. هذا يعني تصميميًا أن المعاملة الوحيدة
+المنطقية هي **تسوية AR/دفعة** على بيع مكتمل بالفعل، لا عملية بيع كاملة
+جديدة (التي تتطلب بنود ومخزون ومحرك ترحيل محاسبي مختلف كليًا). لذلك:
+`QeedhaTransactionService` لا يستدعي أبدًا `SalesService.createSale` —
+فقط `recordExternalPayment`، الذي بدوره لا شيء سوى `recordPayment`
+الموجود بعد فصله إلى دالة خاصة مشتركة `recordPaymentCore`. **لا محرك بيع
+أو دفع ثانٍ في هذا المستودع.**
+
+### إلغاء المعاملة — قاعدة حاسمة بدل آلية عكس جديدة
+
+معاملة نجحت بالفعل (`SUCCESS`) أنتجت صف `Payment` حقيقيًا وقيد محاسبي
+مُرحَّلًا فعليًا بنفس المسار الموثوق `recordPayment`. لا آلية موجودة في
+هذا المستودع تعكس دفعة واحدة بمعزل عن سلة بيع كاملة (`cancelSale` يعكس
+البيع كله، ليس دفعة مفردة) — بناء آلية عكس محاسبي جديدة خارج نطاق هذا
+الـMilestone صراحة. القرار: `cancel()` يُعيد `409` دائمًا وحاسمًا لمعاملة
+`SUCCESS`، بدل تزييف عكس غير آمن أو اختراع منطق محاسبي جديد. معاملة
+`FAILED` (لم تُحرِّك مالًا قط) تُلغى بأمان دائمًا؛ `CANCELLED` تُعيد نفس
+الحالة (Idempotent).
+
+راجع `docs/DATABASE.md` §10.1 للجداول، `docs/SECURITY.md` "Milestone 9"
+للمصادقة الخارجية/RLS/التزامن، `docs/API.md` "Milestone 9" لعقد
+`/qeedha-integration/*`، و`docs/QEEDHA_INTEGRATION.md` §"تحديث Milestone 9"
+للتصميم الكامل.

@@ -12,6 +12,7 @@ import { LoginPage } from './pages/LoginPage';
 import { PosPage } from './pages/PosPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { PurchasesPage } from './pages/PurchasesPage';
+import { QeedhaIntegrationPage } from './pages/QeedhaIntegrationPage';
 import { ReceivablesPayablesPage } from './pages/ReceivablesPayablesPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -53,6 +54,7 @@ export function App() {
         <Route path="/receivables-payables" element={<ReceivablesPayablesPage />} />
         <Route path="/import" element={<ImportPage />} />
         <Route path="/subscription" element={<SubscriptionPage />} />
+        <Route path="/integration" element={<QeedhaIntegrationPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

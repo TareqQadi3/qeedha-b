@@ -189,6 +189,18 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'import',
     description: 'رفع ملف Excel وتنفيذ استيراد بيانات (منتجات/عملاء/موردون/مخزون افتتاحي...)',
   },
+
+  // Milestone 9: Qeedha Integration
+  {
+    key: 'integration.read',
+    category: 'integration',
+    description: 'عرض حالة ربط تكامل قيّدها وسجل معاملاته',
+  },
+  {
+    key: 'integration.manage',
+    category: 'integration',
+    description: 'ربط/فصل تكامل قيّدها وإصدار مفتاح الوصول الخاص به',
+  },
 ];
 
 export const PERMISSION_KEYS = {
@@ -245,6 +257,8 @@ export const PERMISSION_KEYS = {
   ACCOUNTING_RECONCILIATION_MANAGE: 'accounting.reconciliation.manage',
   IMPORT_READ: 'import.read',
   IMPORT_CREATE: 'import.create',
+  INTEGRATION_READ: 'integration.read',
+  INTEGRATION_MANAGE: 'integration.manage',
 } as const;
 
 export const ALL_PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);

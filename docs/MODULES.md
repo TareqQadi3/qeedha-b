@@ -93,3 +93,35 @@
 مُنفَّذة وغير مسجَّلة في أي مكان (لا `IntegrationRegistry`، لا أي Registry
 آخر) — نقطة توسّع موثَّقة لـPhase 2 فقط. راجع `docs/ZATCA.md` للتفاصيل
 الكاملة.
+
+## Milestone 9 — وحدة `qeedha-integration`
+
+`backend/src/modules/qeedha-integration/` — اتجاه **Inbound** جديد (قيّدها
+تستدعي Qeedha B)، منفصل تمامًا عن `modules/integrations` العامة (اتجاه
+Outbound، غير مُعدَّلة). يستورد `AuditModule`، `AuthModule` (لـ
+`AuthLookupService` فقط — تصدير جديد أُضيف لـ`AuthModule` لهذا الغرض)،
+`PartiesModule` (لـ`CustomersService`)، `SalesModule` (لـ
+`SalesService.recordExternalPayment`) — **لا يستورد أي شيء من
+`modules/integrations`**، ولا العكس.
+
+- **`QeedhaConnectionService`/`QeedhaConnectionController`**: دورة حياة
+  الربط الموجّهة للتاجر (JWT + RBAC عاديان، `GET/POST/DELETE
+  /qeedha-integration/connection`).
+- **`QeedhaIntegrationAuthGuard`**: مصادقة خارجية كاملة قائمة على سر
+  (`Bearer <publicReference>.<secret>`)، مُطبَّقة صراحةً فقط على
+  `QeedhaTransactionController` (`@Public()` + `@UseGuards(...)`) — لا
+  تُسجَّل كـ`APP_GUARD` عام، لا تؤثر على أي مسار آخر.
+- **`QeedhaTransactionService`/`QeedhaTransactionController`**: واجهة
+  API الخارجية (`resolve customer`/`transactions`/`lookup`/`cancel`) —
+  طبقة Orchestration بحتة، لا تكتب حالة مالية مباشرة، تستدعي
+  `SalesService`/`CustomersService` الموجودتين فقط.
+- **`current-integration-connection.decorator.ts`**: يقرأ
+  `request.integrationConnection` (يضعه الـGuard)، مقابل
+  `@CurrentUser()` العادي للمسارات المُصادَقة بـJWT.
+
+`SalesService` تغيّر بشكل واحد فقط: `recordPayment` أُعيد بناؤه داخليًا
+كغلاف رقيق حول دالة خاصة جديدة `recordPaymentCore` (بلا تغيير سلوك أو
+توقيع `recordPayment` العام)، مع إضافة `recordExternalPayment` العامة
+الجديدة التي تستدعي نفس `recordPaymentCore` بـ`method: 'external'`. لا
+تكرار منطق، لا محرك دفع ثانٍ. راجع `docs/QEEDHA_INTEGRATION.md`
+§"تحديث Milestone 9" للتفصيل الكامل.

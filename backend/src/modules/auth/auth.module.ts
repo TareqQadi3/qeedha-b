@@ -20,5 +20,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   ],
   controllers: [AuthController],
   providers: [AuthService, AuthLookupService, AuthLookupPrismaService, JwtStrategy],
+  // Milestone 9: QeedhaIntegrationAuthGuard needs the same pre-tenant-context
+  // bootstrap lookup human login already uses - see AuthLookupService.
+  exports: [AuthLookupService],
 })
 export class AuthModule {}

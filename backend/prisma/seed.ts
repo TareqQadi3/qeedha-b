@@ -1,7 +1,15 @@
 import { PrismaClient } from '@prisma/client';
+import * as argon2 from 'argon2';
+import { randomBytes } from 'crypto';
 import { PERMISSIONS } from '../src/modules/iam/constants/permissions';
 import { SYSTEM_ROLES } from '../src/modules/iam/constants/default-roles';
 import { DEFAULT_PLANS, planFeaturesJson } from '../src/modules/subscriptions/constants/default-plans';
+import {
+  INTEGRATION_SYSTEM_USER_EMAIL,
+  INTEGRATION_SYSTEM_USER_FULL_NAME,
+  QEEDHA_PROVIDER_KEY,
+  QEEDHA_PROVIDER_NAME,
+} from '../src/modules/qeedha-integration/constants/qeedha-integration.constants';
 
 const prisma = new PrismaClient();
 
@@ -71,6 +79,47 @@ async function main() {
     }
 
     console.log(`✔ دور ${roleDef.name} (${permissionRows.length} صلاحية)`);
+  }
+
+  // Milestone 9: catalog row reserved since Phase 1 for exactly this
+  // (schema.prisma "IntegrationProvider.key ... e.g. 'qeedha' - registered
+  // later"). category:"erp" matches docs/QEEDHA_INTEGRATION.md's framing
+  // (customer/amount verification, not a payment gateway).
+  await prisma.integrationProvider.upsert({
+    where: { key: QEEDHA_PROVIDER_KEY },
+    update: { name: QEEDHA_PROVIDER_NAME, category: 'erp', isEnabledGlobally: true },
+    create: {
+      key: QEEDHA_PROVIDER_KEY,
+      name: QEEDHA_PROVIDER_NAME,
+      category: 'erp',
+      isEnabledGlobally: true,
+    },
+  });
+  console.log(`✔ مزوّد التكامل ${QEEDHA_PROVIDER_NAME}`);
+
+  // The ONE global system identity every company's Qeedha connection shares
+  // as its actor (see qeedha-connection.service.ts ensureSystemMembership) -
+  // status: disabled blocks login outright; the random password is never
+  // retained/usable by design (nobody is ever meant to authenticate as this
+  // User - it exists purely as an audit/RBAC actor for integration-triggered
+  // business calls).
+  const existingSystemUser = await prisma.user.findUnique({
+    where: { email: INTEGRATION_SYSTEM_USER_EMAIL },
+  });
+  if (!existingSystemUser) {
+    const passwordHash = await argon2.hash(randomBytes(32).toString('hex'));
+    await prisma.user.create({
+      data: {
+        fullName: INTEGRATION_SYSTEM_USER_FULL_NAME,
+        email: INTEGRATION_SYSTEM_USER_EMAIL,
+        passwordHash,
+        status: 'disabled',
+        locale: 'ar',
+      },
+    });
+    console.log('✔ هوية نظام تكامل قيّدها');
+  } else {
+    console.log('✔ هوية نظام تكامل قيّدها (موجودة بالفعل)');
   }
 }
 

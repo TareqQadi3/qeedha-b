@@ -227,6 +227,27 @@ test('merchant can go from registration to a posted sale, expense, and see it al
   await expect(page.getByText('الأساسية')).toBeVisible();
   await expect(page.getByText(/تواصل مع الدعم/).first()).toBeVisible();
 
+  // ---------------------------------------------------------------------------
+  // Milestone 9: Qeedha integration connection lifecycle (view/link/revoke -
+  // no external transaction UI, since transactions are submitted by Qeedha
+  // itself against the API, never through this merchant-facing screen)
+  // ---------------------------------------------------------------------------
+  await page.goto('/integration');
+  await expect(page.getByText('غير مرتبط')).toBeVisible();
+  await page.getByRole('button', { name: 'ربط التكامل' }).click();
+  await expect(page.getByText('متصل')).toBeVisible();
+  await expect(page.getByText(/يُعرض مرة واحدة فقط/)).toBeVisible();
+  const publicReference = await page
+    .locator('div.font-mono', { hasText: /^qic_/ })
+    .first()
+    .innerText();
+  expect(publicReference).toMatch(/^qic_/);
+
+  await page.getByRole('button', { name: 'قطع الاتصال' }).click();
+  await page.getByRole('button', { name: 'تأكيد القطع' }).click();
+  await expect(page.getByText('موقوف')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'إعادة ربط التكامل' })).toBeVisible();
+
   // ---- Logout -> Login again (session survives a fresh login) ----
   await logout(page);
   await login(page, merchant);
