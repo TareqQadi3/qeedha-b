@@ -642,6 +642,46 @@ P&L/Balance Sheet) وSubledger الذمم تستدعي
   `integration.manage`) على المسارات الموجّهة للتاجر — المسارات الخارجية
   لا تستخدم RBAC إطلاقًا (المصادقة بالسر هي الحد الفاصل الوحيد).
 
+## تدقيق الإصدار الإنتاجي النهائي (Milestone 10)
+
+مراجعة أمنية شاملة قبل الإصدار — راجع `docs/PROJECT_STATUS.md`
+"Milestone 10" لتفاصيل التنفيذ والاختبار الكاملة. أهم ما تغيّر فعليًا:
+
+- **فحص أسرار إنتاجي جديد وفاشل-إغلاقًا (fail-closed)**:
+  `assertSecretsProductionSafe` (`backend/src/config/env.validation.ts`)
+  يرفض بدء التطبيق في `NODE_ENV=production` إن كان أي من الأسرار
+  الأربعة (`JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
+  `JWT_TENANT_SELECTION_SECRET`, `INTEGRATION_CREDENTIALS_ENCRYPTION_KEY`)
+  لا يزال يحمل القيمة الحرفية من `.env.example`، أقصر من 32 حرفًا، أو
+  مطابقًا لسر JWT آخر — نفس نمط `assertCorsConfiguredForProduction`
+  الموجود منذ Milestone 2. **قبل هذا الفحص، كان بالإمكان تشغيل نسخة
+  إنتاج فعلية بأسرار `change-me-...` الافتراضية بصمت تام** — هذه كانت
+  ثغرة تهيئة إنتاجية حقيقية أُغلِقت في هذا الـMilestone، مُختبَرة صراحة
+  (`env.validation.spec.ts`، 5 اختبارات).
+- **إصلاح سكربت `manual-sql/001_auth_lookup_role.sql`**: كان يحمل عطلين
+  حقيقيين موجودين منذ مراحل سابقة، لم يُكتشَفا حتى محاولة تطبيق حقيقية
+  في هذه الجلسة: (1) `GRANT CONNECT ON DATABASE qeedha_accounting`
+  باسم قاعدة بيانات ثابت بدل `current_database()` (يفشل على أي قاعدة
+  غير `qeedha_accounting` بالاسم الحرفي، بما فيها كل قواعد
+  CI/الاختبار)؛ (2) `GRANT SELECT` يتضمّن عمود `users.company_id` الذي
+  حُذف منذ Auth/IAM identity refactor (يفشل دائمًا، ويُلغى فورًا بواسطة
+  002 على أي حال). كلاهما مُصلَح، مُعاد تطبيقهما والتحقق منهما مباشرة
+  عبر `information_schema.role_column_grants`/`pg_database.datacl`.
+- **إصلاح CI**: `.github/workflows/ci.yml` كان يطبّق 001/002 فقط، بلا
+  003 (منح Milestone 9 الجديد على `integration_connections`) — يعني أن
+  مصادقة تكامل قيّدها الخارجية كانت ستفشل بصمت في أي تشغيل CI حقيقي منذ
+  Milestone 9. أُضيف السكربت الثالث لكلا الوظيفتين (`backend`, `e2e`).
+- **KNOWN LIMITATION موثَّقة (لا تغيير كود)**: الواجهة الأمامية تخزّن
+  access/refresh tokens في `localStorage` (`frontend/src/api/client.ts`)،
+  لا `httpOnly` cookies — عرضة نظريًا لسرقة عبر XSS إن وُجدت ثغرة XSS.
+  التخفيف الحالي: React يُهرِّب كل الإخراج تلقائيًا، ولا استخدام واحد
+  لـ`dangerouslySetInnerHTML`/`innerHTML` في كامل الواجهة الأمامية
+  (مُتحقَّق منه صراحة). التحوّل لـ`httpOnly` cookies يتطلب إعادة تصميم
+  معمارية للمصادقة (CSRF protection، SameSite، تغيير عقد الـAPI
+  بالكامل) — تغيير كبير وخطر على معمارية تعمل فعليًا، فتُرك كقيد موثَّق
+  صراحة بدل إعادة بناء غير مُختبَرة في هذا الـMilestone (يخالف "لا تعيد
+  بناء معمارية تعمل").
+
 ## هذا الملف حي
 يُحدَّث مع كل مرحلة تُضيف سطح هجوم جديد (مثلًا: مرحلة ZATCA تضيف اعتبارات
 تواقيع رقمية ومفاتيح تشفير خاصة بالهيئة، مرحلة Integration تضيف اعتبارات

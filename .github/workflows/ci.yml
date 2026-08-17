@@ -62,6 +62,7 @@ jobs:
         run: |
           psql -h localhost -U qeedha_dev -d qeedha_accounting_test -f prisma/manual-sql/001_auth_lookup_role.sql
           psql -h localhost -U qeedha_dev -d qeedha_accounting_test -f prisma/manual-sql/002_auth_lookup_role_update.sql
+          psql -h localhost -U qeedha_dev -d qeedha_accounting_test -f prisma/manual-sql/003_auth_lookup_role_integration.sql
       - name: Seed permissions/roles
         run: npm run prisma:seed
       - name: Run backend e2e tests
@@ -135,6 +136,7 @@ jobs:
           npx prisma migrate deploy
           psql -h localhost -U qeedha_dev -d qeedha_accounting_e2e -f prisma/manual-sql/001_auth_lookup_role.sql
           psql -h localhost -U qeedha_dev -d qeedha_accounting_e2e -f prisma/manual-sql/002_auth_lookup_role_update.sql
+          psql -h localhost -U qeedha_dev -d qeedha_accounting_e2e -f prisma/manual-sql/003_auth_lookup_role_integration.sql
           npm run prisma:seed
       - name: Start backend API
         working-directory: backend

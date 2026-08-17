@@ -65,6 +65,66 @@ class EnvironmentVariables {
   STORAGE_LOCAL_DIR?: string;
 }
 
+// Milestone 10 (production release hardening): the exact placeholder
+// values shipped in `.env.example` - `@IsString()` alone happily accepts
+// any of these copied verbatim into a real production `.env`. Never let
+// that boot silently; see `assertSecretsProductionSafe` below.
+const PLACEHOLDER_SECRET_VALUES = new Set([
+  'change-me-access-secret',
+  'change-me-refresh-secret',
+  'change-me-tenant-selection-secret',
+  'change-me-32-byte-base64-encryption-key==',
+]);
+
+const MIN_PRODUCTION_SECRET_LENGTH = 32;
+const PRODUCTION_SECRET_KEYS = [
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'JWT_TENANT_SELECTION_SECRET',
+  'INTEGRATION_CREDENTIALS_ENCRYPTION_KEY',
+] as const;
+
+/**
+ * Fail-closed production secret check, same posture as
+ * `assertCorsConfiguredForProduction` (config/cors.config.ts) - refuses to
+ * boot rather than silently running with a weak/copy-pasted secret.
+ * `.IsString()` in `EnvironmentVariables` above cannot express "not the
+ * literal placeholder" or "long enough to be a real secret", so this runs
+ * as a second pass, production-only, after the base validation succeeds.
+ */
+function assertSecretsProductionSafe(config: Record<string, unknown>) {
+  if (config.NODE_ENV !== 'production') return;
+
+  for (const key of PRODUCTION_SECRET_KEYS) {
+    const value = String(config[key] ?? '');
+    if (PLACEHOLDER_SECRET_VALUES.has(value)) {
+      throw new Error(
+        `${key} لا يزال يحمل القيمة الافتراضية من .env.example - يجب تعيين سرّ إنتاجي حقيقي قبل البدء في بيئة الإنتاج.`,
+      );
+    }
+    if (value.length < MIN_PRODUCTION_SECRET_LENGTH) {
+      throw new Error(
+        `${key} أقصر من الحد الأدنى الآمن (${MIN_PRODUCTION_SECRET_LENGTH} حرفًا) في بيئة الإنتاج.`,
+      );
+    }
+  }
+
+  // The three JWT secrets are deliberately independent by design (see
+  // JWT_TENANT_SELECTION_SECRET's doc comment above) - reusing one value
+  // for more than one purpose defeats that isolation even though each
+  // value individually passes the checks above.
+  const jwtSecrets = [
+    String(config.JWT_ACCESS_SECRET),
+    String(config.JWT_REFRESH_SECRET),
+    String(config.JWT_TENANT_SELECTION_SECRET),
+  ];
+  if (new Set(jwtSecrets).size !== jwtSecrets.length) {
+    throw new Error(
+      'JWT_ACCESS_SECRET وJWT_REFRESH_SECRET وJWT_TENANT_SELECTION_SECRET يجب أن تكون قيمًا مختلفة تمامًا في بيئة الإنتاج.',
+    );
+  }
+}
+
 export function validateEnv(config: Record<string, unknown>) {
   const validated = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
@@ -76,6 +136,8 @@ export function validateEnv(config: Record<string, unknown>) {
       `متغيرات البيئة غير صحيحة (Invalid environment configuration):\n${errors.toString()}`,
     );
   }
+
+  assertSecretsProductionSafe(config);
 
   return validated;
 }

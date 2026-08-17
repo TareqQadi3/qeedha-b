@@ -1,5 +1,59 @@
 # سجل التغييرات (Changelog)
 
+## [Milestone 10: Final Production Release] - 2026-08-17
+
+**آخر Milestone في خارطة الطريق المتفق عليها — لا Milestone 11.** تدقيق
+إنتاجي شامل + تصليب + توثيق نهائي على القاعدة الموجودة (Milestones 1-9)،
+بلا أي ميزة كبيرة جديدة وبلا إعادة بناء لأي نظام يعمل فعليًا. راجع
+`docs/PROJECT_STATUS.md` "Milestone 10" للتقرير الكامل والـRelease
+Checklist.
+
+### أُصلِح (عيوب إنتاجية حقيقية، اكتُشفت بمحاولة تطبيق فعلية لا بقراءة الكود فقط)
+
+- **ثغرة تهيئة إنتاجية**: أُضيف `assertSecretsProductionSafe`
+  (`backend/src/config/env.validation.ts`) — يرفض بدء `NODE_ENV=production`
+  إن كان أي سر (JWT × 3 أو مفتاح تشفير التكامل) لا يزال يحمل قيمة
+  `.env.example` الافتراضية، أقصر من 32 حرفًا، أو مُكرَّرًا بين أكثر من
+  غرض JWT. 5 اختبارات وحدة جديدة (`env.validation.spec.ts`).
+- **`prisma/manual-sql/001_auth_lookup_role.sql`**: إزالة `GRANT SELECT`
+  المعطوب دائمًا على عمود `users.company_id` المحذوف منذ Auth/IAM
+  identity refactor (يُلغى فورًا بواسطة 002 على أي حال)؛ إصلاح
+  `GRANT CONNECT ON DATABASE` من اسم ثابت خاطئ (`qeedha_accounting`) إلى
+  `current_database()` ديناميكي (كان يفشل صامتًا على أي قاعدة بيانات
+  غير dev المحلية، بما فيها CI/الاختبار).
+- **`.github/workflows/ci.yml`**: إضافة تطبيق سكربت
+  `003_auth_lookup_role_integration.sql` (Milestone 9) في وظيفتَي
+  `backend` و`e2e` — كان مفقودًا، ما كان سيُفشِل كل اختبارات
+  `QeedhaIntegrationAuthGuard` بـ401 على أي تشغيل CI حقيقي.
+- **`docs/DEPLOYMENT.md`**: نفس إضافة سكربت 003 في خطوات
+  `docker-compose`/إعادة تصفير Demo اليدوية؛ تحذير جديد حول اختلاف مضيف
+  قاعدة البيانات (`localhost` مقابل اسم خدمة `postgres`) بين التشغيل
+  المحلي والتشغيل عبر compose.
+
+### وثائق مُصحَّحة (كانت تصف مُنفَّذًا كأنه مفقود)
+
+- `docs/ARCHITECTURE.md`: "Monorepo Layout" و"القرارات المفتوحة" كانا
+  لقطة Phase 1/2 قديمة رغم اكتمال كل شيء لاحقًا — أُعيد كتابتهما.
+- `docs/ROADMAP.md`: أُعيد كتابته بالكامل كسجل زمني حقيقي، مع إغلاق
+  خارطة الطريق صراحةً عند Milestone 10.
+- `docs/INVOICES.md`: تصحيح ادّعاء "لا رمز QR" رغم اكتماله فعليًا منذ
+  Milestone 4.
+- `docs/SECURITY.md`، `docs/TESTING.md`: توثيق كل إصلاحات هذا
+  الـMilestone + قيد `localStorage` (موجود منذ البداية، غير موثَّق
+  سابقًا) كـKnown Limitation صريح.
+
+### الاختبارات
+Backend: **242/242** e2e (بلا تغيير في العدد) + **9/9** unit (5 جديدة).
+Frontend: **53/53** Vitest، **4/4** Playwright (بلا تغيير - لا ميزة
+جديدة). كلها أُعيد تشغيلها فعليًا بعد كل إصلاح.
+
+### القيود المعروفة (غير حاجبة)
+Docker/CI لا يزالان غير مُختبَرين فعليًا (محاولة `dockerd` حقيقية فشلت
+هذه الجلسة أيضًا؛ `docker compose config` نجح ثابتًا). لا نشر
+Demo/Staging فعلي. اتجاه Outbound لتكامل قيّدها وZATCA Phase 2 يبقيان
+BLOCKED BY EXTERNAL DEPENDENCY. راجع `docs/PROJECT_STATUS.md`
+"Milestone 10" للقائمة الكاملة.
+
 ## [Milestone 9: Qeedha Integration] - 2026-08-17
 
 يبني طبقة تكامل **Inbound** فعلية: قيّدها (منصة مستقلة، منفصلة تمامًا عن

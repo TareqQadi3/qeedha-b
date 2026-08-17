@@ -43,7 +43,15 @@ Demo/Staging فعلي حتى الآن.
    خدمة `postgres` في compose تستخدم `POSTGRES_USER: qeedha_app` ثابتًا؛
    تأكد أن `DATABASE_URL` في `backend/.env` يطابق هذا الاسم وكلمة المرور
    نفسها من `.env` الجذري (وإلا فشل اتصال الـbackend بقاعدة البيانات).
-   راجع `backend/.env.example` لبقية المتغيرات المطلوبة.
+   **تحذير شائع (Milestone 10)**: `backend/.env.example` مكتوب لتشغيل
+   محلي بلا Docker، فمضيف قاعدة البيانات فيه `localhost` — هذا **خطأ**
+   داخل شبكة compose، لأن `localhost` من داخل حاوية الـbackend يشير إلى
+   الحاوية نفسها، لا إلى حاوية `postgres`. عند التشغيل عبر
+   `docker-compose.yml` الجذري، غيّر المضيف في كلا الرابطين إلى اسم
+   الخدمة `postgres` (مثال:
+   `postgresql://qeedha_app:<PASSWORD>@postgres:5432/qeedha_accounting?schema=public`)
+   — لا تنسخ `backend/.env.example` حرفيًا لنشر Docker. راجع
+   `backend/.env.example` لبقية المتغيرات المطلوبة.
 
 ### ب) البناء
 
@@ -61,10 +69,12 @@ docker compose up -d postgres
 # التعليق أعلى CMD في backend/Dockerfile) — خطوة يدوية صريحة دائمًا:
 docker compose run --rm backend npx prisma migrate deploy
 
-# دور "auth lookup" الضيق (نفس السكربتين المستخدمين محليًا):
+# دور "auth lookup" الضيق (نفس السكربتات المستخدمة محليًا - الثلاثة
+# مطلوبة؛ 003 ضروري لتكامل قيّدها Inbound منذ Milestone 9):
 docker compose run --rm backend sh -c \
   "psql \$DATABASE_URL -f prisma/manual-sql/001_auth_lookup_role.sql && \
-   psql \$DATABASE_URL -f prisma/manual-sql/002_auth_lookup_role_update.sql"
+   psql \$DATABASE_URL -f prisma/manual-sql/002_auth_lookup_role_update.sql && \
+   psql \$DATABASE_URL -f prisma/manual-sql/003_auth_lookup_role_integration.sql"
 
 # بذر الصلاحيات/الأدوار النظامية:
 docker compose run --rm backend npm run prisma:seed
@@ -128,6 +138,8 @@ psql "postgresql://.../qeedha_accounting_demo" \
   -f prisma/manual-sql/001_auth_lookup_role.sql
 psql "postgresql://.../qeedha_accounting_demo" \
   -f prisma/manual-sql/002_auth_lookup_role_update.sql
+psql "postgresql://.../qeedha_accounting_demo" \
+  -f prisma/manual-sql/003_auth_lookup_role_integration.sql
 
 DATABASE_URL="postgresql://.../qeedha_accounting_demo?schema=public" \
   npm run prisma:seed
@@ -157,11 +169,16 @@ pg_restore -h localhost -U qeedha_app -d qeedha_accounting_restored backup.dump
 ## القيود المعروفة (Known Limitations) — اقرأ هذا قبل الاعتماد على أي شيء أعلاه
 
 - **`docker build`/`docker compose up` لم يُنفَّذا فعليًا في أي جلسة
-  تطوير حتى الآن**: بيئة التطوير التي كُتبت فيها Dockerfiles وملف
-  compose لا تملك daemon Docker يعمل (`dockerd` يفشل بـ"Operation not
-  permitted" عند `ulimit`، مُتحقَّق منه صراحة)، ولا صلاحية لتشغيله. كل
-  ملف كُتب بعناية باتّباع أنماط Docker معروفة وموثَّقة، لكن هذا **لا
-  يعادل تشغيلًا فعليًا مُتحقَّقًا منه** — قد تظهر أخطاء بناء/تشغيل غير
+  تطوير حتى الآن، بما فيها Milestone 10**: مُحاولة حقيقية لبدء
+  `dockerd` جرت في جلسة Milestone 10 نفسها (`service docker start`) —
+  فشلت فعليًا بـ"Operation not permitted" عند `ulimit` داخل بيئة
+  الحاوية المتداخلة هذه (nested container)، نفس القيد المُسجَّل منذ
+  Milestone 2، مُعاد التحقق منه لا افتراضه. **`docker compose config`**
+  (لا يحتاج daemon) نجح فعليًا في هذه الجلسة وأثبت أن `docker-compose.yml`
+  صحيح البنية بالكامل (تحليل/تفسير متغيرات/شبكات/منافذ سليم) — لكن هذا
+  **لا يعادل** `docker build`/`docker compose up` فعليَّين. كل ملف كُتب
+  بعناية باتّباع أنماط Docker معروفة وموثَّقة، لكن هذا **لا يعادل
+  تشغيلًا فعليًا مُتحقَّقًا منه** — قد تظهر أخطاء بناء/تشغيل غير
   متوقَّعة عند أول تنفيذ حقيقي.
 - **CI (`​.github/workflows/ci.yml`) لم يُشغَّل فعليًا على أي GitHub
   Actions runner حقيقي**: التحقق الوحيد الذي جرى هو تحقق صحة نحوية
@@ -183,3 +200,32 @@ pg_restore -h localhost -U qeedha_app -d qeedha_accounting_restored backup.dump
 هذا الـMilestone تحصل على اشتراك تجريبي بشكل كسول عند أول طلب مصادَق
 بعد النشر (راجع `docs/DOMAIN_MODEL.md` "Milestone 8") — لا خطوة يدوية
 إضافية مطلوبة بعد النشر.
+
+## Milestone 9 (Qeedha Integration) — خطوة نشر جديدة واحدة: سكربت auth-lookup ثالث
+
+الـmigration الجديدة (`20260818000000_milestone9_qeedha_integration`)
+تُطبَّق بنفس `prisma migrate deploy` المعتاد. **لكن** خلافًا لـMilestone 8،
+هذا الـMilestone يحتاج خطوة يدوية إضافية حقيقية: تشغيل
+`prisma/manual-sql/003_auth_lookup_role_integration.sql` (بعد 001 و002،
+بنفس دور `qeedha_auth_lookup` Superuser الموجود) — بدونها، مصادقة تكامل
+قيّدها الخارجية (`QeedhaIntegrationAuthGuard`) تفشل بـ401 دائمًا حتى لو
+كانت كل بيانات الاعتماد صحيحة، لأن الدور الضيق لن يملك صلاحية قراءة
+`integration_connections`. كل أوامر القسمين 2/ج و5 أعلاه حُدِّثت لتشمل
+هذا السكربت الثالث. بلا متغيّر بيئة جديد.
+
+## Milestone 10 (الإصدار الإنتاجي النهائي) — تشديد فحص الأسرار في الإنتاج
+
+`NODE_ENV=production` يرفض الآن البدء (fail-closed، نفس نمط
+`CORS_ALLOWED_ORIGINS`) إن كان أي من `JWT_ACCESS_SECRET`،
+`JWT_REFRESH_SECRET`، `JWT_TENANT_SELECTION_SECRET`،
+`INTEGRATION_CREDENTIALS_ENCRYPTION_KEY`:
+
+- لا يزال يحمل القيمة الافتراضية الحرفية من `.env.example` (`change-me-...`)، أو
+- أقصر من 32 حرفًا، أو
+- مطابقًا تمامًا لأحد أسرار JWT الثلاثة الأخرى (يجب أن تكون الثلاثة مستقلة تمامًا).
+
+راجع `backend/src/config/env.validation.ts` (`assertSecretsProductionSafe`).
+**لا متغيّر بيئة جديد** — فقط تحقق أشد صرامة على المتغيّرات الموجودة أصلًا.
+أي نشر إنتاجي فعلي يجب أن يستخدم أسرارًا عشوائية طويلة حقيقية (مثلًا
+`openssl rand -base64 48`) لكل واحد من الأربعة، مختلفة تمامًا عن بعضها
+وعن أي قيمة في `.env.example`/`.env.test`.

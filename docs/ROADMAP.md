@@ -1,27 +1,52 @@
 # خارطة الطريق (Roadmap)
 
-القاعدة: لا تُبنى مرحلة جديدة قبل اختبار المرحلة السابقة (`TESTING.md`) وتحديث
-`PROJECT_STATUS.md`.
+> **مُحدَّث نهائيًا في Milestone 10 (الإصدار الإنتاجي النهائي)**. الجدول
+> أدناه كان لا يزال يعكس التخطيط الأولي من نهاية Phase 1 (يصف كل شيء بعدها
+> بـ"لم تبدأ")، رغم أن كل مرحلة فيه اكتملت فعليًا منذ ذلك الحين. هذا هو
+> السجل الفعلي والنهائي لكل ما بُني، بالترتيب الزمني الحقيقي (الأسماء
+> تحوّلت من "مرحلة" إلى "Milestone" في منتصف الطريق - كلاهما يعني نفس
+> الشيء: تسليم مكتمل ومُختبَر).
 
-| # | المرحلة | المحتوى | الحالة |
+| # | التسليم | المحتوى | الحالة |
 |---|---|---|---|
-| 1 | الأساس | Architecture, Domain Model, Database, Auth, Multi-tenancy, RBAC, Audit Log, Integration Layer skeleton | 🟡 قيد التنفيذ (هذا التسليم) |
-| 2 | الكتالوج والمخزون | Products, Inventory, Customers, Suppliers | ⬜ لم تبدأ |
-| 3 | العمليات اليومية | POS, Sales, Purchasing, Expenses | ⬜ لم تبدأ |
-| 4 | المحاسبة والتقارير | Accounting (Double-Entry), Reports, Dashboard | ⬜ لم تبدأ |
-| 5 | الاستيراد | Excel Import Wizard | ⬜ لم تبدأ |
-| 6 | الامتثال الضريبي | ZATCA (Phase 1 ثم تقييم Phase 2 حسب الموجة) | ⬜ لم تبدأ |
-| 7 | التكامل | Integration Layer الفعلي + Qeedha Adapter (يحتاج API Contract منك) | ⬜ لم تبدأ |
-| 8 | التصليب النهائي | Testing شامل، Security Hardening، UX Polish، Offline POS تفصيليًا | ⬜ لم تبدأ |
+| Phase 1 | الأساس | Architecture, Domain Model (لاحقًا أُعيد بناؤه حول Membership)، Database، Auth، Multi-tenancy، RBAC، Audit Log، Integration Layer skeleton | ✅ مكتمل |
+| Phase 2 | الكتالوج والمخزون | Products, Inventory, Customers, Suppliers | ✅ مكتمل |
+| Phase 2.1 | تصليب نطاق الفروع/المستودعات | Branch/Warehouse Authorization Scope, IDOR hardening | ✅ مكتمل |
+| Phase 3 | العمليات اليومية | POS, Sales, Payments, Invoices | ✅ مكتمل |
+| Phase 4 | المحاسبة والمشتريات | Purchases, Expenses, Accounting (Double-Entry) الأساسي | ✅ مكتمل |
+| Milestone 1 | إكمال المحاسبة | التقارير المالية (Trial Balance/GL/P&L/Balance Sheet)، الذمم، الأرصدة الافتتاحية، الفترات المحاسبية | ✅ مكتمل |
+| Milestone 2 | تصليب الإنتاج + بيئة Demo/Staging | Security hardening (CORS/Rate limiting/Logging)، Docker، CI، Playwright مُلتزَمة | ✅ مكتمل |
+| Milestone 3 | الاستيراد | Excel Import Wizard + File Storage abstraction | ✅ مكتمل |
+| Milestone 4 | الامتثال الضريبي (Phase 1) | ZATCA Phase 1 - رمز QR (TLV) على كل فاتورة | ✅ مكتمل (Phase 2 مؤجَّل عمدًا، راجع أدناه) |
+| Milestone 5 | تحقق إكمال المحاسبة | مراجعة/اختبارات إضافية لتقارير Milestone 1 | ✅ مكتمل |
+| Milestone 6 | تقييم المخزون | متوسط التكلفة المُرجَّح (Weighted Average) + COGS مُشتقّ خادميًا | ✅ مكتمل |
+| Milestone 7 | عمليات التاجر الكاملة | بيع آجل/AR، دفعات موردين/AP، مرتجعات مبيعات/مشتريات، تسوية بنكية | ✅ مكتمل |
+| Milestone 8 | SaaS / الاشتراك والفوترة | خطط، اشتراك، فترة تجريبية، صلاحيات ميزات، حدود استخدام | ✅ مكتمل |
+| Milestone 9 | تكامل قيّدها | اتجاه Inbound فعلي (ربط، مصادقة خارجية، تسوية معاملات) | ✅ مكتمل |
+| Milestone 10 | الإصدار الإنتاجي النهائي | تدقيق إنتاجي شامل، تصليب أمني، توثيق نهائي، Release checklist | ✅ مكتمل — **هذا آخر Milestone في خارطة الطريق المتفق عليها** |
 
-## ملاحظات على الترتيب
+## لا Milestone بعد Milestone 10
 
-- **Integration Layer**: البنية العامة (Interfaces، جداول، شاشة الإعدادات
-  الفارغة) تُبنى في **المرحلة 1** لأنها جزء من الأساس المعماري. أما الـAdapter
-  الفعلي لقيّدها فينتظر المرحلة 7 وتوفر عقد API رسمي منك.
-- **ZATCA**: قرار append-only على جدول الفواتير يجب أن يكون جاهزًا من المرحلة
-  3 (أول فاتورة تُصدَر)، حتى لو التنفيذ الكامل للامتثال في المرحلة 6.
-- **Offline POS**: دراسة أولية ضمن المرحلة 3، التفاصيل الكاملة (Local DB،
-  Conflict resolution) قد تمتد لتفصيل إضافي ضمن المرحلة 8.
-- كل مرحلة تنتهي بـ: كود يعمل + اختبارات خضراء + تحديث `PROJECT_STATUS.md` +
-  `CHANGELOG.md` + إذن صريح منك للانتقال للتالية.
+خارطة الطريق المتفق عليها **مُغلَقة عند Milestone 10**. لا Milestone 11 أو
+أي تسليم إضافي مخطَّط له. أي عمل مستقبلي (Control Center، Website،
+Affiliate، ZATCA Phase 2، تطبيق موبايل أصلي، تكامل تمويل خارجي، تحليلات
+متقدمة، عملات متعددة، ...) يتطلب قرار نطاق جديد صريح من خارج هذه الخارطة —
+راجع `docs/PROJECT_STATUS.md` §"Milestone 10" §"نطاق مستقبلي/خارجي".
+
+## ملاحظات معمارية محفوظة من التخطيط الأولي (لا تزال صحيحة)
+
+- **Integration Layer**: البنية العامة (Interfaces، جداول، Registry)
+  بُنيت في Phase 1 كجزء من الأساس المعماري. الـAdapter الفعلي الـ**Outbound**
+  لقيّدها (Qeedha B تستدعي قيّدها) لا يزال غير مُنفَّذ — **BLOCKED BY
+  EXTERNAL DEPENDENCY** (ينتظر عقد API رسمي من قيّدها لا يملكه هذا
+  المستودع). بدلًا من ذلك، Milestone 9 بنى اتجاه **Inbound** (قيّدها
+  تستدعي Qeedها B) عبر عقد يملكه هذا المستودع نفسه — راجع
+  `docs/QEEDHA_INTEGRATION.md`.
+- **ZATCA**: قرار الـappend-only على الفواتير كان جاهزًا منذ Phase 3.
+  Phase 1 (QR) اكتمل في Milestone 4. Phase 2 (XML/UBL، التوقيع الرقمي،
+  CSID، الإرسال الفعلي) لا يزال غير مُنفَّذ عمدًا — **BLOCKED BY EXTERNAL
+  DEPENDENCY** (اعتمادات ZATCA حقيقية وقرار عمل/قانوني حول الموجة
+  المطبَّقة غير متاحين).
+- **Offline POS**: دراسة أولية ضمن Phase 3، لكن التفصيل الكامل (Local DB،
+  Conflict resolution) **لم يُبنَ** ولن يُبنى ضمن خارطة الطريق هذه —
+  **KNOWN LIMITATION** موثَّقة صراحةً، وليست نسيانًا (`docs/POS.md`).

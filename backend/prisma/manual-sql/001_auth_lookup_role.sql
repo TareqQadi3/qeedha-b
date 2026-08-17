@@ -24,7 +24,25 @@ $$;
 
 ALTER ROLE qeedha_auth_lookup BYPASSRLS;
 
-GRANT CONNECT ON DATABASE qeedha_accounting TO qeedha_auth_lookup;
+-- Milestone 10 (production release hardening): the literal database name
+-- "qeedha_accounting" here was dev-only - this script also runs against
+-- qeedha_accounting_test/_e2e (CI) and whatever name a real production
+-- database happens to use, so the GRANT CONNECT target must follow
+-- whichever database this script is actually being run against.
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO qeedha_auth_lookup', current_database());
+END
+$$;
 GRANT USAGE ON SCHEMA public TO qeedha_auth_lookup;
-GRANT SELECT (id, company_id, password_hash, status, full_name, locale, email, mobile, deleted_at)
-  ON users TO qeedha_auth_lookup;
+
+-- Milestone 10 (production release hardening): this script originally also
+-- granted SELECT on `users` (incl. a `company_id` column) here - that
+-- column was removed by the later Auth/IAM identity refactor migration
+-- (see docs/DOMAIN_MODEL.md), making this exact GRANT permanently invalid
+-- (fails with "column company_id of relation users does not exist" on
+-- every fresh apply since). It served no purpose anyway:
+-- 002_auth_lookup_role_update.sql immediately REVOKEs this same grant
+-- ("users is no longer tenant-owned data... the normal app role can now
+-- query users directly"), so it is removed here rather than fixed to a
+-- column list that would just be revoked one script later.

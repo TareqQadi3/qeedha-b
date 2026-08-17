@@ -44,33 +44,53 @@
 
 ## 3. تنظيم الكود (Monorepo Layout)
 
+> **مُحدَّث في Milestone 10 (الإصدار النهائي)** — هذا القسم كان لا يزال يعكس
+> لقطة المرحلة 2 (يصف `/sales /purchasing /expenses /accounting /reports
+> /import /zatca` كـ"تُضاف بالمراحل القادمة")، رغم أن كل هذه الوحدات (وأربع
+> وحدات أخرى: `einvoice`, `subscriptions`, `qeedha-integration`, `health`)
+> مُنفَّذة وتعمل فعليًا منذ عدة مراحل. القائمة أدناه تعكس البنية الفعلية
+> الحالية.
+
 ```text
 /backend
   /src
-    /common            # Guards, Decorators, Filters, Tenant Context, Interceptors
+    /common            # Guards, Decorators, Filters, Tenant Context, Interceptors,
+                        # Pagination, Money utils, Request-ID middleware, Logging interceptor
+    /config             # env.validation.ts (fail-closed), cors.config.ts (allowlist-only)
     /modules
-      /auth             # تسجيل الدخول، اختيار/تبديل المنشأة، refresh، تسجيل منشأة جديدة
+      /auth             # تسجيل الدخول، اختيار/تبديل المنشأة، refresh (تدوير + كشف إعادة استخدام)، تسجيل منشأة جديدة
       /iam              # Users, Memberships, Roles, Permissions, MembershipRoles (RBAC)
       /tenancy          # Company, Branch, Warehouse, PosDevice
       /audit            # Audit Log service + interceptor
-      /integrations     # Integration Layer الأساسية (ports, registry, connections)
-        /core            # Interfaces عامة (PaymentIntegrationPort ...)
+      /integrations     # Integration Layer العامة - Outbound فقط (ports, registry, generic webhook inbox)
+        /core            # Interfaces عامة (PaymentIntegrationPort ...) - لا Adapter فعلي بعد
         /webhooks        # استقبال أحداث خارجية عامة (generic inbox)
-      /catalog          # المنتجات، التصنيفات، العلامات، الوحدات، الباركود (مرحلة 2)
-      /inventory        # أرصدة المخزون، الحركات، التحويلات، الجرد (مرحلة 2)
-      /parties          # العملاء، الموردون (مرحلة 2)
-      # الوحدات التالية تُضاف بالمراحل القادمة:
-      # /sales /purchasing /expenses /accounting /reports /import /zatca
+      /catalog          # المنتجات، التصنيفات، العلامات، الوحدات، الباركود
+      /inventory        # أرصدة المخزون، الحركات، التحويلات، الجرد، متوسط التكلفة المُرجَّح
+      /parties          # العملاء، الموردون
+      /sales            # POS، البيع الآجل/النقدي، الفواتير، الدفعات، مرتجعات المبيعات
+      /purchases        # أوامر الشراء، الاستلام، دفعات الموردين، مرتجعات المشتريات
+      /expenses         # فئات وقيود المصروفات
+      /accounting       # دليل الحسابات، القيود، التقارير، الفترات المحاسبية، التسوية البنكية
+      /imports           # استيراد Excel (تحليل، معاينة، تأكيد)
+      /storage           # تخزين الملفات (محلي - قابل للاستبدال)
+      /einvoice          # ZATCA Phase 1: QR TLV + سجل الامتثال
+      /subscriptions     # الخطط، الاشتراك، الفترة التجريبية، حدود الاستخدام (Milestone 8)
+      /qeedha-integration # تكامل قيّدها Inbound - ربط، مصادقة خارجية، تسوية معاملات (Milestone 9)
+      /health             # فحص صحة التطبيق/القاعدة
     /prisma
       schema.prisma
       /migrations
-  /test
-/frontend                # React + Vite + TypeScript + Tailwind RTL (منفَّذ من المرحلة 2)
+      /manual-sql        # سكربتات DDL يدوية تتطلب صلاحيات Superuser (دور qeedha_auth_lookup)
+  /test                  # e2e (Jest + Supertest) لكل مرحلة، ضد قاعدة بيانات حقيقية
+/frontend                # React + Vite + TypeScript + Tailwind RTL
   /src
-    /api                 # عميل HTTP + إدارة التوكن + إعادة المحاولة عند 401
+    /api                 # عميل HTTP + إدارة التوكن (localStorage) + إعادة المحاولة عند 401
     /state               # AuthProvider/useAuth
-    /components           # مكوّنات UI عامة + Layout (RTL sidebar)
-    /pages                # Login/Register/Dashboard/Products/Catalog/Inventory/Customers/Suppliers
+    /components           # مكوّنات UI عامة + Layout (RTL sidebar، تنبيهات اشتراك)
+    /pages                # صفحة لكل وحدة خلفية (POS/Sales/Purchases/Inventory/Accounting/
+                          # Reports/AR-AP/Import/Subscription/Qeedha Integration/...)
+  /e2e                    # Playwright - رحلة التاجر الكاملة ضد الحزمة الحقيقية
 /docs
 ```
 
@@ -147,11 +167,18 @@ Core Domain (Sales, Payments, Inventory ...)
 Integration Layer (src/modules/integrations)
   ├── core/           → الـPorts (Interfaces) + IntegrationRegistry
   ├── webhooks/        → Inbox عام لأي Webhook خارجي (يُوجَّه حسب provider_key)
-  └── providers/        → (فارغ في المرحلة الأولى)
-        ├── qeedha/       (يُبنى في المرحلة 7 بعد توفر API Contract)
+  └── providers/        → لا يزال فارغًا (KNOWN LIMITATION، راجع أدناه)
+        ├── qeedha/       (Outbound - لا يزال غير مُنفَّذ، ينتظر عقد API خارجي حقيقي من قيّدها)
         ├── payment-x/    (مستقبلًا)
         └── erp-y/        (مستقبلًا)
 ```
+
+> **تحديث Milestone 9**: بدلًا من انتظار عقد Outbound خارجي من قيّدها،
+> Milestone 9 بنى اتجاهًا **Inbound** منفصلًا تمامًا (`modules/qeedha-integration`
+> — قيّدها تستدعي Qeedha B عبر عقد API صريح يملكه هذا المستودع نفسه، بدل
+> انتظار Qeedha B تستدعي قيّدها). الـAdapter الـOutbound أعلاه (`providers/qeedha`)
+> لا يزال غير مُنفَّذ بالكامل، وهذا **قرار نطاق مقصود** لا نقص تنفيذ — راجع
+> `docs/QEEDHA_INTEGRATION.md` §"تحديث Milestone 9" للتفصيل الكامل.
 
 - `IntegrationProvider`: سجل بالتكاملات المتاحة نظريًا (metadata فقط: key,
   name, category).
@@ -160,13 +187,28 @@ Integration Layer (src/modules/integrations)
 - لا يوجد أي كود خاص بقيّدها في هذه المرحلة — فقط البنية العامة القادرة على
   استضافته لاحقًا دون تعديل Core.
 
-## 9. القرارات المفتوحة (تحتاج نقاشًا معك لاحقًا، ليست الآن)
+## 9. القرارات المفتوحة سابقًا — حالتها النهائية (Milestone 10)
 
-- خوارزمية تقييم المخزون (FIFO أم Weighted Average) — تُقرَّر عند بناء وحدة
-  المحاسبة/التقارير (مرحلة 4).
-- نموذج Offline POS التفصيلي (Local DB في المتصفح/الجهاز، آلية Conflict
-  Resolution) — يُصمَّم عند مرحلة POS (مرحلة 3) لأنه يحتاج قرار منصة الـPOS
-  (Web PWA أم تطبيق مخصص).
-- تفاصيل ZATCA Phase 2 (Wave/Threshold المطبّق على التاجر) — تُحسم عند مرحلة
-  ZATCA (مرحلة 6) وتحتاج تأكيدًا منك حول الموجة الحالية.
-- عقد API الفعلي لقيّدها — ينتظر توثيقًا منك عند مرحلة 7.
+> هذا القسم وصف أسئلة معمارية مفتوحة أثناء المراحل المبكرة. كل هذه القرارات
+> اتُّخذت أو حُسمت لاحقًا فعليًا؛ الحالة الحقيقية موثَّقة هنا بدل ترك القسم
+> يوحي بأنها لا تزال مفتوحة.
+
+- **خوارزمية تقييم المخزون**: **حُسمت ومُنفَّذة** — متوسط التكلفة المُرجَّح
+  (Weighted Average)، لا FIFO (Milestone 6). FIFO/Lots تبقى خارج النطاق
+  صراحةً (`docs/INVENTORY.md`).
+- **نموذج Offline POS**: **لم يُبنَ، وهذا نهائي لهذا الإصدار** — الـPOS
+  يعمل Online فقط (يتطلب اتصالًا حيًا بالـAPI لكل عملية بيع). لا Local DB
+  في المتصفح، لا آلية Conflict Resolution. **KNOWN LIMITATION**، ليس خطأ
+  تنفيذ — لم يُطلَب صراحةً في أي مرحلة منفَّذة.
+- **تفاصيل ZATCA Phase 2** (Wave/Threshold، XML/UBL، التوقيع الرقمي، CSID،
+  الإرسال الفعلي لهيئة الزكاة والضريبة): **لا تزال غير مُنفَّذة عمدًا** —
+  فقط Phase 1 (QR Code) مُنفَّذ (`docs/ZATCA.md`). **BLOCKED BY EXTERNAL
+  DEPENDENCY** — تتطلب قرار عمل/قانوني حقيقي حول الموجة المطبَّقة على
+  التاجر، واعتمادات ZATCA حقيقية (CSID) غير متاحة في أي بيئة تطوير توفّرت
+  حتى الآن. خارج نطاق كل الـMilestones المتفق عليها صراحة.
+- **عقد API الفعلي لقيّدها**: **حُسم بشكل مختلف عمّا كان متوقَّعًا هنا** —
+  بدل انتظار عقد Outbound من قيّدها، Milestone 9 بنى اتجاه **Inbound**
+  (قيّدها تستدعي Qeedha B عبر عقد يملكه هذا المستودع). راجع القسم 8 أعلاه
+  والتحديث فيه. اتجاه Outbound (`providers/qeedha`) يبقى غير مُنفَّذ —
+  **BLOCKED BY EXTERNAL DEPENDENCY** (عقد API Outbound خارجي حقيقي من
+  قيّدها غير متاح).
