@@ -1,5 +1,34 @@
 # سجل التغييرات (Changelog)
 
+## [Final Completion & Release Candidate] - 2026-08-17
+
+تدقيق نهائي شامل للمنتج بأكمله كما هو اليوم — **لا كود جديد، لا ميزة
+جديدة، لا مرحلة جديدة**. مراجعة قراءة فقط (git status/log، بنية
+backend/frontend، schema/migrations، auth/RLS/RBAC، inventory/sales/
+purchases/accounting/reports، Excel Import، ZATCA Phase 1، Docker/CI/
+health/logging/env validation، demo seed) ثم إعادة تشغيل فعلية لكل
+مجموعة التحقق (لا نقل عن تقرير سابق): backend lint/typecheck/build/e2e
+(**161/161**)، frontend lint/build/Vitest (**34/34**)، Playwright الكامل
+(**4/4** — الأسرة الذهبية + ZATCA QR + استيراد Excel + عزل مستأجرين، كل
+واحد نُفِّذ فعليًا ضد Backend حقيقي عبر متصفح حقيقي)، `prisma migrate
+status` على dev وtest (لا drift)، وفحص أسرار شامل على كامل المستودع (لا
+تسريب). لم يُوجَد أي عائق حقيقي (Real Blocker) — لا ثغرة أمنية، لا خلل
+في عزل المستأجرين، لا خطأ محاسبي/COGS/مخزون، لا فشل بناء أو اختبار.
+
+### التصنيف النهائي
+**RELEASE CANDIDATE — READY**. التفصيل الكامل في `docs/PROJECT_STATUS.md`
+"Final Release Candidate".
+
+### أُضيف
+- تصنيف رسمي RELEASE CANDIDATE في `docs/PROJECT_STATUS.md` (قسم "Final
+  Release Candidate" كامل: النطاق المُتحقَّق، الأسرة الذهبية، السلامة
+  المالية، عزل المستأجرين، الأمان، الاختبارات، القيود المعروفة، النطاق
+  المستقبلي/الخارجي).
+
+### لم يتغيّر
+لا سطر كود واحد في `backend/` أو `frontend/` تغيّر في هذه الدورة —
+التغيير الوحيد توثيقي.
+
 ## [Milestone 6: Weighted-Average Inventory Valuation & COGS] - 2026-08-16
 
 حسم قرار COGS/تقييم المخزون المُؤجَّل صراحة منذ Milestone 1/5. القرار:

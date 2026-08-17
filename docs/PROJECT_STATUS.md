@@ -1,19 +1,22 @@
 # حالة المشروع (Project Status)
 
-**آخر تحديث**: 2026-08-16
-**المرحلة الحالية**: Milestone 6 — Weighted-Average Inventory Valuation &
-COGS (حسم القرار المؤجَّل منذ Milestone 1/5: طريقة تقييم المخزون
-**Weighted Average** (متوسط مرجّح متحرك)، بعد مراجعة معمارية فعلية أثبتت
-أن الشكل الحالي لـ`StockLevel` — صف واحد لكل (Product, Warehouse) بلا أي
-مفهوم Lot — يناسبها بأقل تغيير هيكلي ممكن (عمودان جديدان فقط). البيع
-يُرحّل الآن `Dr COGS (5010) / Cr Inventory (1200)` فعليًا، بقيمة مُشتقّة
-حصرًا من محرّك تقييم خادمي (لا مدخل عميل)، مع تحديث ذرّي لمتوسط التكلفة
-في نفس استعلام تحديث الكمية الموجود أصلًا منذ Phase 2 — لا مسار كتابة
-موازٍ. راجع قسم "Milestone 6" أدناه و`docs/ACCOUNTING.md` "COGS / تقييم
-المخزون" للتفصيل الكامل) — **مكتملة ومُختبرة**، بانتظار موافقتك الصريحة
-لبدء المرحلة القادمة
+**آخر تحديث**: 2026-08-17
+**الحالة**: **RELEASE CANDIDATE — READY** (راجع قسم "Final Release
+Candidate" في أسفل هذا الملف للتقرير الكامل). آخر عمل تنفيذي فعلي كان
+Milestone 6 — Weighted-Average Inventory Valuation & COGS (حسم القرار
+المؤجَّل منذ Milestone 1/5: طريقة تقييم المخزون **Weighted Average**
+(متوسط مرجّح متحرك)، بعد مراجعة معمارية فعلية أثبتت أن الشكل الحالي
+لـ`StockLevel` — صف واحد لكل (Product, Warehouse) بلا أي مفهوم Lot —
+يناسبها بأقل تغيير هيكلي ممكن (عمودان جديدان فقط). البيع يُرحّل الآن
+`Dr COGS (5010) / Cr Inventory (1200)` فعليًا، بقيمة مُشتقّة حصرًا من
+محرّك تقييم خادمي (لا مدخل عميل)، مع تحديث ذرّي لمتوسط التكلفة في نفس
+استعلام تحديث الكمية الموجود أصلًا منذ Phase 2 — لا مسار كتابة موازٍ.
+راجع قسم "Milestone 6" أدناه و`docs/ACCOUNTING.md` "COGS / تقييم
+المخزون" للتفصيل الكامل. **بعد Milestone 6، أُجريت مراجعة نهائية شاملة
+للمنتج بأكمله (Final Completion & Release Candidate) — لم تُوجَد أي عوائق
+حقيقية، لم يُغيَّر أي كود.**
 
-## الحالة الإجمالية: 🟢 جاهز — بانتظار موافقتك الصريحة على بدء المرحلة القادمة
+## الحالة الإجمالية: 🟢 RELEASE CANDIDATE — READY
 
 ## ملخص: ما هذه المرحلة وما ليست
 
@@ -1265,3 +1268,129 @@ NOT PUSHED
   للتسويات/الجرد (قرار موثَّق)) مكتمل ومُختبر (161/161 خلفية + 34/34
   Vitest + Playwright 4/4، بما فيها اختبارا تزامن حقيقيَّين) — بانتظار
   موافقة صريحة لبدء المرحلة القادمة.
+- 2026-08-17: **Final Completion & Release Candidate** — تدقيق نهائي
+  شامل للمنتج بأكمله (لا كود جديد، قراءة فقط ثم إعادة تشغيل كامل
+  مجموعة التحقق): git status/log، بنية backend/frontend، env validation،
+  CORS، Rate Limiting، Health، RLS، RBAC، الاستيراد من Excel (حماية
+  CSV/formula injection)، ZATCA Phase 1، refresh token rotation/reuse
+  detection، فحص أسرار على كامل المستودع (لا تسريب). تشغيل فعلي حقيقي
+  لكل الأسرة الذهبية (Registration → ... → COGS) عبر Playwright ضد
+  backend حقيقي، وليس قراءة كود فقط. لم يُوجَد أي عائق حقيقي (Real
+  Blocker) يمنع إصدار نسخة تجريبية/Staging مضبوطة. **Qeedha B مُصنَّف
+  RELEASE CANDIDATE — READY.** راجع قسم "Final Release Candidate" أدناه
+  للتقرير الكامل.
+
+---
+
+# Final Release Candidate — 2026-08-17
+
+**Status: RELEASE CANDIDATE — READY**
+
+مراجعة نهائية للمنتج بأكمله كما هو اليوم (لا مرحلة جديدة، لا ميزة
+مُخترَعة) — تحقّق فقط أن كل ما بُني عبر Phase 1 حتى Milestone 6 يعمل
+معًا بشكل صحيح ومتّسق، وأنه لا يوجد عائق حقيقي (أمني، محاسبي، أو
+وظيفي) يمنع طرحه كنسخة تجريبية/Staging مضبوطة. **لم يُعدَّل أي كود في
+هذه الدورة** — التغيير الوحيد هو هذا التصنيف الرسمي في التوثيق.
+
+## النطاق المُتحقَّق (Verified Core)
+Auth (JWT + دوران/كشف إعادة استخدام Refresh Token) · Multi-tenancy ·
+RBAC · RLS · Branch/Warehouse Scope · Audit · Catalog · Inventory · POS ·
+Sales · Payments · Invoices · Purchases · Expenses · Double-Entry
+Accounting · Chart of Accounts · Journal Entries · Trial Balance ·
+General Ledger · P&L · Balance Sheet · AR/AP · Fiscal Periods · Accounting
+Opening Balances · Weighted Average Inventory Valuation · COGS · Excel
+Import · ZATCA Phase 1 QR.
+
+## الأسرة الذهبية (Golden Path) — PASS
+`frontend/e2e/golden-path.spec.ts` نُفِّذ فعليًا (لا قراءة كود فقط) ضد
+Backend حقيقي: تسجيل → منتج → مخزون (رصيد افتتاحي + متوسط تكلفة/قيمة
+مخزون) → عميل → مورد → شراء → استلام → بيع POS → دفعة → فاتورة → مصروف
+→ محاسبة (قيود Sale/Purchase/Expense) → ميزان مراجعة (متوازن) → دفتر
+أستاذ → أرباح وخسائر (COGS + Gross Profit) → ميزانية عمومية (متوازنة) →
+ذمم (AR فارغ هيكليًا موثَّق / AP يُظهر المورد) → فترة محاسبية → تسجيل
+خروج/دخول. بالإضافة: `einvoice-qr.spec.ts` (ZATCA Phase 1 QR حقيقي)،
+`excel-import.spec.ts` (المعالج الكامل)، `tenant-isolation.spec.ts`
+(عزل حقيقي عبر المتصفح). **4/4 نجحت فعليًا.**
+
+## السلامة المالية (Financial Integrity) — PASS
+مُتحقَّق عبر `test/milestone6.e2e-spec.ts` و`test/milestone1.e2e-spec.ts`
+وتشغيل فعلي: مدين = دائن على كل قيد، قيمة المخزون = الكمية × متوسط
+التكلفة، COGS مُشتقّة خادميًا بالكامل (لا مسار للعميل ليحدِّد تكلفة أو
+COGS — `SaleItemInputDto` لا يحمل حقل تكلفة أصلًا، `forbidNonWhitelisted`
+يرفض أي محاولة بـ400)، إلغاء بيع يُعيد المخزون بالتكلفة الأصلية ويعكس
+قيد COGS/Inventory تلقائيًا، Idempotency عبر `clientReferenceId`.
+
+## عزل المستأجرين (Tenant Isolation) — PASS
+RLS + RBAC + IDOR + نطاق الفروع/المستودعات مُتحقَّقة عبر عشرات
+الاختبارات عبر كل ملفات `test/*.e2e-spec.ts` بالإضافة لاختبار Playwright
+حقيقي عبر المتصفح (`tenant-isolation.spec.ts`).
+
+## الأمان (Security) — PASS
+CORS مبني على allowlist صريح (رفض بدء حقيقي في الإنتاج بلا origins)،
+`ThrottlerModule` مُفعَّل عالميًا (`APP_GUARD`)، Env Validation فعلي
+(`class-validator`) يمنع بدء التطبيق بمتغيرات ناقصة، حماية
+CSV/Formula Injection في الاستيراد (`imports/sanitize.ts`)، دوران/كشف
+إعادة استخدام Refresh Token (`auth.service.ts`)، Health endpoint حقيقي
+(503 عند فشل قاعدة البيانات)، فحص أسرار على كامل المستودع (لا مطابقات
+حقيقية — كل ما ظهر كلمات مرور اختبار واضحة الغرض أو placeholders
+موسومة "please-change").
+
+## Tests
+Backend: **161/161** e2e. Frontend: **34/34** Vitest. Playwright:
+**4/4**. كلها أُعيد تشغيلها فعليًا في هذه الدورة، وليس نقلًا عن تقرير
+سابق.
+
+## Build / Lint / Typecheck / Database
+Backend build/lint/`tsc --noEmit`: PASS. Frontend build/lint/`tsc
+--noEmit`: PASS. `prisma migrate status` على dev وtest: up to date، لا
+drift.
+
+## Docker
+**BLOCKED BY ENVIRONMENT** — `docker ps` يفشل (`dial unix
+/var/run/docker.sock`) — لا daemon متاح في بيئة التطوير هذه. لم يُدَّعَ
+تشغيله؛ Dockerfiles وdocker-compose.yml مكتوبة وموجودة (منذ Milestone 2)
+لكن غير مُختبَرة فعليًا هنا أو في أي دورة سابقة — نفس القيد الموثَّق
+باستمرار منذ Milestone 2.
+
+## CI
+PARTIAL — `.github/workflows/ci.yml` صحيح نحويًا (`yaml.safe_load`
+نجح) لكن لم يُشغَّل فعليًا على أي GitHub Actions runner حقيقي (بيئة
+التطوير هذه لا تملك وصولًا لذلك) — موثَّق منذ Milestone 2،
+`docs/DEPLOYMENT.md` "القيود المعروفة".
+
+## Secret Scan
+PASS — بحث شامل على كامل المستودع (أنماط مفاتيح AWS/GitHub/Slack/Private
+Key + أنماط `password=`/`secret=`/`token=` بقيم حرفية) — لا تسريب حقيقي.
+
+## التغييرات المُنفَّذة في هذه الدورة
+**لا تغيير كود** — تدقيق نهائي فقط. التغيير الوحيد: هذا القسم في
+`docs/PROJECT_STATUS.md` (بالإضافة لبنود مماثلة صغيرة في
+`docs/CHANGELOG.md`) يُسجِّل التصنيف الرسمي RELEASE CANDIDATE — READY.
+
+## القيود المعروفة (حقيقية، غير حاجبة للإصدار)
+- لا ترحيل محاسبي تلقائي للتسويات اليدوية/فروقات الجرد (موثَّق منذ
+  Milestone 6).
+- لا بيع آجل (Credit Sale) — AR فارغ هيكليًا نتيجة لذلك، موثَّق منذ
+  Milestone 1.
+- AP لا يتناقص (لا خطوة "دفع لمورد" بعد).
+- لا إجراء إقفال فترة محاسبي فعلي يكنس صافي الدخل لحساب Equity حقيقي.
+- لا مرتجعات مبيعات/مشتريات جزئية.
+- Docker/CI غير مُختبَرين فعليًا في أي بيئة تطوير توفّرت حتى الآن
+  (القيد نفسه منذ Milestone 2، وليس شيئًا جديدًا).
+
+## نطاق مستقبلي/خارجي (لم يُلمَس، ولن يُلمَس في هذه الدورة)
+Qeedha Integration · Control Center · Website · Affiliate ·
+Subscription/Billing · ZATCA Phase 2 (XML/UBL/التوقيع الرقمي/CSID/
+الإرسال الفعلي) · Bank Reconciliation · Purchase Returns · Partial
+Sales Returns · Multi-currency · تكلفة مخزون متقدمة (FIFO/Lots) ·
+Background Queues · Advanced Analytics · تطبيق موبايل أصلي · مزوّدو
+تمويل خارجيون.
+
+## Commit
+NONE — لم يلزم أي تغيير كود.
+
+## Push
+NOT PUSHED
+
+## Git Status
+CLEAN
