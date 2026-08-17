@@ -141,11 +141,12 @@ function BalanceList({
 }
 
 /**
- * AR/AP subledgers (docs/ACCOUNTING.md "AR/AP subledger"). AR reads live off
- * the ledger like everything else - it will legitimately show no customers
- * today because Sales require full payment at completion (no credit-sale
- * flow exists yet), not because this page is broken. AP is real and populated
- * from every received Purchase.
+ * AR/AP subledgers (docs/ACCOUNTING.md "AR/AP subledger"). Both read live off
+ * the ledger like everything else - AR is populated from any sale left
+ * partially/fully unpaid (docs/ACCOUNTING.md "Customer Credit Sales / AR")
+ * and AP from every received Purchase. Recording a payment against a
+ * specific sale/purchase happens from that sale's/purchase's own detail view
+ * (InvoicesPage / PurchasesPage), not from this aggregate balance list.
  */
 export function ReceivablesPayablesPage() {
   const { hasPermission } = useAuth();
@@ -184,7 +185,7 @@ export function ReceivablesPayablesPage() {
       {tab === 'ar' && canViewAr && (
         <BalanceList
           title="ذمم العملاء"
-          emptyHint="لا توجد أرصدة عملاء - النظام حاليًا لا يدعم البيع الآجل (كل عملية بيع تُدفع بالكامل عند إتمامها)"
+          emptyHint="لا توجد أرصدة عملاء آجلة حاليًا"
           listPath="/accounting/ar/customers"
           statementPath={(id) => `/accounting/ar/customers/${id}`}
           idKey="customerId"

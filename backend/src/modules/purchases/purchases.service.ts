@@ -16,11 +16,18 @@ import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { InventoryValuationService } from '../inventory/inventory-valuation.service';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { QueryPurchasesDto } from './dto/query-purchases.dto';
+import { RecordSupplierPaymentDto } from './dto/record-supplier-payment.dto';
 import { PurchaseNumberService } from './purchase-number.service';
+
+/** cash -> Cash account, everything else -> Bank account - same mapping SalesService uses. */
+function cashOrBankAccountCode(method: string): string {
+  return method === 'cash' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.BANK;
+}
 
 const PURCHASE_INCLUDE = {
   items: true,
   supplier: true,
+  supplierPayments: true,
 } satisfies Prisma.PurchaseInclude;
 
 /**
@@ -284,6 +291,110 @@ export class PurchasesService {
     });
 
     return this.getOwned(tx, companyId, purchase.id);
+  }
+
+  /**
+   * Milestone 7 (docs/ACCOUNTING.md "Supplier Payments / AP"): records a
+   * payment TO the supplier settling (part of) this purchase's outstanding
+   * AP balance - `Dr Accounts Payable / Cr Cash/Bank`. Same
+   * `SELECT ... FOR UPDATE` row-lock pattern as SalesService.recordPayment:
+   * the AP balance is never stored, always recomputed
+   * (purchase.totalAmount - SUM(existing SupplierPayment.amount)) under the
+   * lock, so two concurrent payments can never jointly overpay.
+   */
+  async recordPayment(
+    tx: TenantClient,
+    companyId: string,
+    membershipId: string,
+    actorUserId: string,
+    purchaseId: string,
+    dto: RecordSupplierPaymentDto,
+  ) {
+    const existingPayment = await tx.supplierPayment.findUnique({
+      where: {
+        companyId_clientReferenceId: { companyId, clientReferenceId: dto.clientReferenceId },
+      },
+    });
+    if (existingPayment) {
+      if (existingPayment.purchaseId !== purchaseId) {
+        throw new ConflictException('مفتاح الطلب هذا مستخدم بالفعل لأمر شراء مختلف');
+      }
+      return this.getOwned(tx, companyId, purchaseId);
+    }
+
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      membershipId,
+      PERMISSION_KEYS.PURCHASES_PAYMENT_RECORD,
+    );
+    const purchase = await tx.purchase.findFirst({ where: { id: purchaseId, companyId } });
+    if (!purchase) throw new NotFoundException('أمر الشراء غير موجود');
+    if (!scope.allBranches && !scope.branchIds.has(purchase.branchId)) {
+      throw new ForbiddenException('أمر الشراء هذا خارج نطاق الفروع المصرح بها لهذه العضوية');
+    }
+    if (purchase.status !== 'received') {
+      throw new ConflictException('لا يمكن تسجيل دفعة إلا على أمر شراء تم استلامه');
+    }
+
+    // Row lock held for the rest of this transaction - same pattern as
+    // SalesService.recordPayment.
+    await tx.$queryRaw`SELECT id FROM purchases WHERE id = ${purchaseId}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
+    const paidAgg = await tx.supplierPayment.aggregate({
+      where: { companyId, purchaseId },
+      _sum: { amount: true },
+    });
+    const alreadyPaid = Number(paidAgg._sum.amount ?? 0);
+    const outstanding = round2(Number(purchase.totalAmount) - alreadyPaid);
+    if (dto.amount > outstanding + 0.005) {
+      throw new ConflictException(
+        `المبلغ المدفوع (${dto.amount}) أكبر من الرصيد المستحق (${outstanding})`,
+      );
+    }
+
+    const payment = await tx.supplierPayment.create({
+      data: {
+        companyId,
+        branchId: purchase.branchId,
+        supplierId: purchase.supplierId,
+        purchaseId,
+        method: dto.method,
+        amount: dto.amount,
+        currency: purchase.currency,
+        reference: dto.reference,
+        clientReferenceId: dto.clientReferenceId,
+        actorMembershipId: membershipId,
+      },
+    });
+
+    await this.journalService.postJournalEntry(tx, companyId, {
+      branchId: purchase.branchId,
+      referenceType: 'Purchase',
+      referenceId: purchase.id,
+      description: `دفعة لمورد على شراء ${purchase.referenceNumber}${dto.reference ? ` - ${dto.reference}` : ''}`,
+      actorMembershipId: membershipId,
+      actorUserId,
+      lines: [
+        { accountCode: ACCOUNT_CODES.ACCOUNTS_PAYABLE, debit: dto.amount },
+        { accountCode: cashOrBankAccountCode(dto.method), credit: dto.amount },
+      ],
+    });
+
+    await this.auditService.log(tx, {
+      companyId,
+      actorUserId,
+      branchId: purchase.branchId,
+      action: 'purchases.payment.record',
+      entityType: 'SupplierPayment',
+      entityId: payment.id,
+      afterState: {
+        purchaseId,
+        amount: dto.amount,
+        method: dto.method,
+        outstandingBefore: outstanding,
+      },
+    });
+
+    return this.getOwned(tx, companyId, purchaseId);
   }
 
   async cancelPurchase(

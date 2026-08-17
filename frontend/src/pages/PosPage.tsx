@@ -118,7 +118,13 @@ export function PosPage() {
   );
   const totalAmount = round2(subtotal - discountTotal + taxTotal);
   const paymentsSum = round2(payments.reduce((s, p) => s + (Number(p.amount) || 0), 0));
-  const paymentsBalanced = cart.length > 0 && Math.abs(paymentsSum - totalAmount) < 0.005;
+  // Milestone 7 (docs/ACCOUNTING.md "Customer Credit Sales / AR"): the sum
+  // may now be less than the total (partial payment, or zero for a fully
+  // credit sale) - it may never EXCEED it. A shortfall always requires a
+  // selected customer, since AR is a per-customer receivable.
+  const arRemainder = round2(totalAmount - paymentsSum);
+  const paymentsBalanced =
+    cart.length > 0 && paymentsSum <= totalAmount + 0.005 && (arRemainder <= 0.005 || !!customerId);
 
   const runSearch = async (term: string) => {
     if (!term.trim()) {
@@ -208,8 +214,12 @@ export function PosPage() {
       setError('السلة فارغة');
       return;
     }
+    if (paymentsSum > totalAmount + 0.005) {
+      setError('مجموع الدفعات لا يمكن أن يتجاوز الإجمالي');
+      return;
+    }
     if (!paymentsBalanced) {
-      setError('مجموع الدفعات يجب أن يساوي الإجمالي بالضبط');
+      setError('البيع الآجل (غير مسدد بالكامل) يتطلب اختيار عميل');
       return;
     }
     setSubmitting(true);
@@ -222,7 +232,14 @@ export function PosPage() {
           quantity: l.quantity,
           discountAmount: l.discountAmount || undefined,
         })),
-        payments: payments.map((p) => ({ method: p.method, amount: Number(p.amount) || 0 })),
+        // Milestone 7: a blank/zero payment line is dropped, not sent as
+        // amount 0 - the backend requires every payments[] entry to be
+        // strictly positive (see SalePaymentInputDto), so a fully-credit
+        // sale sends an EMPTY array, not a zero-amount one.
+        payments: payments.filter((p) => Number(p.amount) > 0).map((p) => ({
+          method: p.method,
+          amount: Number(p.amount),
+        })),
         clientReferenceId,
       });
       setCompletedSale(sale);
@@ -517,9 +534,16 @@ export function PosPage() {
                   ملء المبلغ كاملًا
                 </button>
               </div>
-              {!paymentsBalanced && payments.some((p) => p.amount) && (
+              {cart.length > 0 && paymentsSum > totalAmount + 0.005 && (
                 <div className="text-xs text-amber-600">
-                  مجموع الدفعات ({paymentsSum} ر.س) لا يساوي الإجمالي ({totalAmount} ر.س)
+                  مجموع الدفعات ({paymentsSum} ر.س) أكبر من الإجمالي ({totalAmount} ر.س)
+                </div>
+              )}
+              {cart.length > 0 && paymentsSum <= totalAmount + 0.005 && arRemainder > 0.005 && (
+                <div className={`text-xs ${customerId ? 'text-slate-500' : 'text-amber-600'}`}>
+                  {customerId
+                    ? `المتبقي (${arRemainder} ر.س) يُرحَّل كذمم مدينة على العميل`
+                    : `المتبقي (${arRemainder} ر.س) بيع آجل - اختر عميلًا لإتمامه`}
                 </div>
               )}
             </div>

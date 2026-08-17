@@ -463,6 +463,60 @@ P&L/Balance Sheet) وSubledger الذمم تستدعي
   `StockLevel` الموجود أصلًا — يرث نفس RLS ونفس فحص نطاق المستودعات/
   الفروع بلا أي كود إضافي.
 
+## العمليات التجارية الجديدة — تفويض وتزامن وسلامة مالية (Milestone 7)
+
+- **لا مبلغ/حساب محاسبي يُقبَل من العميل في أي مسار جديد**: `RecordSalePaymentDto`/
+  `RecordSupplierPaymentDto`/`CreateSaleReturnDto`/`CreatePurchaseReturnDto`/
+  `CreateBankReconciliationDto` تحمل فقط `method`/`amount`/`quantity`/
+  `reason`/`clientReferenceId`/`asOfDate`/`statementBalance` — لا `accountCode`
+  حر (`CreateBankReconciliationDto.accountCode` مُقيَّد بـ`@IsIn([CASH,
+  BANK])`)، ولا `journalLines`، ولا `bookBalance`/`cogs`/`unitCost` قابل
+  للإرسال. كل مبلغ محاسبي فعلي (الرصيد المستحق، قيمة الإرجاع، الرصيد
+  الدفتري) يُشتَق خادميًا من `JournalLine`/`SaleItem`/`PurchaseItem`
+  الفعلية، تمامًا كنمط Milestone 6 لـCOGS. `ValidationPipe`
+  (`forbidNonWhitelisted: true`) يرفض أي حقل إضافي بـ400.
+- **منع الدفع الزائد (Overpayment) بقفل صف حقيقي، لا فحص تطبيقي فقط**:
+  `SalesService.recordPayment`/`PurchasesService.recordPayment` كلاهما
+  يُصدِران `SELECT id FROM sales/purchases WHERE id=... FOR UPDATE` **قبل**
+  حساب `outstanding = total - SUM(payments)` وإدراج صف الدفع الجديد، ضمن
+  نفس معاملة `withTenant` — طلبا دفع متزامنان حقيقيان على نفس البيع/الشراء
+  يُسلسَلان على قفل الصف، فلا يمكن لأحدهما رؤية رصيدًا قديمًا غير محدَّث.
+  مُختبَر بطلبي HTTP متزامنين حقيقيين (`test/milestone7.e2e-spec.ts`
+  "دفعتان متزامنتان").
+- **منع تجاوز الكمية القابلة للإرجاع بنفس النمط**: `SalesReturnService`/
+  `PurchaseReturnService` يقفلان صف `sale_items`/`purchase_items`
+  (`SELECT ... FOR UPDATE`) قبل حساب الكمية المُرجَعة سابقًا (مجموع
+  `SaleReturnItem`/`PurchaseReturnItem` الموجودة) والتحقق من الكمية
+  الجديدة المطلوبة — يُسلسِل طلبات إرجاع متزامنة حقيقية على نفس السطر.
+- **لا مصادقة عابرة للعملاء/الموردين/المنشآت**: `recordPayment` على كلا
+  المسارين يتحقق أن الصف الأب (`sale`/`purchase`) ينتمي لنفس `companyId`
+  (`404` غير ذلك، RLS تمنع القراءة أصلًا) **وأن مفتاح `clientReferenceId`
+  المُعاد استخدامه يخص نفس `saleId`/`purchaseId`** — لا يمكن لطلب مكرر
+  بنفس المفتاح "الانزلاق" لتحديث سجل مختلف (`409` إن اختلف). مُختبَر صراحة
+  (تسوية مورد/بيع عبر منشأة أخرى، `test/milestone7.e2e-spec.ts` "عزل
+  المستأجرين وحماية IDOR").
+- **رفض العمليات على حالة غير صالحة**: دفعة/مرتجع على بيع ملغى (`409`)،
+  دفعة/مرتجع مشتريات على أمر شراء لم يُستلَم بعد (`409`) — كلاهما مُتحقَّق
+  قبل أي كتابة، لا بعدها.
+- **نطاق الفروع (Branch Scope) مُطبَّق على كل مسار جديد** بنفس نمط
+  `BranchScopeService.getScopeForPermission` الموجود أصلًا — `sales
+  .payment.record`/`sales.return`/`purchases.payment.record`/`purchases
+  .return` تتحقق من نطاق فرع البيع/الشراء الأصلي قبل أي عملية (`403` خارج
+  النطاق).
+- **RBAC — 5 صلاحيات جديدة بتوزيع مبني على فصل المهام**: راجع
+  `docs/ACCOUNTING.md` "RBAC" لجدول التوزيع الكامل والمنطق وراءه (تحصيل
+  عميل تشغيلي واسع، مرتجع مبيعات مُقيَّد كإلغاء البيع، دفع مورد وظيفة
+  خزينة/محاسبة، مرتجع مشتريات عملية مخزون، تسوية بنكية محاسبية بحتة).
+- **التسوية البنكية لا تتصل بأي جهة خارجية**: `statementBalance` رقم
+  يُدخله المستخدم يدويًا فقط — لا HTTP خارج، لا بيانات اعتماد بنكية
+  مُخزَّنة، لا سطح هجوم شبكي جديد.
+- **RLS بلا استثناء**: الجداول الستة الجديدة
+  (`supplier_payments, sale_returns, sale_return_items, purchase_returns,
+  purchase_return_items, bank_reconciliations`) كلها `FORCE ROW LEVEL
+  SECURITY` + policy `tenant_isolation`، مُتحقَّقة مباشرة عبر استعلام SQL
+  خام عابر للمنشآت (`test/milestone7.e2e-spec.ts` بنفس نمط الفحص المباشر
+  المُستخدَم منذ Phase 4).
+
 ## هذا الملف حي
 يُحدَّث مع كل مرحلة تُضيف سطح هجوم جديد (مثلًا: مرحلة ZATCA تضيف اعتبارات
 تواقيع رقمية ومفاتيح تشفير خاصة بالهيئة، مرحلة Integration تضيف اعتبارات

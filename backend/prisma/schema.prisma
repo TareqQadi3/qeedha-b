@@ -67,6 +67,12 @@ model Company {
   fiscalPeriods          FiscalPeriod[]
   importJobs             ImportJob[]
   invoiceCompliance      InvoiceCompliance[]
+  supplierPayments       SupplierPayment[]
+  saleReturns            SaleReturn[]
+  saleReturnItems        SaleReturnItem[]
+  purchaseReturns        PurchaseReturn[]
+  purchaseReturnItems    PurchaseReturnItem[]
+  bankReconciliations    BankReconciliation[]
 
   @@map("companies")
 }
@@ -82,15 +88,19 @@ model Branch {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company         Company          @relation(fields: [companyId], references: [id])
-  warehouses      Warehouse[]
-  posDevices      PosDevice[]
-  membershipRoles MembershipRole[]
-  sales           Sale[]
-  invoices        Invoice[]
-  purchases       Purchase[]
-  expenses        Expense[]
-  journalEntries  JournalEntry[]
+  company             Company              @relation(fields: [companyId], references: [id])
+  warehouses          Warehouse[]
+  posDevices          PosDevice[]
+  membershipRoles     MembershipRole[]
+  sales               Sale[]
+  invoices            Invoice[]
+  purchases           Purchase[]
+  expenses            Expense[]
+  journalEntries      JournalEntry[]
+  supplierPayments    SupplierPayment[]
+  saleReturns         SaleReturn[]
+  purchaseReturns     PurchaseReturn[]
+  bankReconciliations BankReconciliation[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -481,17 +491,19 @@ model Product {
   updatedAt         DateTime  @updatedAt @map("updated_at")
   deletedAt         DateTime? @map("deleted_at")
 
-  company          Company           @relation(fields: [companyId], references: [id])
-  category         ProductCategory?  @relation(fields: [categoryId], references: [id])
-  brand            Brand?            @relation(fields: [brandId], references: [id])
-  unit             Unit?             @relation(fields: [unitId], references: [id])
-  barcodes         ProductBarcode[]
-  stockLevels      StockLevel[]
-  stockMovements   StockMovement[]
-  stockAdjustments StockAdjustment[]
-  stockCountLines  StockCountLine[]
-  saleItems        SaleItem[]
-  purchaseItems    PurchaseItem[]
+  company             Company              @relation(fields: [companyId], references: [id])
+  category            ProductCategory?     @relation(fields: [categoryId], references: [id])
+  brand               Brand?               @relation(fields: [brandId], references: [id])
+  unit                Unit?                @relation(fields: [unitId], references: [id])
+  barcodes            ProductBarcode[]
+  stockLevels         StockLevel[]
+  stockMovements      StockMovement[]
+  stockAdjustments    StockAdjustment[]
+  stockCountLines     StockCountLine[]
+  saleItems           SaleItem[]
+  purchaseItems       PurchaseItem[]
+  saleReturnItems     SaleReturnItem[]
+  purchaseReturnItems PurchaseReturnItem[]
 
   @@unique([companyId, sku])
   @@index([companyId, deletedAt])
@@ -702,8 +714,9 @@ model Supplier {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   deletedAt     DateTime? @map("deleted_at")
 
-  company   Company    @relation(fields: [companyId], references: [id])
-  purchases Purchase[]
+  company          Company           @relation(fields: [companyId], references: [id])
+  purchases        Purchase[]
+  supplierPayments SupplierPayment[]
 
   @@unique([companyId, reference])
   @@index([companyId, deletedAt])
@@ -780,14 +793,15 @@ model Sale {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  company   Company    @relation(fields: [companyId], references: [id])
-  branch    Branch     @relation(fields: [branchId], references: [id])
-  warehouse Warehouse  @relation(fields: [warehouseId], references: [id])
-  posDevice PosDevice? @relation(fields: [posDeviceId], references: [id])
-  customer  Customer?  @relation(fields: [customerId], references: [id])
-  items     SaleItem[]
-  payments  Payment[]
-  invoice   Invoice?
+  company     Company      @relation(fields: [companyId], references: [id])
+  branch      Branch       @relation(fields: [branchId], references: [id])
+  warehouse   Warehouse    @relation(fields: [warehouseId], references: [id])
+  posDevice   PosDevice?   @relation(fields: [posDeviceId], references: [id])
+  customer    Customer?    @relation(fields: [customerId], references: [id])
+  items       SaleItem[]
+  payments    Payment[]
+  invoice     Invoice?
+  saleReturns SaleReturn[]
 
   @@unique([companyId, clientReferenceId])
   @@index([companyId, branchId, createdAt])
@@ -829,9 +843,10 @@ model SaleItem {
   // never posted a COGS line, so there is nothing to reproduce.
   unitCost Decimal? @map("unit_cost") @db.Decimal(14, 4)
 
-  company Company @relation(fields: [companyId], references: [id])
-  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  company         Company          @relation(fields: [companyId], references: [id])
+  sale            Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product         Product          @relation(fields: [productId], references: [id])
+  saleReturnItems SaleReturnItem[]
 
   @@index([companyId, saleId])
   @@index([companyId, productId])
@@ -854,14 +869,205 @@ model Payment {
   externalReference String? @map("external_reference")
   idempotencyKey    String? @map("idempotency_key")
 
+  // Milestone 7: idempotency key for a standalone "record payment against an
+  // existing sale" request (AR settlement) - NULL for payments created
+  // inline at sale-creation time (those are already deduplicated via
+  // Sale.clientReferenceId). Postgres allows multiple NULLs in a unique
+  // index, so old/inline rows are unaffected.
+  clientReferenceId String? @map("client_reference_id")
+
   actorMembershipId String   @map("actor_membership_id") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at")
 
   company Company @relation(fields: [companyId], references: [id])
   sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
+  @@unique([companyId, clientReferenceId])
   @@index([companyId, saleId])
   @@map("payments")
+}
+
+/// Milestone 7: a payment made TO a supplier settling (part of) a specific
+/// Purchase's Accounts Payable balance. Mirrors Payment, but purchaseId is
+/// required (not optional) - a supplier payment always settles one specific
+/// purchase invoice, matching how AR/AP balances are derived purely from
+/// posted JournalLines (see SubledgerService) rather than a stored balance
+/// field, so every payment must reference the invoice it reduces.
+model SupplierPayment {
+  id         String @id @default(uuid()) @db.Uuid
+  companyId  String @map("company_id") @db.Uuid
+  branchId   String @map("branch_id") @db.Uuid
+  supplierId String @map("supplier_id") @db.Uuid
+  purchaseId String @map("purchase_id") @db.Uuid
+
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(14, 2)
+  currency  String        @default("SAR")
+  reference String? // free-text bank/cheque/transfer reference
+
+  // Idempotency key, same model as Sale/Purchase.clientReferenceId.
+  clientReferenceId String @map("client_reference_id")
+
+  actorMembershipId String   @map("actor_membership_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  branch   Branch   @relation(fields: [branchId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+
+  @@unique([companyId, clientReferenceId])
+  @@index([companyId, purchaseId])
+  @@index([companyId, supplierId])
+  @@map("supplier_payments")
+}
+
+/// Milestone 7: a genuine partial/full return of previously sold items,
+/// distinct from Sale.cancelledAt (a full-sale void). Referenced by UUID
+/// only (no human-readable sequence), matching internal correcting
+/// transactions like StockAdjustment/StockTransfer rather than
+/// customer-facing documents like Invoice/Purchase.
+model SaleReturn {
+  id        String  @id @default(uuid()) @db.Uuid
+  companyId String  @map("company_id") @db.Uuid
+  branchId  String  @map("branch_id") @db.Uuid
+  saleId    String  @map("sale_id") @db.Uuid
+  reason    String?
+
+  subtotal    Decimal @db.Decimal(14, 2)
+  taxAmount   Decimal @map("tax_amount") @db.Decimal(14, 2)
+  totalAmount Decimal @map("total_amount") @db.Decimal(14, 2)
+
+  clientReferenceId String @map("client_reference_id")
+
+  actorMembershipId String   @map("actor_membership_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  company Company          @relation(fields: [companyId], references: [id])
+  branch  Branch           @relation(fields: [branchId], references: [id])
+  sale    Sale             @relation(fields: [saleId], references: [id])
+  items   SaleReturnItem[]
+
+  @@unique([companyId, clientReferenceId])
+  @@index([companyId, saleId])
+  @@map("sale_returns")
+}
+
+model SaleReturnItem {
+  id           String @id @default(uuid()) @db.Uuid
+  companyId    String @map("company_id") @db.Uuid
+  saleReturnId String @map("sale_return_id") @db.Uuid
+  saleItemId   String @map("sale_item_id") @db.Uuid
+  productId    String @map("product_id") @db.Uuid
+
+  quantity  Decimal @db.Decimal(14, 3)
+  unitPrice Decimal @map("unit_price") @db.Decimal(14, 2)
+  vatRate   Decimal @map("vat_rate") @db.Decimal(5, 2)
+
+  // Copied from SaleItem.unitCost at return time - preserves the ORIGINAL
+  // sale-time cost for COGS/inventory reversal (docs/ACCOUNTING.md "COGS /
+  // Inventory Valuation"). NULL when the original SaleItem.unitCost is NULL
+  // (legacy pre-Milestone-6 rows) - see SalesReturnService fallback.
+  unitCost Decimal? @map("unit_cost") @db.Decimal(14, 4)
+
+  lineSubtotal Decimal @map("line_subtotal") @db.Decimal(14, 2)
+  lineTax      Decimal @map("line_tax") @db.Decimal(14, 2)
+  lineTotal    Decimal @map("line_total") @db.Decimal(14, 2)
+
+  company    Company    @relation(fields: [companyId], references: [id])
+  saleReturn SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  saleItem   SaleItem   @relation(fields: [saleItemId], references: [id])
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@index([companyId, saleReturnId])
+  @@index([companyId, saleItemId])
+  @@map("sale_return_items")
+}
+
+/// Milestone 7: a genuine partial/full return of previously received
+/// purchase items to a supplier. Mirrors SaleReturn.
+model PurchaseReturn {
+  id         String  @id @default(uuid()) @db.Uuid
+  companyId  String  @map("company_id") @db.Uuid
+  branchId   String  @map("branch_id") @db.Uuid
+  purchaseId String  @map("purchase_id") @db.Uuid
+  reason     String?
+
+  subtotal    Decimal @db.Decimal(14, 2)
+  taxAmount   Decimal @map("tax_amount") @db.Decimal(14, 2)
+  totalAmount Decimal @map("total_amount") @db.Decimal(14, 2)
+
+  clientReferenceId String @map("client_reference_id")
+
+  actorMembershipId String   @map("actor_membership_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  company  Company              @relation(fields: [companyId], references: [id])
+  branch   Branch               @relation(fields: [branchId], references: [id])
+  purchase Purchase             @relation(fields: [purchaseId], references: [id])
+  items    PurchaseReturnItem[]
+
+  @@unique([companyId, clientReferenceId])
+  @@index([companyId, purchaseId])
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnItem {
+  id               String @id @default(uuid()) @db.Uuid
+  companyId        String @map("company_id") @db.Uuid
+  purchaseReturnId String @map("purchase_return_id") @db.Uuid
+  purchaseItemId   String @map("purchase_item_id") @db.Uuid
+  productId        String @map("product_id") @db.Uuid
+
+  quantity Decimal @db.Decimal(14, 3)
+  unitCost Decimal @map("unit_cost") @db.Decimal(14, 2)
+  vatRate  Decimal @map("vat_rate") @db.Decimal(5, 2)
+
+  lineSubtotal Decimal @map("line_subtotal") @db.Decimal(14, 2)
+  lineTax      Decimal @map("line_tax") @db.Decimal(14, 2)
+  lineTotal    Decimal @map("line_total") @db.Decimal(14, 2)
+
+  company        Company        @relation(fields: [companyId], references: [id])
+  purchaseReturn PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+  purchaseItem   PurchaseItem   @relation(fields: [purchaseItemId], references: [id])
+  product        Product        @relation(fields: [productId], references: [id])
+
+  @@index([companyId, purchaseReturnId])
+  @@index([companyId, purchaseItemId])
+  @@map("purchase_return_items")
+}
+
+/// Milestone 7: a minimal, header-only internal reconciliation record
+/// comparing the book (GL) balance of a cash/bank account against an
+/// externally-reported statement balance as of a given date. Deliberately
+/// no line-level transaction-matching table - see docs/ACCOUNTING.md "Bank
+/// Reconciliation" for why per-line matching is documented as a deferred
+/// scope decision rather than built here. Create = immediately complete
+/// (immutable), like AuditLog - there is no draft/in-progress state.
+model BankReconciliation {
+  id        String  @id @default(uuid()) @db.Uuid
+  companyId String  @map("company_id") @db.Uuid
+  branchId  String? @map("branch_id") @db.Uuid
+
+  // ACCOUNT_CODES value (e.g. '1010' cash, '1020' bank) - a fixed code, not
+  // an Account row FK, matching the existing Account Mapping convention of
+  // referencing chart-of-accounts codes rather than IDs.
+  accountCode String @map("account_code")
+
+  asOfDate         DateTime @map("as_of_date") @db.Date
+  statementBalance Decimal  @map("statement_balance") @db.Decimal(14, 2)
+  bookBalance      Decimal  @map("book_balance") @db.Decimal(14, 2)
+  difference       Decimal  @db.Decimal(14, 2)
+  notes            String?
+
+  actorMembershipId String   @map("actor_membership_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  branch  Branch? @relation(fields: [branchId], references: [id])
+
+  @@index([companyId, accountCode, asOfDate])
+  @@map("bank_reconciliations")
 }
 
 /// One row per company - an atomic, tenant-scoped invoice number counter.
@@ -1014,11 +1220,13 @@ model Purchase {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  company   Company        @relation(fields: [companyId], references: [id])
-  branch    Branch         @relation(fields: [branchId], references: [id])
-  warehouse Warehouse      @relation(fields: [warehouseId], references: [id])
-  supplier  Supplier       @relation(fields: [supplierId], references: [id])
-  items     PurchaseItem[]
+  company          Company           @relation(fields: [companyId], references: [id])
+  branch           Branch            @relation(fields: [branchId], references: [id])
+  warehouse        Warehouse         @relation(fields: [warehouseId], references: [id])
+  supplier         Supplier          @relation(fields: [supplierId], references: [id])
+  items            PurchaseItem[]
+  supplierPayments SupplierPayment[]
+  purchaseReturns  PurchaseReturn[]
 
   @@unique([companyId, clientReferenceId])
   @@unique([companyId, referenceNumber])
@@ -1048,9 +1256,10 @@ model PurchaseItem {
   lineTax        Decimal @map("line_tax") @db.Decimal(14, 2)
   lineTotal      Decimal @map("line_total") @db.Decimal(14, 2)
 
-  company  Company  @relation(fields: [companyId], references: [id])
-  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  product  Product  @relation(fields: [productId], references: [id])
+  company             Company              @relation(fields: [companyId], references: [id])
+  purchase            Purchase             @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product             Product              @relation(fields: [productId], references: [id])
+  purchaseReturnItems PurchaseReturnItem[]
 
   @@index([companyId, purchaseId])
   @@index([companyId, productId])
@@ -1305,35 +1514,35 @@ enum ImportJobStatus {
 }
 
 model ImportJob {
-  id                String            @id @default(uuid()) @db.Uuid
-  companyId         String            @map("company_id") @db.Uuid
-  actorMembershipId String            @map("actor_membership_id") @db.Uuid
-  actorUserId       String            @map("actor_user_id") @db.Uuid
-  entityType        ImportEntityType  @map("entity_type")
-  status            ImportJobStatus   @default(uploaded)
+  id                String           @id @default(uuid()) @db.Uuid
+  companyId         String           @map("company_id") @db.Uuid
+  actorMembershipId String           @map("actor_membership_id") @db.Uuid
+  actorUserId       String           @map("actor_user_id") @db.Uuid
+  entityType        ImportEntityType @map("entity_type")
+  status            ImportJobStatus  @default(uploaded)
 
   // Set only for entityType = opening_stock (the warehouse every row's
   // quantity is applied to - chosen once for the whole job, never read from
   // a spreadsheet column, since it must pass the same branch-scope check as
   // every other inventory write).
-  targetWarehouseId String?           @map("target_warehouse_id") @db.Uuid
+  targetWarehouseId String? @map("target_warehouse_id") @db.Uuid
 
-  fileKey          String  @map("file_key")
+  fileKey          String @map("file_key")
   // Sanitized (path separators/control characters stripped) for display
   // only - never used to construct a filesystem path. See StorageService.
-  originalFilename String  @map("original_filename")
-  fileSizeBytes    Int     @map("file_size_bytes")
+  originalFilename String @map("original_filename")
+  fileSizeBytes    Int    @map("file_size_bytes")
 
   detectedColumns Json? @map("detected_columns")
   columnMapping   Json? @map("column_mapping")
 
-  totalRows    Int? @map("total_rows")
-  validRows    Int? @map("valid_rows")
-  errorRows    Int? @map("error_rows")
-  importedRows Int? @map("imported_rows")
+  totalRows        Int?    @map("total_rows")
+  validRows        Int?    @map("valid_rows")
+  errorRows        Int?    @map("error_rows")
+  importedRows     Int?    @map("imported_rows")
   // Capped list of {row, field, message} - see IMPORT_MAX_STORED_ERRORS.
   // Never the row's full raw data, just the specific offending value(s).
-  validationErrors Json? @map("validation_errors")
+  validationErrors Json?   @map("validation_errors")
   failureReason    String? @map("failure_reason")
 
   // Idempotency, same pattern as Sale/Purchase/Expense.clientReferenceId.

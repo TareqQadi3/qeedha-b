@@ -5,6 +5,8 @@ import { AccountingReportsController } from './accounting-reports.controller';
 import { AccountingReportsService } from './accounting-reports.service';
 import { AccountingService } from './accounting.service';
 import { AccountsController } from './accounts.controller';
+import { BankReconciliationController } from './bank-reconciliation.controller';
+import { BankReconciliationService } from './bank-reconciliation.service';
 import { FiscalPeriodsController } from './fiscal-periods.controller';
 import { FiscalPeriodsService } from './fiscal-periods.service';
 import { JournalEntriesController } from './journal-entries.controller';
@@ -23,6 +25,7 @@ import { SubledgerService } from './subledger.service';
     SubledgerController,
     OpeningBalanceController,
     FiscalPeriodsController,
+    BankReconciliationController,
   ],
   providers: [
     AccountingService,
@@ -31,6 +34,7 @@ import { SubledgerService } from './subledger.service';
     AccountingReportsService,
     SubledgerService,
     OpeningBalanceService,
+    BankReconciliationService,
   ],
   exports: [AccountingService, JournalService, FiscalPeriodsService],
 })

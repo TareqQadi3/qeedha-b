@@ -7,6 +7,8 @@ import {
 import { TenantClient } from '../../common/prisma/prisma.service';
 import { paginate, paginationSkip } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
+import { ACCOUNT_CODES } from '../accounting/constants/default-chart-of-accounts';
+import { JournalService } from '../accounting/journal.service';
 import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { CreateStockCountDto } from './dto/create-stock-count.dto';
@@ -30,6 +32,7 @@ export class StockCountService {
     private readonly inventoryService: InventoryService,
     private readonly inventoryValuationService: InventoryValuationService,
     private readonly branchScopeService: BranchScopeService,
+    private readonly journalService: JournalService,
   ) {}
 
   async create(
@@ -219,7 +222,10 @@ export class StockCountService {
       expected: string;
       counted: string;
       difference: number;
+      valueDelta: number;
     }[] = [];
+    let totalGain = 0;
+    let totalLoss = 0;
 
     for (const line of stockCount.lines) {
       if (line.countedQuantity === null) continue;
@@ -232,23 +238,65 @@ export class StockCountService {
       // (or Product.costPrice if it never carried stock) - recordMovement's
       // documented fallback, since a count has no other cost information. A
       // "found less" line (difference < 0) never touches average_cost, only
-      // quantity. Deliberately still NO journal entry here, same as before
-      // this milestone - see "Known Limitations" for why.
-      await this.inventoryValuationService.recordReceipt(tx, companyId, {
-        warehouseId: stockCount.warehouseId,
-        productId: line.productId,
-        type: 'adjustment',
-        quantity: difference.toNumber(),
-        referenceType: 'StockCount',
-        referenceId: stockCount.id,
-        actorMembershipId,
-        notes: `فرق جرد: متوقع ${line.expectedQuantity} / فعلي ${line.countedQuantity}`,
-      });
+      // quantity.
+      // Milestone 7 (docs/ACCOUNTING.md "Stock Count Accounting"): now also
+      // posts the same Inventory <-> Adjustment Gain/Expense journal entry
+      // as a manual adjustment, using the same weighted-average valuation
+      // engine (recordValuedAdjustment) - closing the "no journal entry"
+      // limitation this method used to document.
+      const { valueDelta } = await this.inventoryValuationService.recordValuedAdjustment(
+        tx,
+        companyId,
+        {
+          warehouseId: stockCount.warehouseId,
+          productId: line.productId,
+          type: 'adjustment',
+          quantity: difference.toNumber(),
+          referenceType: 'StockCount',
+          referenceId: stockCount.id,
+          actorMembershipId,
+          notes: `فرق جرد: متوقع ${line.expectedQuantity} / فعلي ${line.countedQuantity}`,
+        },
+      );
+      if (valueDelta > 0) totalGain = Math.round((totalGain + valueDelta) * 100) / 100;
+      else if (valueDelta < 0) totalLoss = Math.round((totalLoss - valueDelta) * 100) / 100;
       differences.push({
         productId: line.productId,
         expected: line.expectedQuantity.toString(),
         counted: line.countedQuantity.toString(),
         difference: difference.toNumber(),
+        valueDelta,
+      });
+    }
+
+    // One journal entry for the whole count, with gains and losses kept as
+    // SEPARATE gross lines (not netted against each other) - a count with
+    // both "found more" and "found less" products must show its true gross
+    // gain and gross loss, not a single misleadingly-smaller net figure.
+    // The Inventory account itself still nets correctly either way, since
+    // debit/credit to it are additive across lines.
+    if (totalGain >= 0.005 || totalLoss >= 0.005) {
+      await this.journalService.postJournalEntry(tx, companyId, {
+        branchId: stockCount.warehouse.branchId,
+        referenceType: 'StockCount',
+        referenceId: stockCount.id,
+        description: 'فروق جرد مخزون',
+        actorMembershipId,
+        actorUserId,
+        lines: [
+          ...(totalGain >= 0.005
+            ? [
+                { accountCode: ACCOUNT_CODES.INVENTORY, debit: totalGain },
+                { accountCode: ACCOUNT_CODES.INVENTORY_ADJUSTMENT_GAIN, credit: totalGain },
+              ]
+            : []),
+          ...(totalLoss >= 0.005
+            ? [
+                { accountCode: ACCOUNT_CODES.INVENTORY_ADJUSTMENT_EXPENSE, debit: totalLoss },
+                { accountCode: ACCOUNT_CODES.INVENTORY, credit: totalLoss },
+              ]
+            : []),
+        ],
       });
     }
 

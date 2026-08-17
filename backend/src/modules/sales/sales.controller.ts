@@ -4,7 +4,10 @@ import { RequirePermissions } from '../../common/decorators/require-permissions.
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { CreateSaleReturnDto } from './dto/create-sale-return.dto';
 import { QuerySalesDto } from './dto/query-sales.dto';
+import { RecordSalePaymentDto } from './dto/record-sale-payment.dto';
+import { SalesReturnService } from './sales-return.service';
 import { SalesService } from './sales.service';
 
 @Controller('sales')
@@ -12,6 +15,7 @@ export class SalesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly salesService: SalesService,
+    private readonly salesReturnService: SalesReturnService,
   ) {}
 
   @RequirePermissions(PERMISSION_KEYS.SALES_READ)
@@ -59,6 +63,72 @@ export class SalesController {
   cancelSale(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.prisma.withTenant(user.companyId, (tx) =>
       this.salesService.cancelSale(tx, user.companyId, user.membershipId, user.userId, id),
+    );
+  }
+
+  /** Milestone 7: settles (part of) a sale's outstanding AR balance - see SalesService.recordPayment. Same duplicate-race handling as createSale. */
+  @RequirePermissions(PERMISSION_KEYS.SALES_PAYMENT_RECORD)
+  @Post(':id/payments')
+  async recordPayment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RecordSalePaymentDto,
+  ) {
+    try {
+      return await this.prisma.withTenant(user.companyId, (tx) =>
+        this.salesService.recordPayment(
+          tx,
+          user.companyId,
+          user.membershipId,
+          user.userId,
+          id,
+          dto,
+        ),
+      );
+    } catch (err) {
+      if (this.salesService.isDuplicateClientReference(err)) {
+        return this.prisma.withTenant(user.companyId, (tx) =>
+          this.salesService.getOwnedForMembership(tx, user.companyId, user.membershipId, id),
+        );
+      }
+      throw err;
+    }
+  }
+
+  /** Milestone 7: a genuine partial/full sales return - see SalesReturnService. */
+  @RequirePermissions(PERMISSION_KEYS.SALES_RETURN)
+  @Post(':id/returns')
+  async createReturn(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateSaleReturnDto,
+  ) {
+    try {
+      return await this.prisma.withTenant(user.companyId, (tx) =>
+        this.salesReturnService.createReturn(
+          tx,
+          user.companyId,
+          user.membershipId,
+          user.userId,
+          id,
+          dto,
+        ),
+      );
+    } catch (err) {
+      if (this.salesService.isDuplicateClientReference(err)) {
+        return this.prisma.withTenant(user.companyId, (tx) =>
+          this.salesReturnService.list(tx, user.companyId, user.membershipId, id),
+        );
+      }
+      throw err;
+    }
+  }
+
+  @RequirePermissions(PERMISSION_KEYS.SALES_READ)
+  @Get(':id/returns')
+  listReturns(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.prisma.withTenant(user.companyId, (tx) =>
+      this.salesReturnService.list(tx, user.companyId, user.membershipId, id),
     );
   }
 }

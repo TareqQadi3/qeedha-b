@@ -34,7 +34,7 @@ describe('ReceivablesPayablesPage - AR/AP subledger', () => {
     expect(screen.getByRole('button', { name: 'ذمم الموردين (AP)' })).toBeInTheDocument();
   });
 
-  it('AR tab shows the documented empty-state explanation (no credit-sale flow exists)', async () => {
+  it('AR tab shows the documented empty-state explanation when no customer carries a balance', async () => {
     hasPermission.mockImplementation(() => true);
     vi.spyOn(client.api, 'get').mockImplementation((path: string) => {
       if (path === '/accounting/ar/customers') return Promise.resolve([]);
@@ -43,9 +43,7 @@ describe('ReceivablesPayablesPage - AR/AP subledger', () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText('لا توجد أرصدة عملاء - النظام حاليًا لا يدعم البيع الآجل (كل عملية بيع تُدفع بالكامل عند إتمامها)'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('لا توجد أرصدة عملاء آجلة حاليًا')).toBeInTheDocument();
   });
 
   it('AP tab lists supplier balances and opens a statement modal on request', async () => {

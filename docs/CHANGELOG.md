@@ -1,5 +1,86 @@
 # سجل التغييرات (Changelog)
 
+## [Milestone 7: Merchant Operations & Business Completion] - 2026-08-17
+
+يُغلق فجوات مُوثَّقة صراحة منذ Milestone 1/5/6 تحت "مؤجَّل": بيع آجل
+حقيقي (AR)، دفعة لمورد (AP)، مرتجعات مبيعات/مشتريات جزئية، ترحيل محاسبي
+لتسويات/جرد المخزون، وتسوية بنكية/نقدية أساسية. كل ميزة عبر نفس نقطة
+العبور الوحيدة `JournalService.postJournalEntry`، بلا إعادة بناء أي بنية
+تحتية موجودة، وبنفس أنماط التزامن (`SELECT ... FOR UPDATE`) وIdempotency
+(`clientReferenceId`) المُستخدَمة في كل مرحلة سابقة.
+
+### أُضيف
+
+**محاسبة**:
+- بيع آجل/جزئي الدفع: `CreateSaleDto.payments` قد يكون مجموعه أقل من
+  الإجمالي أو فارغًا (يتطلب `customerId`) — الفرق يُرحَّل `Dr` على ذمم
+  مدينة `1100` ضمن نفس قيد البيع.
+- `SalesService.recordPayment` (`POST /sales/:id/payments`) — تسوية ذمم
+  مدينة، `Dr Cash/Bank / Cr AR`، منع دفع زائد بقفل صف حقيقي.
+- `PurchasesService.recordPayment` (`POST /purchases/:id/payments`) —
+  نموذج `SupplierPayment` جديد، تسوية ذمم دائنة، `Dr AP / Cr Cash/Bank`.
+- `SalesReturnService` (`POST /sales/:id/returns`) — نموذجا `SaleReturn`/
+  `SaleReturnItem` جديدان، مرتجعات جزئية/كلية/متعددة بالتكلفة التاريخية،
+  سياسة استرداد "الذمم أولًا".
+- `PurchaseReturnService` (`POST /purchases/:id/returns`) — نموذجا
+  `PurchaseReturn`/`PurchaseReturnItem` جديدان، بلا تعديل على أمر الشراء
+  الأصلي.
+- ترحيل محاسبي لتسويات المخزون (`InventoryService.adjustStock`) وإكمال
+  الجرد (`StockCountService.complete`) — حسابان جديدان (`4030` أرباح
+  تسوية، `5011` مصروف تسوية)، آلية `recordMovementWithValueDelta` لحساب
+  فرق القيمة الدقيق دون تعديل SQL الحركة المُثبَتة، وفصل ربح/خسارة
+  إجماليَين في قيد الجرد بلا تقاصّ.
+- `BankReconciliationService` (`/accounting/reconciliations`) — تسجيل
+  أدنى (رصيد دفتري مُشتقّ من القيود + رصيد كشف حساب يدوي + فرق)، بلا
+  مطابقة أسطر فردية وبلا اتصال بأي بنك خارجي.
+- 3 حسابات جديدة في دليل الحسابات (`4020` مرتجعات مبيعات، `4030` أرباح
+  تسوية مخزون، `5011` مصروف تسوية مخزون) — تُزرَع تلقائيًا للمنشآت
+  الجديدة، وBackfill idempotent للمنشآت الموجودة ضمن نفس الـmigration.
+
+**RBAC**: 5 صلاحيات جديدة (`sales.payment.record`, `sales.return`,
+`purchases.payment.record`, `purchases.return`,
+`accounting.reconciliation.manage`) بتوزيع مبني على فصل المهام.
+
+**قاعدة البيانات**: migration واحدة
+(`20260817000000_milestone7_merchant_operations`) — 6 جداول جديدة
+(`supplier_payments, sale_returns, sale_return_items, purchase_returns,
+purchase_return_items, bank_reconciliations`، كلها RLS FORCE +
+`tenant_isolation`)، عمود واحد جديد (`payments.client_reference_id`)، لا
+حذف بيانات، لا drift.
+
+**الواجهة الأمامية**: نموذجا دفعة/مرتجع ضمن تفاصيل الفاتورة
+(`InvoicesPage.tsx`) وأمر الشراء (`PurchasesPage.tsx`)، تبويب "التسوية
+البنكية/النقدية" جديد في `AccountingPage.tsx`، دعم بيع آجل/جزئي في
+`PosPage.tsx` (كان يفرض تطابق الدفعات مع الإجمالي بالضبط).
+
+**الاختبارات**: `test/milestone7.e2e-spec.ts` (34 اختبارًا، منها اختبار
+تكامل مالي شامل واحد واختبار RLS مباشر لكل الجداول الستة الجديدة معًا)،
+3 ملفات Vitest جديدة/مُمتَدة (+9 اختبارات)، `golden-path.spec.ts` مُمدَّد
+(لا ملف جديد) بستة أقسام جديدة نُفِّذت فعليًا عبر متصفح حقيقي ضد Backend
+حقيقي.
+
+### تصحيحات في التوثيق
+`docs/ACCOUNTING.md`/`docs/API.md`/`docs/DATABASE.md`/
+`docs/DOMAIN_MODEL.md`/`docs/SECURITY.md`/`docs/TESTING.md` — إزالة
+ادّعاءات كانت صحيحة قبل هذا الـMilestone وأصبحت قديمة (AR فارغ هيكليًا،
+AP لا يتناقص، لا مرتجعات جزئية، لا ترحيل محاسبي للتسويات/الجرد).
+
+### قرار مُتعمَّد بلا تغيير كود
+إجراء إقفال فترة محاسبي فعلي (Period-Closing Entry) — أُعيد فحص
+`FiscalPeriodsService`/`JournalService` بالكامل، لم يُوجَد عيب حقيقي في
+التصميم الحالي (قفل يمنع ترحيل جديد + بند "أرباح غير مقفلة" محسوب في
+الميزانية) يستوجب تغييرًا، ولا قرار عمل واضح لبناء إجراء إقفال فعلي
+بدليل من النموذج الحالي — راجع `docs/ACCOUNTING.md` "الفترات المحاسبية —
+لا تغيير".
+
+### Tests
+Backend: **195/195** (161 + 34 جديدة). Frontend: **43/43** (34 + 9
+جديدة). Playwright: **4/4** (نفس العدد، `golden-path.spec.ts` مُمدَّد).
+كلها أُعيد تشغيلها فعليًا في هذه الدورة.
+
+### Push
+NOT PUSHED
+
 ## [Final Completion & Release Candidate] - 2026-08-17
 
 تدقيق نهائي شامل للمنتج بأكمله كما هو اليوم — **لا كود جديد، لا ميزة

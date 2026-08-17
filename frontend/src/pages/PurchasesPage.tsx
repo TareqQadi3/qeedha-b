@@ -36,6 +36,22 @@ interface PurchaseItemRow {
   unitCost: string;
 }
 
+interface PurchaseItemDetail {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: string;
+  unitCost: string;
+}
+
+interface SupplierPaymentRow {
+  id: string;
+  amount: string;
+  method: string;
+  reference: string | null;
+  createdAt: string;
+}
+
 interface PurchaseRow {
   id: string;
   referenceNumber: string;
@@ -45,7 +61,24 @@ interface PurchaseRow {
   warehouseId: string;
   supplier: { name: string };
   orderedAt: string;
+  items: PurchaseItemDetail[];
+  supplierPayments: SupplierPaymentRow[];
 }
+
+interface PurchaseReturnRow {
+  id: string;
+  totalAmount: string;
+  reason: string | null;
+  createdAt: string;
+  items: { purchaseItemId: string; quantity: string }[];
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: 'نقدًا',
+  card: 'بطاقة',
+  transfer: 'تحويل بنكي',
+  other: 'أخرى',
+};
 
 function newClientReferenceId() {
   return typeof crypto.randomUUID === 'function'
@@ -77,6 +110,17 @@ export function PurchasesPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
+
+  const [detail, setDetail] = useState<PurchaseRow | null>(null);
+  const [detailReturns, setDetailReturns] = useState<PurchaseReturnRow[]>([]);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [returnQuantities, setReturnQuantities] = useState<Record<string, string>>({});
+  const [returnReason, setReturnReason] = useState('');
+  const [returnBusy, setReturnBusy] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [warehouseId, setWarehouseId] = useState('');
@@ -199,6 +243,84 @@ export function PurchasesPage() {
     }
   };
 
+  const openDetail = async (id: string) => {
+    setDetailError(null);
+    setPaymentAmount('');
+    setPaymentReference('');
+    setReturnQuantities({});
+    setReturnReason('');
+    try {
+      const [purchase, returns] = await Promise.all([
+        api.get(`/purchases/${id}`),
+        api.get(`/purchases/${id}/returns`),
+      ]);
+      setDetail(purchase);
+      setDetailReturns(returns);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : 'تعذّر تحميل تفاصيل أمر الشراء');
+    }
+  };
+
+  const outstandingBalance = (p: PurchaseRow) =>
+    Math.max(
+      0,
+      Number(p.totalAmount) - p.supplierPayments.reduce((s, pay) => s + Number(pay.amount), 0),
+    );
+
+  const alreadyReturned = (purchaseItemId: string) =>
+    detailReturns
+      .flatMap((r) => r.items)
+      .filter((i) => i.purchaseItemId === purchaseItemId)
+      .reduce((s, i) => s + Number(i.quantity), 0);
+
+  const submitPayment = async () => {
+    if (!detail || !paymentAmount) return;
+    setDetailError(null);
+    setPaymentBusy(true);
+    try {
+      await api.post(`/purchases/${detail.id}/payments`, {
+        method: paymentMethod,
+        amount: Number(paymentAmount),
+        reference: paymentReference || undefined,
+        clientReferenceId: newClientReferenceId(),
+      });
+      await openDetail(detail.id);
+      setPaymentAmount('');
+      setPaymentReference('');
+    } catch (err) {
+      setDetailError(err instanceof ApiError ? err.message : 'تعذّر تسجيل الدفعة');
+    } finally {
+      setPaymentBusy(false);
+    }
+  };
+
+  const submitReturn = async () => {
+    if (!detail) return;
+    const items = Object.entries(returnQuantities)
+      .filter(([, qty]) => Number(qty) > 0)
+      .map(([purchaseItemId, qty]) => ({ purchaseItemId, quantity: Number(qty) }));
+    if (items.length === 0) {
+      setDetailError('حدّد كمية إرجاع لصنف واحد على الأقل');
+      return;
+    }
+    setDetailError(null);
+    setReturnBusy(true);
+    try {
+      await api.post(`/purchases/${detail.id}/returns`, {
+        items,
+        reason: returnReason || undefined,
+        clientReferenceId: newClientReferenceId(),
+      });
+      await openDetail(detail.id);
+      setReturnQuantities({});
+      setReturnReason('');
+    } catch (err) {
+      setDetailError(err instanceof ApiError ? err.message : 'تعذّر تسجيل مرتجع المشتريات');
+    } finally {
+      setReturnBusy(false);
+    }
+  };
+
   if (!hasPermission('purchases.read')) {
     return <ErrorBanner message="لا تملك صلاحية عرض المشتريات" />;
   }
@@ -252,30 +374,37 @@ export function PurchasesPage() {
                 </td>
                 <td className="py-2 text-slate-500">{new Date(p.orderedAt).toLocaleString('ar-SA')}</td>
                 <td className="py-2">
-                  {p.status === 'ordered' && (
-                    <div className="flex gap-2">
-                      {hasPermission('purchases.create') && (
-                        <button
-                          type="button"
-                          disabled={busyId === p.id}
-                          onClick={() => receive(p.id)}
-                          className="text-xs text-brand-600 hover:underline disabled:opacity-50"
-                        >
-                          استلام
-                        </button>
-                      )}
-                      {hasPermission('purchases.cancel') && (
-                        <button
-                          type="button"
-                          disabled={busyId === p.id}
-                          onClick={() => cancel(p.id)}
-                          className="text-xs text-red-500 hover:underline disabled:opacity-50"
-                        >
-                          إلغاء
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex gap-2">
+                    {p.status === 'ordered' && hasPermission('purchases.create') && (
+                      <button
+                        type="button"
+                        disabled={busyId === p.id}
+                        onClick={() => receive(p.id)}
+                        className="text-xs text-brand-600 hover:underline disabled:opacity-50"
+                      >
+                        استلام
+                      </button>
+                    )}
+                    {p.status === 'ordered' && hasPermission('purchases.cancel') && (
+                      <button
+                        type="button"
+                        disabled={busyId === p.id}
+                        onClick={() => cancel(p.id)}
+                        className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                      >
+                        إلغاء
+                      </button>
+                    )}
+                    {p.status === 'received' && (
+                      <button
+                        type="button"
+                        onClick={() => openDetail(p.id)}
+                        className="text-xs text-brand-600 hover:underline"
+                      >
+                        تفاصيل / دفع / مرتجع
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -391,6 +520,177 @@ export function PurchasesPage() {
             {submitting ? '...جارٍ الحفظ' : 'حفظ أمر الشراء'}
           </Button>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={`تفاصيل أمر الشراء ${detail?.referenceNumber ?? ''}`}
+      >
+        {detail && (
+          <div className="space-y-4">
+            <ErrorBanner message={detailError} />
+
+            <div>
+              <div className="mb-1 text-sm font-medium text-slate-700">الأصناف</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-sm">
+                  <thead>
+                    <tr className="border-b text-slate-500">
+                      <th className="py-1">المنتج</th>
+                      <th className="py-1">الكمية المستلمة</th>
+                      <th className="py-1">المرتجَع سابقًا</th>
+                      {hasPermission('purchases.return') && <th className="py-1">كمية الإرجاع</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.items.map((item) => {
+                      const returned = alreadyReturned(item.id);
+                      const remaining = Number(item.quantity) - returned;
+                      return (
+                        <tr key={item.id} className="border-b last:border-0">
+                          <td className="py-1">{item.productName}</td>
+                          <td className="py-1">{item.quantity}</td>
+                          <td className="py-1 text-slate-500">{returned || '—'}</td>
+                          {hasPermission('purchases.return') && (
+                            <td className="py-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={remaining}
+                                step="0.001"
+                                disabled={remaining <= 0}
+                                value={returnQuantities[item.id] ?? ''}
+                                onChange={(e) =>
+                                  setReturnQuantities((prev) => ({ ...prev, [item.id]: e.target.value }))
+                                }
+                                className="w-20 rounded-md border border-slate-300 px-2 py-1 text-center disabled:bg-slate-100"
+                              />
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {hasPermission('purchases.return') && (
+              <div className="border-t border-slate-200 pt-3">
+                <Field label="سبب الإرجاع (اختياري)">
+                  <input
+                    value={returnReason}
+                    onChange={(e) => setReturnReason(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </Field>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-2 w-full"
+                  disabled={returnBusy}
+                  onClick={submitReturn}
+                >
+                  {returnBusy ? '...جارٍ التسجيل' : 'تسجيل مرتجع مشتريات'}
+                </Button>
+              </div>
+            )}
+
+            <div className="border-t border-slate-200 pt-3">
+              <div className="mb-1 text-sm font-medium text-slate-700">الدفعات للمورد</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-sm">
+                  <tbody>
+                    {detail.supplierPayments.map((pay) => (
+                      <tr key={pay.id} className="border-b last:border-0">
+                        <td className="py-1">{PAYMENT_METHOD_LABELS[pay.method] ?? pay.method}</td>
+                        <td className="py-1 font-medium">{Number(pay.amount).toFixed(2)}</td>
+                        <td className="py-1 text-slate-500">{pay.reference ?? '—'}</td>
+                        <td className="py-1 text-slate-500">
+                          {new Date(pay.createdAt).toLocaleDateString('ar-SA')}
+                        </td>
+                      </tr>
+                    ))}
+                    {detail.supplierPayments.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="py-2 text-center text-slate-400">
+                          لا توجد دفعات بعد
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-2 text-left font-bold">
+                الرصيد المستحق: {outstandingBalance(detail).toFixed(2)} {detail.currency}
+              </div>
+            </div>
+
+            {hasPermission('purchases.payment.record') && outstandingBalance(detail) > 0 && (
+              <div className="border-t border-slate-200 pt-3">
+                <div className="mb-2 text-sm font-medium text-slate-700">تسجيل دفعة جديدة</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="الطريقة">
+                    <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                      <option value="cash">نقدًا</option>
+                      <option value="card">بطاقة</option>
+                      <option value="transfer">تحويل بنكي</option>
+                      <option value="other">أخرى</option>
+                    </Select>
+                  </Field>
+                  <Field label="المبلغ">
+                    <input
+                      type="number"
+                      min={0}
+                      max={outstandingBalance(detail)}
+                      step="0.01"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </Field>
+                </div>
+                <Field label="مرجع الدفعة (اختياري)">
+                  <input
+                    value={paymentReference}
+                    onChange={(e) => setPaymentReference(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </Field>
+                <Button
+                  type="button"
+                  className="mt-2 w-full"
+                  disabled={paymentBusy || !paymentAmount}
+                  onClick={submitPayment}
+                >
+                  {paymentBusy ? '...جارٍ التسجيل' : 'تسجيل الدفعة'}
+                </Button>
+              </div>
+            )}
+
+            {detailReturns.length > 0 && (
+              <div className="border-t border-slate-200 pt-3">
+                <div className="mb-1 text-sm font-medium text-slate-700">مرتجعات سابقة</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-sm">
+                    <tbody>
+                      {detailReturns.map((r) => (
+                        <tr key={r.id} className="border-b last:border-0">
+                          <td className="py-1 font-medium">{Number(r.totalAmount).toFixed(2)}</td>
+                          <td className="py-1 text-slate-500">{r.reason ?? '—'}</td>
+                          <td className="py-1 text-slate-500">
+                            {new Date(r.createdAt).toLocaleDateString('ar-SA')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

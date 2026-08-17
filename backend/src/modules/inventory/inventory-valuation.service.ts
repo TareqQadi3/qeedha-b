@@ -76,4 +76,21 @@ export class InventoryValuationService {
       cogsAmount: round2(Math.abs(params.quantity) * unitCost),
     };
   }
+
+  /**
+   * Milestone 7 (docs/ACCOUNTING.md "Inventory Adjustment Accounting" /
+   * "Stock Count Accounting"): thin wrapper, same shape as recordReceipt -
+   * see InventoryService.recordMovementWithValueDelta for the actual
+   * pre-read/lock mechanics (kept there, next to recordMovement itself, so
+   * there is exactly one place that touches stock_levels with raw SQL).
+   */
+  async recordValuedAdjustment(
+    tx: TenantClient,
+    companyId: string,
+    params: ValuationMovementParams & { quantity: number; unitCost?: number },
+  ) {
+    const { movement, quantityOnHand, averageCost, valueDelta } =
+      await this.inventoryService.recordMovementWithValueDelta(tx, companyId, params);
+    return { movement, quantityOnHand, averageCost: Number(averageCost), valueDelta };
+  }
 }

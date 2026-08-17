@@ -60,9 +60,16 @@ export class CreateSaleDto {
   @Type(() => SaleItemInputDto)
   items: SaleItemInputDto[];
 
-  /** Split payments supported natively - sum must equal the computed total exactly. */
+  /**
+   * Split payments supported natively. Milestone 7 (docs/ACCOUNTING.md
+   * "Customer Credit Sales / AR"): sum may now be LESS than the computed
+   * total (partial payment) or empty (fully unpaid/credit sale) - the
+   * shortfall posts to Accounts Receivable and requires `customerId`. Sum
+   * may never EXCEED the total (SalesService still rejects overpayment at
+   * sale-creation time).
+   */
   @IsArray()
-  @ArrayMinSize(1)
+  @ArrayMinSize(0)
   @ValidateNested({ each: true })
   @Type(() => SalePaymentInputDto)
   payments: SalePaymentInputDto[];

@@ -76,6 +76,20 @@ interface FiscalPeriod {
 const emptyObLineForm = { accountId: '', debit: '', credit: '' };
 const emptyPeriodForm = { name: '', startDate: '', endDate: '' };
 
+interface BankReconciliation {
+  id: string;
+  accountCode: string;
+  asOfDate: string;
+  statementBalance: string;
+  bookBalance: string;
+  difference: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+const emptyReconciliationForm = { accountCode: '1010', asOfDate: '', statementBalance: '', notes: '' };
+const RECONCILIATION_ACCOUNT_LABELS: Record<string, string> = { '1010': 'الصندوق (نقدًا)', '1020': 'البنك' };
+
 /**
  * Chart of Accounts + Journal Entries (docs/CHART_OF_ACCOUNTS.md,
  * docs/JOURNAL_ENTRIES.md). Journal entries are read-only here by design -
@@ -85,7 +99,9 @@ const emptyPeriodForm = { name: '', startDate: '', endDate: '' };
  */
 export function AccountingPage() {
   const { hasPermission } = useAuth();
-  const [tab, setTab] = useState<'accounts' | 'journal' | 'opening-balance' | 'periods'>('accounts');
+  const [tab, setTab] = useState<'accounts' | 'journal' | 'opening-balance' | 'periods' | 'reconciliation'>(
+    'accounts',
+  );
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
@@ -116,6 +132,14 @@ export function AccountingPage() {
   const [periodForm, setPeriodForm] = useState(emptyPeriodForm);
   const [periodFormError, setPeriodFormError] = useState<string | null>(null);
   const [periodSubmitting, setPeriodSubmitting] = useState(false);
+
+  const [reconciliations, setReconciliations] = useState<BankReconciliation[]>([]);
+  const [reconciliationsLoading, setReconciliationsLoading] = useState(false);
+  const [reconciliationsError, setReconciliationsError] = useState<string | null>(null);
+  const [reconciliationModalOpen, setReconciliationModalOpen] = useState(false);
+  const [reconciliationForm, setReconciliationForm] = useState(emptyReconciliationForm);
+  const [reconciliationFormError, setReconciliationFormError] = useState<string | null>(null);
+  const [reconciliationSubmitting, setReconciliationSubmitting] = useState(false);
 
   const loadAccounts = async () => {
     setAccountsLoading(true);
@@ -177,11 +201,50 @@ export function AccountingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const loadReconciliations = async () => {
+    setReconciliationsLoading(true);
+    setReconciliationsError(null);
+    try {
+      setReconciliations(await api.get('/accounting/reconciliations'));
+    } catch (err) {
+      setReconciliationsError(err instanceof ApiError ? err.message : 'تعذّر تحميل تسويات البنك/الصندوق');
+    } finally {
+      setReconciliationsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (tab === 'opening-balance' && hasPermission('accounting.read')) loadOpeningBalance();
     if (tab === 'periods' && hasPermission('accounting.read')) loadPeriods();
+    if (tab === 'reconciliation' && hasPermission('accounting.read')) loadReconciliations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  const openReconciliationModal = () => {
+    setReconciliationForm(emptyReconciliationForm);
+    setReconciliationFormError(null);
+    setReconciliationModalOpen(true);
+  };
+
+  const onCreateReconciliation = async (e: FormEvent) => {
+    e.preventDefault();
+    setReconciliationFormError(null);
+    setReconciliationSubmitting(true);
+    try {
+      await api.post('/accounting/reconciliations', {
+        accountCode: reconciliationForm.accountCode,
+        asOfDate: reconciliationForm.asOfDate,
+        statementBalance: Number(reconciliationForm.statementBalance),
+        notes: reconciliationForm.notes || undefined,
+      });
+      setReconciliationModalOpen(false);
+      await loadReconciliations();
+    } catch (err) {
+      setReconciliationFormError(err instanceof ApiError ? err.message : 'تعذّر تسجيل التسوية');
+    } finally {
+      setReconciliationSubmitting(false);
+    }
+  };
 
   const openObModal = () => {
     setObLines([{ ...emptyObLineForm }, { ...emptyObLineForm }]);
@@ -334,6 +397,15 @@ export function AccountingPage() {
           }`}
         >
           الفترات المحاسبية
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('reconciliation')}
+          className={`px-3 py-2 text-sm font-medium ${
+            tab === 'reconciliation' ? 'border-b-2 border-brand-500 text-brand-600' : 'text-slate-500'
+          }`}
+        >
+          التسوية البنكية/النقدية
         </button>
       </div>
 
@@ -568,6 +640,63 @@ export function AccountingPage() {
         </div>
       )}
 
+      {tab === 'reconciliation' && (
+        <div>
+          <ErrorBanner message={reconciliationsError} />
+          {hasPermission('accounting.reconciliation.manage') && (
+            <div className="mb-4 flex justify-end">
+              <Button onClick={openReconciliationModal}>+ تسوية جديدة</Button>
+            </div>
+          )}
+          {reconciliationsLoading && (
+            <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>
+          )}
+          {!reconciliationsLoading && (
+            <Card>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-sm">
+                  <thead>
+                    <tr className="border-b text-slate-500">
+                      <th className="py-2">الحساب</th>
+                      <th className="py-2">حتى تاريخ</th>
+                      <th className="py-2">رصيد كشف الحساب</th>
+                      <th className="py-2">الرصيد الدفتري</th>
+                      <th className="py-2">الفرق</th>
+                      <th className="py-2">ملاحظات</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reconciliations.map((r) => (
+                      <tr key={r.id} className="border-b last:border-0">
+                        <td className="py-2">{RECONCILIATION_ACCOUNT_LABELS[r.accountCode] ?? r.accountCode}</td>
+                        <td className="py-2 text-slate-500">{new Date(r.asOfDate).toLocaleDateString('ar-SA')}</td>
+                        <td className="py-2">{Number(r.statementBalance).toFixed(2)}</td>
+                        <td className="py-2">{Number(r.bookBalance).toFixed(2)}</td>
+                        <td
+                          className={`py-2 font-medium ${
+                            Number(r.difference) === 0 ? 'text-emerald-600' : 'text-amber-600'
+                          }`}
+                        >
+                          {Number(r.difference).toFixed(2)}
+                        </td>
+                        <td className="py-2 text-slate-500">{r.notes ?? '—'}</td>
+                      </tr>
+                    ))}
+                    {reconciliations.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-slate-400">
+                          لا توجد تسويات بعد
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
       <Modal open={accountModalOpen} onClose={() => setAccountModalOpen(false)} title="حساب جديد">
         <form onSubmit={onCreateAccount} className="space-y-3">
           <ErrorBanner message={accountFormError} />
@@ -721,6 +850,57 @@ export function AccountingPage() {
           </div>
           <Button type="submit" className="w-full" disabled={periodSubmitting}>
             {periodSubmitting ? '...جارٍ الحفظ' : 'إنشاء الفترة'}
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal
+        open={reconciliationModalOpen}
+        onClose={() => setReconciliationModalOpen(false)}
+        title="تسوية بنكية/نقدية جديدة"
+      >
+        <form onSubmit={onCreateReconciliation} className="space-y-3">
+          <ErrorBanner message={reconciliationFormError} />
+          <p className="text-xs text-slate-500">
+            الرصيد الدفتري يُحتسب تلقائيًا من القيود المُرحَّلة حتى التاريخ المحدد - أدخل فقط رصيد
+            كشف الحساب كما تقرأه من كشف البنك أو تعداد الصندوق الفعلي.
+          </p>
+          <Field label="الحساب">
+            <Select
+              value={reconciliationForm.accountCode}
+              onChange={(e) => setReconciliationForm({ ...reconciliationForm, accountCode: e.target.value })}
+            >
+              <option value="1010">الصندوق (نقدًا)</option>
+              <option value="1020">البنك</option>
+            </Select>
+          </Field>
+          <Field label="حتى تاريخ">
+            <Input
+              type="date"
+              value={reconciliationForm.asOfDate}
+              onChange={(e) => setReconciliationForm({ ...reconciliationForm, asOfDate: e.target.value })}
+              required
+            />
+          </Field>
+          <Field label="رصيد كشف الحساب">
+            <Input
+              type="number"
+              step="0.01"
+              value={reconciliationForm.statementBalance}
+              onChange={(e) =>
+                setReconciliationForm({ ...reconciliationForm, statementBalance: e.target.value })
+              }
+              required
+            />
+          </Field>
+          <Field label="ملاحظات (اختياري)">
+            <Input
+              value={reconciliationForm.notes}
+              onChange={(e) => setReconciliationForm({ ...reconciliationForm, notes: e.target.value })}
+            />
+          </Field>
+          <Button type="submit" className="w-full" disabled={reconciliationSubmitting}>
+            {reconciliationSubmitting ? '...جارٍ الحفظ' : 'تسجيل التسوية'}
           </Button>
         </form>
       </Modal>

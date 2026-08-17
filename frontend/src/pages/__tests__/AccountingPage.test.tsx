@@ -149,3 +149,78 @@ describe('AccountingPage - Opening Balances / Fiscal Periods tabs', () => {
     await waitFor(() => expect(postSpy).toHaveBeenCalledWith('/accounting/fiscal-periods/p1/close'));
   });
 });
+
+describe('AccountingPage - Milestone 7 Bank/Cash Reconciliation tab', () => {
+  it('shows the empty state and hides the "new reconciliation" action without accounting.reconciliation.manage', async () => {
+    hasPermission.mockImplementation((key: string) => key === 'accounting.read');
+    mockGet({
+      '/accounting/accounts': [],
+      '/accounting/journal-entries': { data: [], meta: { page: 1, pageSize: 20, total: 0 } },
+      '/accounting/reconciliations': [],
+    });
+
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'التسوية البنكية/النقدية' }));
+
+    expect(await screen.findByText('لا توجد تسويات بعد')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+ تسوية جديدة' })).not.toBeInTheDocument();
+  });
+
+  it('lists existing reconciliations with the computed book balance and difference', async () => {
+    hasPermission.mockImplementation((key: string) => key === 'accounting.read');
+    mockGet({
+      '/accounting/accounts': [],
+      '/accounting/journal-entries': { data: [], meta: { page: 1, pageSize: 20, total: 0 } },
+      '/accounting/reconciliations': [
+        {
+          id: 'r1',
+          accountCode: '1010',
+          asOfDate: '2026-08-17',
+          statementBalance: '100.00',
+          bookBalance: '95.00',
+          difference: '5.00',
+          notes: 'فرق بسيط',
+          createdAt: '2026-08-17T00:00:00.000Z',
+        },
+      ],
+    });
+
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'التسوية البنكية/النقدية' }));
+
+    expect(await screen.findByText('الصندوق (نقدًا)')).toBeInTheDocument();
+    expect(screen.getByText('95.00')).toBeInTheDocument();
+    expect(screen.getByText('5.00')).toBeInTheDocument();
+  });
+
+  it('creating a reconciliation posts the entered accountCode/asOfDate/statementBalance', async () => {
+    hasPermission.mockImplementation(
+      (key: string) => key === 'accounting.read' || key === 'accounting.reconciliation.manage',
+    );
+    mockGet({
+      '/accounting/accounts': [],
+      '/accounting/journal-entries': { data: [], meta: { page: 1, pageSize: 20, total: 0 } },
+      '/accounting/reconciliations': [],
+    });
+    const postSpy = vi.spyOn(client.api, 'post').mockResolvedValue({});
+
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'التسوية البنكية/النقدية' }));
+    await screen.findByText('لا توجد تسويات بعد');
+    await user.click(screen.getByRole('button', { name: '+ تسوية جديدة' }));
+
+    await user.type(screen.getByLabelText('حتى تاريخ'), '2026-08-17');
+    await user.type(screen.getByLabelText('رصيد كشف الحساب'), '200');
+    await user.click(screen.getByRole('button', { name: 'تسجيل التسوية' }));
+
+    await waitFor(() =>
+      expect(postSpy).toHaveBeenCalledWith(
+        '/accounting/reconciliations',
+        expect.objectContaining({ accountCode: '1010', asOfDate: '2026-08-17', statementBalance: 200 }),
+      ),
+    );
+  });
+});

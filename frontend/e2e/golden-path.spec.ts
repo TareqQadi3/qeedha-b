@@ -118,11 +118,87 @@ test('merchant can go from registration to a posted sale, expense, and see it al
   await page.getByRole('button', { name: 'الميزانية العمومية' }).click();
   await expect(page.getByText('الميزانية متوازنة')).toBeVisible();
 
-  // ---- Receivables/Payables: AR is structurally empty (no credit-sale flow), AP shows the supplier ----
+  // ---- Receivables/Payables: this sale was paid in full, so AR is empty; AP shows the supplier ----
   await page.goto('/receivables-payables');
-  await expect(page.getByText(/لا يدعم البيع الآجل/)).toBeVisible();
+  await expect(page.getByText('لا توجد أرصدة عملاء آجلة حاليًا')).toBeVisible();
   await page.getByRole('button', { name: 'ذمم الموردين (AP)' }).click();
   await expect(page.getByText(supplierName)).toBeVisible();
+
+  // ---------------------------------------------------------------------------
+  // Milestone 7: Supplier payment + Purchase return
+  // ---------------------------------------------------------------------------
+  await page.goto('/purchases');
+  await page.getByText('تفاصيل / دفع / مرتجع').first().click();
+  await expect(page.getByText(/الرصيد المستحق: 5\.75/)).toBeVisible();
+  await page.getByLabel('المبلغ').fill('5.75');
+  await page.getByRole('button', { name: 'تسجيل الدفعة' }).click();
+  await expect(page.getByText(/الرصيد المستحق: 0\.00/)).toBeVisible();
+
+  // Full return of the single unit received on this purchase - the payment
+  // form above disappears once the balance hits zero, so the only remaining
+  // number input is the return-quantity field.
+  await page.getByRole('spinbutton').fill('1');
+  await page.getByRole('button', { name: 'تسجيل مرتجع مشتريات' }).click();
+  await expect(page.getByText('مرتجعات سابقة')).toBeVisible();
+
+  // ---------------------------------------------------------------------------
+  // Milestone 7: Sales return on the earlier fully-paid POS sale
+  // ---------------------------------------------------------------------------
+  await page.goto('/sales');
+  await page.getByText('تفاصيل / دفع / مرتجع').first().click();
+  await expect(page.getByText(/الرصيد المستحق/)).toBeVisible();
+  await page.getByRole('spinbutton').fill('1');
+  await page.getByRole('button', { name: 'تسجيل مرتجع مبيعات' }).click();
+  await expect(page.getByText('مرتجعات سابقة')).toBeVisible();
+
+  // ---------------------------------------------------------------------------
+  // Milestone 7: Customer credit sale -> AR balance -> AR payment
+  // ---------------------------------------------------------------------------
+  await page.goto('/pos');
+  await page.getByPlaceholder('ابحث بالاسم أو SKU أو امسح الباركود...').fill(productName);
+  await page.getByRole('button', { name: new RegExp(productName) }).click();
+  await page.getByLabel('العميل (اختياري)').selectOption({ label: customerName });
+  // Leave every payment line empty -> a fully-credit sale, allowed only
+  // because a customer is selected above.
+  await page.getByRole('button', { name: 'إتمام البيع' }).click();
+  await expect(page.getByText('تم إتمام البيع بنجاح')).toBeVisible();
+  await page.getByRole('button', { name: 'بيع جديد' }).click();
+
+  await page.goto('/receivables-payables');
+  await expect(page.getByText(customerName)).toBeVisible();
+
+  await page.goto('/sales');
+  const creditRow = page.getByRole('row').filter({ hasText: customerName }).filter({ hasText: 'آجل بالكامل' });
+  await creditRow.getByText('تفاصيل / دفع / مرتجع').click();
+  await expect(page.getByText(/الرصيد المستحق: (?!0\.00)/)).toBeVisible();
+  await page.getByLabel('المبلغ').fill('11.5');
+  await page.getByRole('button', { name: 'تسجيل الدفعة' }).click();
+  await expect(page.getByText(/الرصيد المستحق: 0\.00/)).toBeVisible();
+
+  // ---------------------------------------------------------------------------
+  // Milestone 7: Inventory adjustment + Stock count accounting, then Bank Reconciliation
+  // ---------------------------------------------------------------------------
+  await page.goto('/inventory');
+  await page.getByRole('button', { name: 'تسوية مخزون' }).click();
+  await page.getByLabel('المنتج').selectOption({ label: `${productName} (${productSku})` });
+  await page.getByLabel('الفرق (موجب للزيادة، سالب للنقصان)').fill('2');
+  await page.getByLabel(/تكلفة الوحدة/).fill('5');
+  await page.getByLabel('السبب').fill('فرق جرد بلايرايت');
+  await page.getByRole('button', { name: 'حفظ' }).click();
+  await expect(page.getByRole('cell', { name: productSku })).toBeVisible();
+
+  await page.goto('/accounting');
+  await page.getByRole('button', { name: 'القيود المحاسبية' }).click();
+  await expect(page.getByText('StockAdjustment').first()).toBeVisible();
+
+  const today10 = new Date().toISOString().slice(0, 10);
+  await page.getByRole('button', { name: 'التسوية البنكية/النقدية' }).click();
+  await page.getByRole('button', { name: '+ تسوية جديدة' }).click();
+  await page.getByLabel('حتى تاريخ').fill(today10);
+  await page.getByLabel('رصيد كشف الحساب').fill('50');
+  await page.getByRole('button', { name: 'تسجيل التسوية' }).click();
+  await expect(page.getByText('الصندوق (نقدًا)')).toBeVisible();
+  await expect(page.getByText('50.00')).toBeVisible();
 
   // ---- Fiscal Periods: create a period covering today and see it listed as open ----
   const periodName = `فترة بلايرايت ${id}`;

@@ -4,13 +4,14 @@ import { AccountingModule } from '../accounting/accounting.module';
 import { IamModule } from '../iam/iam.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { PurchaseNumberService } from './purchase-number.service';
+import { PurchaseReturnService } from './purchase-return.service';
 import { PurchasesController } from './purchases.controller';
 import { PurchasesService } from './purchases.service';
 
 @Module({
   imports: [AuditModule, IamModule, InventoryModule, AccountingModule],
   controllers: [PurchasesController],
-  providers: [PurchasesService, PurchaseNumberService],
-  exports: [PurchasesService],
+  providers: [PurchasesService, PurchaseReturnService, PurchaseNumberService],
+  exports: [PurchasesService, PurchaseReturnService],
 })
 export class PurchasesModule {}

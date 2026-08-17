@@ -18,6 +18,7 @@ import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { InventoryValuationService } from '../inventory/inventory-valuation.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { QuerySalesDto } from './dto/query-sales.dto';
+import { RecordSalePaymentDto } from './dto/record-sale-payment.dto';
 import { InvoiceNumberService } from './invoice-number.service';
 
 /** cash -> Cash account, everything else (card/transfer/other) -> Bank account - see docs/PAYMENTS.md and docs/ACCOUNTING.md "Account Mapping". */
@@ -167,10 +168,21 @@ export class SalesService {
 
     const totalAmount = round2(subtotal - discountTotal + taxTotal);
     const paymentsSum = round2(dto.payments.reduce((sum, p) => sum + p.amount, 0));
-    if (Math.round(paymentsSum * 100) !== Math.round(totalAmount * 100)) {
+    // Milestone 7 (docs/ACCOUNTING.md "Customer Credit Sales / AR"): a sale
+    // may now be fully paid, partially paid, or fully unpaid (credit) - the
+    // only rule enforced here is that payments can never EXCEED the total
+    // (overpayment at sale-creation time is always a client error, never a
+    // legitimate "advance" - an advance would need its own concept, out of
+    // scope here). A positive AR remainder always requires a customer, since
+    // AR is a per-customer receivable, not an anonymous balance.
+    if (Math.round(paymentsSum * 100) > Math.round(totalAmount * 100)) {
       throw new BadRequestException(
-        `مجموع الدفعات (${paymentsSum}) لا يساوي إجمالي الفاتورة (${totalAmount})`,
+        `مجموع الدفعات (${paymentsSum}) أكبر من إجمالي الفاتورة (${totalAmount})`,
       );
+    }
+    const arRemainder = round2(totalAmount - paymentsSum);
+    if (arRemainder > 0 && !customerId) {
+      throw new BadRequestException('البيع الآجل (غير مسدد بالكامل) يتطلب تحديد عميل');
     }
 
     const sale = await tx.sale.create({
@@ -276,6 +288,14 @@ export class SalesService {
       accountCode: cashOrBankAccountCode(payment.method),
       debit: payment.amount,
     }));
+    // Milestone 7 (docs/ACCOUNTING.md "Customer Credit Sales / AR"): the
+    // unpaid remainder (if any) is Dr'd to Accounts Receivable, same journal
+    // entry as the paid portion - a partially-paid sale posts BOTH a
+    // Cash/Bank line (for what was paid) and an AR line (for what wasn't),
+    // summing to the same totalAmount either way.
+    if (arRemainder > 0) {
+      journalLines.push({ accountCode: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE, debit: arRemainder });
+    }
     journalLines.push({ accountCode: ACCOUNT_CODES.SALES_REVENUE, credit: revenueNet });
     if (taxTotal > 0) {
       journalLines.push({ accountCode: ACCOUNT_CODES.VAT_PAYABLE, credit: taxTotal });
@@ -312,6 +332,109 @@ export class SalesService {
     });
 
     return this.getOwned(tx, companyId, sale.id);
+  }
+
+  /**
+   * Milestone 7 (docs/ACCOUNTING.md "Customer Credit Sales / AR"): records a
+   * standalone payment against an existing sale's outstanding AR balance -
+   * `Dr Cash/Bank / Cr Accounts Receivable`. The AR balance itself is never
+   * stored - it is always (sale.totalAmount - SUM(existing Payment.amount)),
+   * recomputed here under a row lock (docs/SECURITY.md "سلامة التزامن"),
+   * the same pattern as InventoryService.recordMovement's guarded UPDATE:
+   * `SELECT ... FOR UPDATE` on the sale row serializes concurrent payment
+   * attempts against it, so two simultaneous payments can never together
+   * overpay a balance neither alone would exceed.
+   */
+  async recordPayment(
+    tx: TenantClient,
+    companyId: string,
+    membershipId: string,
+    actorUserId: string,
+    saleId: string,
+    dto: RecordSalePaymentDto,
+  ) {
+    const existingPayment = await tx.payment.findUnique({
+      where: {
+        companyId_clientReferenceId: { companyId, clientReferenceId: dto.clientReferenceId },
+      },
+    });
+    if (existingPayment) {
+      if (existingPayment.saleId !== saleId) {
+        throw new ConflictException('مفتاح الطلب هذا مستخدم بالفعل لعملية بيع مختلفة');
+      }
+      return this.getOwned(tx, companyId, saleId);
+    }
+
+    const scope = await this.branchScopeService.getScopeForPermission(
+      tx,
+      membershipId,
+      PERMISSION_KEYS.SALES_PAYMENT_RECORD,
+    );
+    const sale = await tx.sale.findFirst({ where: { id: saleId, companyId } });
+    if (!sale) throw new NotFoundException('عملية البيع غير موجودة');
+    if (!scope.allBranches && !scope.branchIds.has(sale.branchId)) {
+      throw new ForbiddenException('عملية البيع هذه خارج نطاق الفروع المصرح بها لهذه العضوية');
+    }
+    if (sale.status !== 'completed') {
+      throw new ConflictException('لا يمكن تسجيل دفعة على عملية بيع ملغاة');
+    }
+
+    // Row lock held for the rest of this transaction - see doc comment above.
+    await tx.$queryRaw`SELECT id FROM sales WHERE id = ${saleId}::uuid AND company_id = ${companyId}::uuid FOR UPDATE`;
+    const paidAgg = await tx.payment.aggregate({
+      where: { companyId, saleId },
+      _sum: { amount: true },
+    });
+    const alreadyPaid = Number(paidAgg._sum.amount ?? 0);
+    const outstanding = round2(Number(sale.totalAmount) - alreadyPaid);
+    if (dto.amount > outstanding + 0.005) {
+      throw new ConflictException(
+        `المبلغ المدفوع (${dto.amount}) أكبر من الرصيد المستحق (${outstanding})`,
+      );
+    }
+
+    const payment = await tx.payment.create({
+      data: {
+        companyId,
+        saleId,
+        method: dto.method,
+        status: 'success',
+        amount: dto.amount,
+        currency: sale.currency,
+        clientReferenceId: dto.clientReferenceId,
+        actorMembershipId: membershipId,
+      },
+    });
+
+    await this.journalService.postJournalEntry(tx, companyId, {
+      branchId: sale.branchId,
+      referenceType: 'Sale',
+      referenceId: sale.id,
+      description: `دفعة على بيع آجل${dto.notes ? `: ${dto.notes}` : ''}`,
+      actorMembershipId: membershipId,
+      actorUserId,
+      lines: [
+        { accountCode: cashOrBankAccountCode(dto.method), debit: dto.amount },
+        { accountCode: ACCOUNT_CODES.ACCOUNTS_RECEIVABLE, credit: dto.amount },
+      ],
+    });
+
+    await this.auditService.log(tx, {
+      companyId,
+      actorUserId,
+      branchId: sale.branchId,
+      action: 'sales.payment.record',
+      entityType: 'Payment',
+      entityId: payment.id,
+      afterState: {
+        saleId,
+        amount: dto.amount,
+        method: dto.method,
+        outstandingBefore: outstanding,
+      },
+    });
+
+    return this.getOwned(tx, companyId, saleId);
   }
 
   /** Used by SalesController's fallback path after a caught unique-constraint race on clientReferenceId. */

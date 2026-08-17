@@ -10,6 +10,8 @@ import { TenantClient } from '../../common/prisma/prisma.service';
 import { paginate, paginationSkip } from '../../common/utils/pagination';
 import { round2 } from '../../common/utils/money';
 import { AuditService } from '../audit/audit.service';
+import { ACCOUNT_CODES } from '../accounting/constants/default-chart-of-accounts';
+import { JournalService } from '../accounting/journal.service';
 import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
@@ -46,6 +48,7 @@ export class InventoryService {
   constructor(
     private readonly auditService: AuditService,
     private readonly branchScopeService: BranchScopeService,
+    private readonly journalService: JournalService,
   ) {}
 
   /**
@@ -144,6 +147,65 @@ export class InventoryService {
       quantityOnHand: updated[0].quantity_on_hand,
       averageCost: updated[0].average_cost,
     };
+  }
+
+  /**
+   * Milestone 7 (docs/ACCOUNTING.md "Inventory Adjustment Accounting" /
+   * "Stock Count Accounting"): same write as `recordMovement`, but also
+   * returns the exact accounting value change (`valueDelta`) so a caller
+   * (adjustStock below, StockCountService.complete via
+   * InventoryValuationService.recordValuedAdjustment) can post
+   * `Dr Inventory / Cr Adjustment Gain` (value increased) or
+   * `Dr Adjustment Expense / Cr Inventory` (value decreased).
+   *
+   * `recordMovement`'s guarded UPDATE only exposes the POST-write
+   * quantity/average_cost via RETURNING - there is no way to recover the
+   * PRE-write values from it without changing that already-proven SQL. So
+   * this method takes its own `SELECT ... FOR UPDATE` snapshot first (after
+   * ensuring the row exists, via the same idempotent INSERT ON CONFLICT DO
+   * NOTHING recordMovement itself performs), holding the row lock for the
+   * rest of this transaction. recordMovement's subsequent UPDATE runs on the
+   * SAME connection/transaction and therefore re-enters that same lock
+   * (Postgres row locks are transaction-scoped, not session-scoped) instead
+   * of blocking on it - no self-deadlock, and no other transaction can
+   * interleave a write on this row between the snapshot and the update.
+   *
+   * valueDelta = new_average_cost * new_quantity - old_average_cost *
+   * old_quantity - exact by construction, derived from the same numbers the
+   * weighted-average formula itself uses, not an approximation.
+   */
+  async recordMovementWithValueDelta(
+    tx: TenantClient,
+    companyId: string,
+    params: RecordMovementParams,
+  ) {
+    await tx.$executeRaw`
+      INSERT INTO stock_levels (id, company_id, warehouse_id, product_id, quantity_on_hand, reserved_quantity, updated_at)
+      VALUES (gen_random_uuid(), ${companyId}::uuid, ${params.warehouseId}::uuid, ${params.productId}::uuid, 0, 0, now())
+      ON CONFLICT (company_id, warehouse_id, product_id) DO NOTHING
+    `;
+    const before = await tx.$queryRaw<
+      { quantity_on_hand: Prisma.Decimal; average_cost: Prisma.Decimal }[]
+    >`
+      SELECT quantity_on_hand, average_cost FROM stock_levels
+      WHERE company_id = ${companyId}::uuid
+        AND warehouse_id = ${params.warehouseId}::uuid
+        AND product_id = ${params.productId}::uuid
+      FOR UPDATE
+    `;
+    const oldQty = Number(before[0]?.quantity_on_hand ?? 0);
+    const oldAvg = Number(before[0]?.average_cost ?? 0);
+
+    const { movement, quantityOnHand, averageCost } = await this.recordMovement(
+      tx,
+      companyId,
+      params,
+    );
+    const newQty = Number(quantityOnHand);
+    const newAvg = Number(averageCost);
+    const valueDelta = round2(newAvg * newQty - oldAvg * oldQty);
+
+    return { movement, quantityOnHand, averageCost, valueDelta };
   }
 
   async listStockLevels(
@@ -321,19 +383,23 @@ export class InventoryService {
       actorMembershipId,
       PERMISSION_KEYS.INVENTORY_ADJUST,
     );
-    await this.assertWarehouseOwned(tx, companyId, dto.warehouseId, scope);
+    const warehouse = await this.assertWarehouseOwned(tx, companyId, dto.warehouseId, scope);
     await this.assertProductOwned(tx, companyId, dto.productId);
 
-    const { movement, quantityOnHand } = await this.recordMovement(tx, companyId, {
-      warehouseId: dto.warehouseId,
-      productId: dto.productId,
-      type: 'adjustment',
-      quantity: dto.quantityDelta,
-      unitCost: dto.quantityDelta > 0 ? dto.unitCost : undefined,
-      referenceType: 'StockAdjustment',
-      actorMembershipId,
-      notes: dto.notes,
-    });
+    const { movement, quantityOnHand, valueDelta } = await this.recordMovementWithValueDelta(
+      tx,
+      companyId,
+      {
+        warehouseId: dto.warehouseId,
+        productId: dto.productId,
+        type: 'adjustment',
+        quantity: dto.quantityDelta,
+        unitCost: dto.quantityDelta > 0 ? dto.unitCost : undefined,
+        referenceType: 'StockAdjustment',
+        actorMembershipId,
+        notes: dto.notes,
+      },
+    );
 
     const adjustment = await tx.stockAdjustment.create({
       data: {
@@ -353,6 +419,34 @@ export class InventoryService {
       data: { referenceId: adjustment.id },
     });
 
+    // Milestone 7 (docs/ACCOUNTING.md "Inventory Adjustment Accounting"): a
+    // zero valueDelta (e.g. a quantity adjustment on a product with zero
+    // cost basis) posts no journal entry - JournalService itself rejects a
+    // zero-amount entry, and there is nothing to record either way.
+    if (Math.abs(valueDelta) >= 0.005) {
+      await this.journalService.postJournalEntry(tx, companyId, {
+        branchId: warehouse.branchId,
+        referenceType: 'StockAdjustment',
+        referenceId: adjustment.id,
+        description: `تسوية مخزون${dto.reason ? `: ${dto.reason}` : ''}`,
+        actorMembershipId,
+        actorUserId,
+        lines:
+          valueDelta > 0
+            ? [
+                { accountCode: ACCOUNT_CODES.INVENTORY, debit: valueDelta },
+                { accountCode: ACCOUNT_CODES.INVENTORY_ADJUSTMENT_GAIN, credit: valueDelta },
+              ]
+            : [
+                {
+                  accountCode: ACCOUNT_CODES.INVENTORY_ADJUSTMENT_EXPENSE,
+                  debit: Math.abs(valueDelta),
+                },
+                { accountCode: ACCOUNT_CODES.INVENTORY, credit: Math.abs(valueDelta) },
+              ],
+      });
+    }
+
     await this.auditService.log(tx, {
       companyId,
       actorUserId,
@@ -364,6 +458,7 @@ export class InventoryService {
         productId: dto.productId,
         quantityDelta: dto.quantityDelta,
         reason: dto.reason,
+        valueDelta,
       },
     });
 

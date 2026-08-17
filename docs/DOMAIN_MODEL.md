@@ -438,3 +438,48 @@ OpeningBalance — ليس كيانًا/جدولًا منفصلًا، بل Journa
 QR يظهر ضمن استجابة `GET /invoices` الموجودة أصلًا، محكومًا بنفس صلاحية
 `invoices.read`). راجع `docs/ZATCA.md` للتصميم الكامل و"ما لم يُنفَّذ،
 ولماذا"، و`docs/DATABASE.md` §9 للجدول.
+
+## Milestone 6 (Weighted-Average Inventory Valuation & COGS)
+
+**لا تغيير على نموذج الهوية/المنشآت، ولا كيان جديد.** فقط عمودان جديدان
+على كيانين موجودين — `StockLevel.averageCost` (متوسط التكلفة المرجَّح
+المتحرك، محفوظ على مستوى (مستودع, منتج)، لا على مستوى منشأة) و
+`SaleItem.unitCost` (تكلفة الوحدة الفعلية وقت البيع، تُستخدَم لاحقًا
+لعكس COGS بدقة عند الإلغاء/الإرجاع بدل استخدام المتوسط الحالي المتغيّر).
+راجع `docs/ACCOUNTING.md` "COGS / Inventory Valuation" للتصميم الكامل،
+و`docs/DATABASE.md` الملاحظات ضمن الأقسام 2/4.
+
+## Milestone 7 (Merchant Operations & Business Completion)
+
+**لا تغيير على نموذج الهوية/المنشآت نفسه.** ستة كيانات أعمال جديدة، كلها
+tenant-scoped بنفس نمط RLS المعتاد، وكلها تُشير لكيان أعمال قائم بدل
+اختراع مفهوم موازٍ:
+
+- **`SupplierPayment`**: `Company` → `Purchase` (`purchaseId` **إلزامي**،
+  على عكس `Payment.saleId` الذي بقي كما هو) — دفعة تسدد فاتورة شراء
+  محددة دائمًا، مرآة لـ`Payment` الموجود، لا كيان AP منفصل مخزَّن.
+- **`SaleReturn` / `SaleReturnItem`**: `Sale` → `SaleReturn` →
+  `SaleReturnItem` → `SaleItem` (السطر الأصلي المُرجَع منه) — كيان معاملة
+  تصحيحية داخلية، يُعرَّف بـUUID فقط (كـ`StockAdjustment`/`StockTransfer`،
+  لا رقم تسلسلي كـ`Invoice`/`Purchase`)، **منفصل تمامًا عن `Sale.status`**
+  (الذي لا يزال يعبّر فقط عن إلغاء كامل عبر `cancelSale`، دون علاقة
+  بمرتجع جزئي).
+- **`PurchaseReturn` / `PurchaseReturnItem`**: نفس بنية `SaleReturn` تمامًا،
+  لكن تجاه `Purchase`/`PurchaseItem` — ولا تلمس `Purchase` الأصلي بأي حال
+  (لا تعديل، لا حالة جديدة).
+- **`BankReconciliation`**: `Company` → `BankReconciliation` (`accountCode`
+  رمز ثابت من دليل الحسابات، لا FK لصف `Account`) — كيان مستقل بلا علاقة
+  بأي كيان أعمال آخر، يقرأ من `JournalLine` وقت الإنشاء فقط ولا يُعاد
+  حسابه لاحقًا.
+
+`Payment` (الموجود منذ Phase 3) اكتسب عمود `clientReferenceId` اختياري
+جديد — **لا كيان جديد**، فقط توسعة صغيرة لإعطاء "تسجيل دفعة على بيع
+موجود" (بخلاف الدفعات المُنشأة وقت البيع نفسه) idempotency حقيقية.
+
+خمس صلاحيات RBAC جديدة فقط (`sales.payment.record`, `sales.return`,
+`purchases.payment.record`, `purchases.return`,
+`accounting.reconciliation.manage`) في جدول `Permission` الموجود أصلًا —
+لا تغيير على `Role`/`RolePermission`/`MembershipRole` نفسها كبنية. راجع
+`docs/ACCOUNTING.md` "Milestone 7" للتصميم المحاسبي الكامل،
+`docs/DATABASE.md` الأقسام 4/5/7 للجداول، و`docs/SECURITY.md` للاعتبارات
+الأمنية/التزامن.

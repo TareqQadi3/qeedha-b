@@ -137,8 +137,11 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 |---|---|---|---|
 | GET | `/sales` | قائمة المبيعات (مُصفّاة حسب نطاق الفرع، فلاتر عميل/مستودع/حالة) | `sales.read` |
 | GET | `/sales/:id` | تفاصيل بيع (بنود، دفعات، فاتورة) | `sales.read` |
-| POST | `/sales` | إتمام بيع كامل (بنود + دفع + خصم مخزون + فاتورة، ذرّي) — يتطلب `clientReferenceId` لحماية التكرار | `sales.create` |
+| POST | `/sales` | إتمام بيع كامل (بنود + دفع + خصم مخزون + فاتورة، ذرّي) — يتطلب `clientReferenceId`. منذ Milestone 7: `payments` قد يكون مجموعها أقل من الإجمالي (بيع جزئي الدفع) أو فارغًا (بيع آجل بالكامل) — يتطلب `customerId` عندئذٍ، والفرق يُرحَّل Dr ذمم مدينة | `sales.create` |
 | POST | `/sales/:id/cancel` | إلغاء بيع مكتمل (يُرجع المخزون، يُلغي الفاتورة) | `sales.cancel` |
+| POST | `/sales/:id/payments` | **(Milestone 7)** تسجيل دفعة على الرصيد المستحق لبيع — `Dr Cash/Bank / Cr AR`، `409` عند تجاوز الرصيد المستحق أو على بيع ملغى، يتطلب `clientReferenceId` | `sales.payment.record` |
+| POST | `/sales/:id/returns` | **(Milestone 7)** تسجيل مرتجع مبيعات جزئي/كلي (`items: [{saleItemId, quantity}]`) — عكس إيراد/ضريبة/COGS نسبيًا بالتكلفة التاريخية، `400` عند تجاوز الكمية المتاحة للإرجاع، يتطلب `clientReferenceId` | `sales.return` |
+| GET | `/sales/:id/returns` | **(Milestone 7)** قائمة مرتجعات المبيعات على بيع محدد | `sales.read` |
 
 ### Invoices (`/api/v1/invoices`) — قراءة فقط
 | Method | Path | الوصف | صلاحية |
@@ -170,6 +173,9 @@ Endpoint مخصص، ولا صلاحية RBAC جديدة (يظهر ضمن `invoic
 | POST | `/purchases` | إنشاء أمر شراء (لا يلمس المخزون أو المحاسبة بعد) — يتطلب `clientReferenceId` لحماية التكرار | `purchases.create` |
 | POST | `/purchases/:id/receive` | استلام أمر شراء: يزيد المخزون + يُرحّل قيدًا محاسبيًا (مدين مخزون/ضريبة مدخلات، دائن ذمم دائنة) | `purchases.create` (لا صلاحية `receive` منفصلة) |
 | POST | `/purchases/:id/cancel` | إلغاء أمر شراء **لم يُستلَم بعد فقط** (409 إن كان مُستلَمًا أو ملغى بالفعل) | `purchases.cancel` |
+| POST | `/purchases/:id/payments` | **(Milestone 7)** تسجيل دفعة لمورد على الرصيد المستحق لأمر شراء **مُستلَم** — `Dr AP / Cr Cash/Bank`، `409` عند تجاوز الرصيد المستحق أو على أمر لم يُستلَم، يتطلب `clientReferenceId` | `purchases.payment.record` |
+| POST | `/purchases/:id/returns` | **(Milestone 7)** تسجيل مرتجع مشتريات جزئي/كلي (`items: [{purchaseItemId, quantity}]`)، فقط من كمية مُستلَمة فعلًا، بلا تعديل على أمر الشراء الأصلي — `400` عند تجاوز الكمية المستلمة، يتطلب `clientReferenceId` | `purchases.return` |
+| GET | `/purchases/:id/returns` | **(Milestone 7)** قائمة مرتجعات المشتريات على أمر شراء محدد | `purchases.read` |
 
 راجع `docs/PURCHASING.md` لتفاصيل تدفق الطلب→الاستلام والتزامن.
 
@@ -221,9 +227,9 @@ Endpoint مخصص، ولا صلاحية RBAC جديدة (يظهر ضمن `invoic
 ### الذمم المدينة/الدائنة (`/api/v1/accounting/ar`, `/ap`)
 | Method | Path | الوصف | صلاحية |
 |---|---|---|---|
-| GET | `/accounting/ar/customers` | أرصدة ذمم كل العملاء — تُعيد قائمة فارغة اليوم دائمًا (لا بيع آجل في النظام، راجع `docs/ACCOUNTING.md`) | `accounting.ar.view` |
+| GET | `/accounting/ar/customers` | أرصدة ذمم كل العملاء — تتحرك الآن فعليًا (Milestone 7): بيع آجل/جزئي يزيدها، دفعة/مرتجع مبيعات يُخفّضها | `accounting.ar.view` |
 | GET | `/accounting/ar/customers/:customerId` | كشف حساب عميل مفصَّل، بحد أقصى 1000 سطر (Milestone 2 — راجع الملاحظة أدناه) | `accounting.ar.view` |
-| GET | `/accounting/ap/suppliers` | أرصدة ذمم كل الموردين (مُعبَّأة فعليًا — لا خطوة "دفع لمورد" بعد فتتراكم فقط) | `accounting.ap.view` |
+| GET | `/accounting/ap/suppliers` | أرصدة ذمم كل الموردين — تتحرك الآن في الاتجاهين (Milestone 7): استلام شراء يزيدها، دفعة لمورد/مرتجع مشتريات يُخفّضها | `accounting.ap.view` |
 | GET | `/accounting/ap/suppliers/:supplierId` | كشف حساب مورد مفصَّل، بحد أقصى 1000 سطر (Milestone 2 — راجع الملاحظة أدناه) | `accounting.ap.view` |
 
 **ملاحظة Milestone 2 (حد أقصى، وليس Pagination كامل)**: دفتر الأستاذ
@@ -259,6 +265,16 @@ Endpoint مخصص، ولا صلاحية RBAC جديدة (يظهر ضمن `invoic
 جديد على `/accounting/journal-entries` — الرصيد الافتتاحي وإقفال الفترة
 كلاهما يمران عبر `JournalService` الموجودة أصلًا، وليس عبر أي مسار جديد
 للتلاعب المباشر بقيد.
+
+### التسوية البنكية/النقدية (`/api/v1/accounting/reconciliations`) — Milestone 7
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/accounting/reconciliations` | قائمة التسويات المُسجَّلة (فلتر `accountCode` اختياري) | `accounting.read` |
+| POST | `/accounting/reconciliations` | تسجيل تسوية جديدة (`accountCode`: `1010`/`1020` فقط، `asOfDate`, `statementBalance`, `notes?`) — `bookBalance`/`difference` محسوبان من `JournalLine` دائمًا، لا يُرسَلان من العميل | `accounting.reconciliation.manage` |
+
+لا اتصال بأي بنك خارجي بأي شكل — `statementBalance` رقم يُدخله المستخدم
+يدويًا. راجع `docs/ACCOUNTING.md` "التسوية البنكية/النقدية" لسبب عدم
+بناء مطابقة أسطر فردية.
 
 ## Endpoints Milestone 3: Excel Import
 

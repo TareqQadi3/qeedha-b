@@ -25,12 +25,29 @@ export const ACCOUNT_CODES = {
   // chosen yet, so no COGS line is ever posted to it. See
   // docs/ACCOUNTING.md "Deferred: COGS / inventory valuation".
   COST_OF_GOODS_SOLD: '5010',
+  // Milestone 7: inventory shrinkage/adjustment expense - Dr'd when a
+  // manual adjustment or stock count finds LESS stock than the recorded
+  // quantity (docs/ACCOUNTING.md "Inventory Adjustment Accounting").
+  INVENTORY_ADJUSTMENT_EXPENSE: '5011',
   EXPENSE_RENT: '5020',
   EXPENSE_ELECTRICITY: '5030',
   EXPENSE_TRANSPORT: '5040',
   EXPENSE_MAINTENANCE: '5050',
   EXPENSE_SUPPLIES: '5060',
   EXPENSE_OTHER: '5090',
+  // Milestone 7: sales-returns contra-revenue account. A revenue-type
+  // account that is only ever Debited nets naturally against
+  // SALES_REVENUE in getProfitAndLoss's totalRevenue (credit - debit per
+  // account, summed by type) - no special contra-account handling needed
+  // elsewhere (docs/ACCOUNTING.md "Sales Returns").
+  SALES_RETURNS: '4020',
+  // Milestone 7: inventory gain from adjustments/stock counts finding MORE
+  // stock than recorded (docs/ACCOUNTING.md "Inventory Adjustment
+  // Accounting"). No dedicated Purchase Returns account - purchases debit
+  // Inventory directly (perpetual method), so a purchase return simply
+  // credits Inventory/VAT_RECEIVABLE back - see docs/ACCOUNTING.md
+  // "Purchase Returns".
+  INVENTORY_ADJUSTMENT_GAIN: '4030',
 } as const;
 
 interface DefaultAccountDefinition {
@@ -95,10 +112,28 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccountDefinition[] = [
     type: 'revenue',
     parentCode: ACCOUNT_CODES.REVENUE,
   },
+  {
+    code: ACCOUNT_CODES.SALES_RETURNS,
+    name: 'مرتجعات المبيعات',
+    type: 'revenue',
+    parentCode: ACCOUNT_CODES.REVENUE,
+  },
+  {
+    code: ACCOUNT_CODES.INVENTORY_ADJUSTMENT_GAIN,
+    name: 'أرباح تسوية المخزون',
+    type: 'revenue',
+    parentCode: ACCOUNT_CODES.REVENUE,
+  },
   { code: ACCOUNT_CODES.EXPENSES, name: 'المصروفات', type: 'expense' },
   {
     code: ACCOUNT_CODES.COST_OF_GOODS_SOLD,
     name: 'تكلفة البضاعة المباعة',
+    type: 'expense',
+    parentCode: ACCOUNT_CODES.EXPENSES,
+  },
+  {
+    code: ACCOUNT_CODES.INVENTORY_ADJUSTMENT_EXPENSE,
+    name: 'مصروف تسوية/عجز المخزون',
     type: 'expense',
     parentCode: ACCOUNT_CODES.EXPENSES,
   },

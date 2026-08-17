@@ -92,6 +92,16 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'sales',
     description: 'إلغاء عملية بيع مكتملة (يُرجع المخزون)',
   },
+  {
+    key: 'sales.payment.record',
+    category: 'sales',
+    description: 'تسجيل دفعة على بيع آجل (تسوية ذمم مدينة)',
+  },
+  {
+    key: 'sales.return',
+    category: 'sales',
+    description: 'تسجيل مرتجع مبيعات (كلي أو جزئي)',
+  },
 
   // Phase 3: Invoices
   { key: 'invoices.read', category: 'invoices', description: 'عرض الفواتير' },
@@ -104,6 +114,16 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'إنشاء أمر شراء واستلام مخزونه',
   },
   { key: 'purchases.cancel', category: 'purchases', description: 'إلغاء أمر شراء لم يُستلَم بعد' },
+  {
+    key: 'purchases.payment.record',
+    category: 'purchases',
+    description: 'تسجيل دفعة لمورد (تسوية ذمم دائنة)',
+  },
+  {
+    key: 'purchases.return',
+    category: 'purchases',
+    description: 'تسجيل مرتجع مشتريات (كلي أو جزئي)',
+  },
 
   // Phase 4: Expenses
   { key: 'expenses.read', category: 'expenses', description: 'عرض المصروفات' },
@@ -151,6 +171,13 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'إنشاء وإقفال وإعادة فتح الفترات المحاسبية',
   },
 
+  // Milestone 7: Bank/Cash Reconciliation
+  {
+    key: 'accounting.reconciliation.manage',
+    category: 'accounting',
+    description: 'تسجيل تسويات البنك/الصندوق (مطابقة الرصيد الدفتري بكشف الحساب)',
+  },
+
   // Milestone 3: Excel Import
   {
     key: 'import.read',
@@ -196,10 +223,14 @@ export const PERMISSION_KEYS = {
   SALES_READ: 'sales.read',
   SALES_CREATE: 'sales.create',
   SALES_CANCEL: 'sales.cancel',
+  SALES_PAYMENT_RECORD: 'sales.payment.record',
+  SALES_RETURN: 'sales.return',
   INVOICES_READ: 'invoices.read',
   PURCHASES_READ: 'purchases.read',
   PURCHASES_CREATE: 'purchases.create',
   PURCHASES_CANCEL: 'purchases.cancel',
+  PURCHASES_PAYMENT_RECORD: 'purchases.payment.record',
+  PURCHASES_RETURN: 'purchases.return',
   EXPENSES_READ: 'expenses.read',
   EXPENSES_CREATE: 'expenses.create',
   EXPENSES_UPDATE: 'expenses.update',
@@ -211,6 +242,7 @@ export const PERMISSION_KEYS = {
   ACCOUNTING_AP_VIEW: 'accounting.ap.view',
   ACCOUNTING_OPENING_BALANCE_MANAGE: 'accounting.opening_balance.manage',
   ACCOUNTING_PERIOD_MANAGE: 'accounting.period.manage',
+  ACCOUNTING_RECONCILIATION_MANAGE: 'accounting.reconciliation.manage',
   IMPORT_READ: 'import.read',
   IMPORT_CREATE: 'import.create',
 } as const;

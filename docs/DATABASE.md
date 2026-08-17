@@ -175,25 +175,43 @@ payments            دفعة على عملية بيع (تدعم Split — عدة
                     method: cash | card | transfer | other | external،
                     status: pending | success | failed | cancelled | refunded،
                     provider_key + external_reference + idempotency_key
-                    (فارغة إلا عند method = external)
+                    (فارغة إلا عند method = external)، client_reference_id?
+                    (Milestone 7 - فريد لكل منشأة عبر @@unique([companyId,
+                    clientReferenceId])، NULL لصفوف الدفع المُنشأة وقت
+                    إنشاء البيع نفسه [Postgres يسمح بـNULL متعددة]، يُملأ
+                    فقط لدفعة آجلة لاحقة عبر POST /sales/:id/payments
+                    لإعطائها Idempotency حقيقية)
 invoice_sequences    عدّاد فاتورة ذرّي لكل منشأة (company_id هو PK نفسه)،
                     next_number — يُستهلَك عبر UPDATE محروس ذرّي، نفس نمط
                     stock_levels
 invoices            فاتورة صادرة لعملية بيع واحدة (unique على sale_id)،
                     invoice_number (فريد لكل منشأة)، نسخة من نفس المبالغ
                     المالية للبيع وقت الإصدار، status (issued/cancelled)
+sale_returns        (Milestone 7) مرتجع مبيعات جزئي/كلي على sale موجود -
+                    company_id, branch_id, sale_id, reason?, subtotal,
+                    tax_amount, total_amount, client_reference_id [فريد
+                    لكل منشأة]، actor_membership_id. مُعرَّف بـUUID فقط
+                    (بلا رقم تسلسلي بشري - سجل تصحيحي داخلي مثل
+                    stock_adjustments، وليس مستندًا موجّهًا للعميل مثل
+                    invoices)
+sale_return_items   بند مرتجع، sale_item_id (السطر الأصلي)، quantity،
+                    unit_price، vat_rate، unit_cost [Decimal(14,4)?،
+                    منسوخ من SaleItem.unitCost وقت الإرجاع - يحافظ على
+                    التكلفة التاريخية لعكس COGS]، line_subtotal/tax/total
+                    (توزيع نسبي من قيم السطر الأصلي)
 ```
 
 **انحراف موثَّق عن التصميم الأصلي لهذا القسم** (كان مكتوبًا في المرحلة 1 قبل
-بناء أي كود Sales فعليًا): التصميم الأصلي افترض `sale_returns`/
-`sale_return_items` (نظام مرتجعات كامل)، `held_carts` (سلات معلّقة محفوظة في
-قاعدة البيانات)، و`cash_sessions`/`cash_movements` (ورديات كاشير). **لم تُبنَ
-هذه الجداول في المرحلة 3** — قرار مقصود موثَّق في `docs/PROJECT_STATUS.md`
-"Deferred": نطاق Phase 3 المُتفَق عليه فعليًا هو POS + Sales + Payments +
-Invoices + أساس التكامل، وليس نظام ورديات/مرتجعات كاملًا. `sales.status` يدعم
-فقط `completed`/`cancelled` (إلغاء كامل للفاتورة، وليس مرتجع جزئي بالسطر) —
-كافٍ لعدم "تجميد" التصميم ضد إضافة مرتجعات لاحقًا (`docs/SALES.md` "Deferred:
-partial returns")، دون بناء ما لم يُطلَب بعد.
+بناء أي كود Sales فعليًا): التصميم الأصلي افترض `held_carts` (سلات معلّقة
+محفوظة في قاعدة البيانات) و`cash_sessions`/`cash_movements` (ورديات
+كاشير). **لم تُبنَ هذه الجداول حتى الآن** — قرار مقصود موثَّق في
+`docs/PROJECT_STATUS.md` "Deferred": نطاق Phase 3 المُتفَق عليه فعليًا هو
+POS + Sales + Payments + Invoices + أساس التكامل، وليس نظام ورديات كاملًا.
+`sale_returns`/`sale_return_items` المُقترَحان أصلًا هنا **بُنيا فعليًا في
+Milestone 7** (راجع أعلاه) — `sales.status` نفسه لا يزال يدعم فقط
+`completed`/`cancelled` (إلغاء كامل عبر `cancelSale`، آلية منفصلة تمامًا
+عن مرتجعات السطر الجزئية الجديدة) — راجع `docs/SALES.md`/`docs/ACCOUNTING.md`
+"مرتجعات المبيعات".
 
 **انحراف موثَّق آخر — عمود `payments.method`**: التصميم الأصلي هنا اقترح ألا
 يكون `method` عمود enum ثابتًا، بل `integration_connection_id` اختياريًا بدلًا
@@ -225,6 +243,22 @@ purchase_items       بند شراء، Snapshot كامل وقت الشراء (pr
                      product.cost_price)
 purchase_sequences    عدّاد رقم مرجعي ذرّي لكل منشأة (company_id هو PK نفسه)،
                      نفس نمط invoice_sequences الذرّي بالضبط
+supplier_payments    (Milestone 7) دفعة لمورد تُسدِّد purchase محدد -
+                     purchase_id **إلزامي** (على عكس payments.sale_id
+                     الاختياري ضمنيًا عبر الوجود دومًا - كل دفعة مورد
+                     تخص فاتورة شراء واحدة محددة دائمًا)، supplier_id،
+                     branch_id، method، amount، currency، reference?
+                     (نص حر - مرجع بنكي/شيك)، client_reference_id [فريد
+                     لكل منشأة - idempotency]، actor_membership_id
+purchase_returns      (Milestone 7) مرتجع مشتريات جزئي/كلي على purchase
+                     موجود - نفس بنية sale_returns تمامًا (company_id,
+                     branch_id, purchase_id, reason?, subtotal, tax_amount,
+                     total_amount, client_reference_id، UUID فقط بلا رقم
+                     تسلسلي)
+purchase_return_items بند مرتجع، purchase_item_id، quantity، unit_cost
+                     [Decimal(14,2) غير قابل لـNULL دائمًا، على عكس
+                     sale_return_items.unit_cost - تكلفة الشراء معروفة
+                     دائمًا]، vat_rate، line_subtotal/tax/total
 ```
 
 **انحراف موثَّق عن التصميم الأصلي لهذا القسم** (كان مكتوبًا قبل بناء أي
@@ -233,8 +267,9 @@ purchase_sequences    عدّاد رقم مرجعي ذرّي لكل منشأة (c
 جدول واحد — **الشراء هو الفاتورة**، لا كيان `supplier_invoices` منفصل
 (`docs/PURCHASING.md` "الشراء هو الفاتورة")، و`purchase.status` نفسه
 (`ordered`→`received`) يعبّر عن دورة الاستلام بدل جدول `goods_receipts`
-منفصل. `purchase_returns` لم تُبنَ (مؤجَّلة، راجع `docs/PURCHASING.md`
-"مرتجعات المشتريات").
+منفصل. `purchase_returns`/`purchase_return_items` و`supplier_payments`
+المُقترَحان أصلًا هنا **بُنيا فعليًا في Milestone 7** — راجع
+`docs/ACCOUNTING.md` "مرتجعات المشتريات"/"دفعات الموردين".
 
 ## 6. Expenses (المرحلة 4 — منفَّذ)
 
@@ -262,9 +297,12 @@ accounts              دليل الحسابات (شجري عبر self-relation p
 journal_entries        قيد محاسبي. status: posted | reversed فقط — لا
                       draft (لا تدفق إدخال يدوي يبرره). reference_type/
                       reference_id يربطانه بمعاملته المصدر (Sale/Purchase/
-                      Expense/OpeningBalance منذ Milestone 1).
-                      reversal_of_entry_id يشير للقيد الأصلي عند قيد
-                      عكسي. branch_id اختياري.
+                      Expense/OpeningBalance منذ Milestone 1؛
+                      StockAdjustment/StockCount مُضافان في Milestone 7 -
+                      Sale/Purchase أيضًا تُستخدَمان الآن لقيود دفعة/
+                      مرتجع لاحقة على نفس البيع/الشراء الأصلي، لا بيع/شراء
+                      جديد). reversal_of_entry_id يشير للقيد الأصلي عند
+                      قيد عكسي. branch_id اختياري.
 journal_lines           بنود القيد (مدين/دائن، حساب واحد لكل سطر) — يجب أن
                       يتوازن كل قيد (مدين = دائن، مُتحقَّق برمجيًا عند
                       الترحيل، وليس بقيد Check على مستوى قاعدة البيانات).
@@ -310,8 +348,18 @@ CREATE UNIQUE INDEX "journal_entries_one_active_opening_balance"
 التصميم الأصلي** — بل كـ`JournalEntry` عادي (راجع أعلاه)، لتفادي أي
 آلية ترحيل موازية لنقطة العبور الوحيدة `JournalService.postJournalEntry`.
 كذلك، لا `manual` كمصدر لقيد — كل قيد تلقائي حصرًا (`reference_type` من
-أربع قيم: `Sale`/`Purchase`/`Expense`/`OpeningBalance`، بالإضافة لقيد
-عكسي بنفس `reference_type` الأصل).
+ست قيم اليوم: `Sale`/`Purchase`/`Expense`/`OpeningBalance`/
+`StockAdjustment`/`StockCount`، بالإضافة لقيد عكسي بنفس `reference_type`
+الأصل).
+
+**`bank_reconciliations` (Milestone 7)**: جدول واحد فقط، بلا جدول مطابقة
+أسطر منفصل — id, company_id, branch_id?, account_code (رمز ثابت من
+ACCOUNT_CODES، مثل account_id على expense_categories، وليس FK لصف
+account محدد)، as_of_date DATE، statement_balance، book_balance (محسوب
+من journal_lines وقت الإنشاء، غير قابل لإعادة الحساب لاحقًا)، difference،
+notes?، actor_membership_id، created_at. الإنشاء = اكتمال فوري وغير قابل
+للتعديل (كـ`audit_logs`) — لا حالة مسودة. راجع `docs/ACCOUNTING.md`
+"التسوية البنكية/النقدية" لسبب عدم بناء مطابقة أسطر فردية.
 
 **لا إدخال يدوي مزدوج — مُنفَّذ فعليًا، وليس مبدأً مؤجَّلًا بعد الآن**: كل
 عملية تجارية (بيع، استلام شراء، مصروف) تُنشئ قيدها تلقائيًا عبر
@@ -446,3 +494,21 @@ migration `20260815220000_milestone1_accounting_completion`) — بالإضاف�
 جديد. كل عمل هذا الـMilestone (CORS، Health check، Logging، Docker، CI،
 اختبارات، بذر بيانات تجريبية) بنية تحتية/تشغيلية بحتة فوق نفس المخطط
 الموجود من نهاية Milestone 1.
+
+**Milestone 6 (Weighted-Average Inventory Valuation & COGS)**: **لا جدول
+جديد** — فقط عمودان جديدان على جدولين موجودين (`stock_levels.average_cost`
+Decimal(14,4)، `sale_items.unit_cost` Decimal(14,4)?، migration
+`20260816150000_milestone6_weighted_average_cogs`). راجع الأقسام 2/4
+أعلاه.
+
+**Milestone 7 (Merchant Operations & Business Completion)**: 6 جداول
+جديدة — `supplier_payments, sale_returns, sale_return_items,
+purchase_returns, purchase_return_items, bank_reconciliations` (كلها
+`FORCE ROW LEVEL SECURITY` + policy `tenant_isolation` مستقل، migration
+`20260817000000_milestone7_merchant_operations`) — بالإضافة لعمود واحد
+جديد على جدول موجود (`payments.client_reference_id`، اختياري، فريد لكل
+منشأة عبر `@@unique([companyId, clientReferenceId])`)، وثلاثة صفوف جديدة
+في `accounts` تُزرَع لكل منشأة (جديدة تلقائيًا، وقديمة عبر بيانات Backfill
+idempotent ضمن نفس الـmigration — راجع `docs/ACCOUNTING.md` "الحسابات
+الجديدة في دليل الحسابات"). لا تعديل على أي جدول/عمود آخر من المراحل
+السابقة، ولا حذف بيانات بأي شكل.

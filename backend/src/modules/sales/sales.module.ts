@@ -8,12 +8,13 @@ import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
 import { InvoiceNumberService } from './invoice-number.service';
 import { SalesController } from './sales.controller';
+import { SalesReturnService } from './sales-return.service';
 import { SalesService } from './sales.service';
 
 @Module({
   imports: [AuditModule, IamModule, InventoryModule, AccountingModule, EInvoiceModule],
   controllers: [SalesController, InvoicesController],
-  providers: [SalesService, InvoicesService, InvoiceNumberService],
-  exports: [SalesService, InvoicesService],
+  providers: [SalesService, SalesReturnService, InvoicesService, InvoiceNumberService],
+  exports: [SalesService, SalesReturnService, InvoicesService],
 })
 export class SalesModule {}
