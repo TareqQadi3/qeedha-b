@@ -65,6 +65,18 @@ BASE_URL=http://localhost:3000/api/v1 npm run demo:seed
 `frontend/e2e/golden-path.spec.ts` (مُمتَد في Milestone 7) للمرجع الكامل
 المُتحقَّق فعليًا عبر متصفح حقيقي.
 
+## Milestone 8 (Subscription & Billing)
+
+`demo-seed.ts` نفسه **لم يتغيّر** — لا حاجة، لأن كل تسجيل منشأة (بما
+فيها المنشأة التجريبية، عبر `POST /auth/register-company` الذي يستخدمه
+السكربت أصلًا) يحصل تلقائيًا على اشتراك تجريبي حقيقي (خطة Professional،
+14 يومًا) منذ `AuthService.registerCompany` — **لا يتطلب أي تعديل
+يدوي على قاعدة البيانات بعد النشر** (Milestone 8 spec section 21).
+بعد تسجيل الدخول، صفحة "الاشتراك والخطة" (`/subscription`) تعرض هذا
+الاشتراك فورًا: الخطة، حالة "فترة تجريبية"، الأيام المتبقية، الميزات
+المتاحة، والاستخدام الحالي مقابل حدود الخطة. راجع `docs/DOMAIN_MODEL.md`
+"Milestone 8" للتصميم الكامل.
+
 ## آمن لإعادة التشغيل
 
 كل تشغيل يُولّد لاحقة عشوائية جديدة (`Math.random().toString(36)`)

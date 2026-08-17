@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/commo
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { SubscriptionExempt } from '../../common/decorators/subscription-exempt.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -45,24 +46,29 @@ export class AuthController {
     return this.authService.refresh(dto);
   }
 
+  @SubscriptionExempt()
   @HttpCode(HttpStatus.OK)
   @Post('logout')
   logout(@CurrentUser() user: AuthenticatedUser, @Body() dto: Partial<RefreshDto>) {
     return this.authService.logout(user.userId, dto?.refreshToken);
   }
 
+  /** Must keep working for a suspended/expired company - "recovery/visibility" (Milestone 8 spec section 10). */
+  @SubscriptionExempt()
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.me(user);
   }
 
   /** Companies this user could switch to - tenant switcher UI foundation. */
+  @SubscriptionExempt()
   @Get('tenants')
   listMyTenants(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.listMyTenants(user.userId);
   }
 
-  /** Switches the current session to a different company this user is a member of. */
+  /** Switches the current session to a different company this user is a member of - never blocked by the CURRENT (possibly restricted) company's subscription. */
+  @SubscriptionExempt()
   @HttpCode(HttpStatus.OK)
   @Post('switch-tenant')
   switchTenant(@CurrentUser() user: AuthenticatedUser, @Body() dto: SwitchTenantDto) {

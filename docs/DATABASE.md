@@ -512,3 +512,27 @@ purchase_returns, purchase_return_items, bank_reconciliations` (كلها
 idempotent ضمن نفس الـmigration — راجع `docs/ACCOUNTING.md` "الحسابات
 الجديدة في دليل الحسابات"). لا تعديل على أي جدول/عمود آخر من المراحل
 السابقة، ولا حذف بيانات بأي شكل.
+
+**Milestone 8 (SaaS / Subscription & Billing)**: جدولان جديدان، migration
+واحدة (`20260817010000_milestone8_saas_subscription`):
+
+- **`plans`**: كتالوج عام، **بلا `company_id`، بلا RLS** — نفس معاملة
+  `permissions`/`integration_providers` الموجودتين سلفًا (كل تحديد
+  إضافي غير مطلوب لأن الصلاحية للقراءة فقط ومطلوبة لكل مستأجر على حدٍّ
+  سواء). أعمدة: `code` (فريد)، `name`، `description`، `is_active`،
+  `trial_eligible`، `price_monthly_sar` (`Decimal(10,2)?`، placeholder
+  صريح)، `billing_interval`، `max_users`/`max_branches`/
+  `max_monthly_sales` (`Int?`، `null` = بلا حد)، `features` (`Jsonb`).
+- **`subscriptions`**: tenant-scoped، `FORCE ROW LEVEL SECURITY` +
+  policy `tenant_isolation` (نفس النمط المعتاد). `company_id` **فريد**
+  (`@@unique`، سطر واحد بالضبط لكل منشأة — لا `@@index` عادي). فهرسان
+  إضافيان: `status` (بحث/تجميع مستقبلي لمركز تحكم)، `plan_id` (JOIN).
+  أعمدة: `status` (`SubscriptionStatus` enum)، `trial_ends_at`،
+  `current_period_start/end`، `cancelled_at`.
+
+لا عمود جديد على `companies` — العلاقة العكسية `Company.subscription`
+فقط، `CompanyStatus` الموجود لم يتغيّر. لا حذف بيانات، لا drift على أي
+جدول من المراحل السابقة. لا Backfill مباشر في SQL الـmigration نفسها
+(راجع `docs/DOMAIN_MODEL.md` "Milestone 8" "لماذا لا Backfill في
+الـmigration" للسبب الدقيق المرتبط بـRLS) — أي منشأة قديمة بلا سطر
+اشتراك تحصل عليه بشكل كسول عند أول طلب مصادَق بعد النشر.

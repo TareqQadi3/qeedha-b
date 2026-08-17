@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FEATURE_KEYS } from '../subscriptions/constants/feature-keys';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { CreateFiscalPeriodDto } from './dto/create-fiscal-period.dto';
 import { FiscalPeriodsService } from './fiscal-periods.service';
@@ -21,6 +23,7 @@ export class FiscalPeriodsController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.ACCOUNTING)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_PERIOD_MANAGE)
   @Post()
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateFiscalPeriodDto) {
@@ -29,6 +32,7 @@ export class FiscalPeriodsController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.ACCOUNTING)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_PERIOD_MANAGE)
   @Post(':id/close')
   close(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
@@ -37,6 +41,7 @@ export class FiscalPeriodsController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.ACCOUNTING)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_PERIOD_MANAGE)
   @Post(':id/reopen')
   reopen(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {

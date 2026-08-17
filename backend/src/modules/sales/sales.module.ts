@@ -4,6 +4,7 @@ import { AccountingModule } from '../accounting/accounting.module';
 import { EInvoiceModule } from '../einvoice/einvoice.module';
 import { IamModule } from '../iam/iam.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
 import { InvoiceNumberService } from './invoice-number.service';
@@ -12,7 +13,14 @@ import { SalesReturnService } from './sales-return.service';
 import { SalesService } from './sales.service';
 
 @Module({
-  imports: [AuditModule, IamModule, InventoryModule, AccountingModule, EInvoiceModule],
+  imports: [
+    AuditModule,
+    IamModule,
+    InventoryModule,
+    AccountingModule,
+    EInvoiceModule,
+    SubscriptionsModule,
+  ],
   controllers: [SalesController, InvoicesController],
   providers: [SalesService, SalesReturnService, InvoicesService, InvoiceNumberService],
   exports: [SalesService, SalesReturnService, InvoicesService],

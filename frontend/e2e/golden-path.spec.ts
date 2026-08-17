@@ -215,6 +215,18 @@ test('merchant can go from registration to a posted sale, expense, and see it al
   await expect(page.getByText(periodName)).toBeVisible();
   await expect(page.getByText('مفتوحة').first()).toBeVisible();
 
+  // ---- Milestone 8: subscription/plan/trial visibility - a brand-new
+  // registration must show a real, connected trial subscription (no mocked
+  // backend), the Professional plan's features, and usage counts that
+  // reflect everything created above in this same test run ----
+  await page.goto('/subscription');
+  await expect(page.getByText('الاحترافية').first()).toBeVisible();
+  await expect(page.getByText('فترة تجريبية')).toBeVisible();
+  await expect(page.getByText(/متبقٍ \d+ (يوم|أيام)/)).toBeVisible();
+  await expect(page.getByText('الذمم المدينة والدائنة')).toBeVisible();
+  await expect(page.getByText('الأساسية')).toBeVisible();
+  await expect(page.getByText(/تواصل مع الدعم/).first()).toBeVisible();
+
   // ---- Logout -> Login again (session survives a fresh login) ----
   await logout(page);
   await login(page, merchant);

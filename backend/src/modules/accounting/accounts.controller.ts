@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FEATURE_KEYS } from '../subscriptions/constants/feature-keys';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { AccountingService } from './accounting.service';
 import { CreateAccountDto } from './dto/create-account.dto';
@@ -22,6 +24,7 @@ export class AccountsController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.ACCOUNTING)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_MANAGE)
   @Post()
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateAccountDto) {
@@ -30,6 +33,7 @@ export class AccountsController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.ACCOUNTING)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_MANAGE)
   @Patch(':id')
   update(

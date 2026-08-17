@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { api } from '../api/client';
 import { useAuth } from '../state/auth';
 
 const NAV_ITEMS = [
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/accounting', label: 'الحسابات والقيود' },
   { to: '/reports', label: 'التقارير المحاسبية' },
   { to: '/receivables-payables', label: 'الذمم (العملاء والموردون)' },
+  { to: '/subscription', label: 'الاشتراك والخطة' },
 ];
 
 /**
@@ -27,9 +29,37 @@ const NAV_ITEMS = [
  * and the original always-visible sidebar unchanged at `md` and above -
  * same nav items, same links, no redesign.
  */
+interface SubscriptionBanner {
+  isRestricted: boolean;
+  status: string;
+  trialDaysRemaining: number | null;
+}
+
 export function Layout() {
   const { me, logout } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionBanner | null>(null);
+
+  // Milestone 8: a lightweight, best-effort fetch (never blocks rendering,
+  // never shows an error banner of its own on failure) purely to surface
+  // subscription restrictions/trial countdown app-wide - "restrictions must
+  // be visible and understandable" (Milestone 8 spec section 13).
+  useEffect(() => {
+    api
+      .get('/subscriptions/me')
+      .then((data) =>
+        setSubscription({
+          isRestricted: data.isRestricted,
+          status: data.status,
+          trialDaysRemaining: data.trialDaysRemaining,
+        }),
+      )
+      .catch(() => setSubscription(null));
+  }, []);
+
+  const showTrialNotice =
+    subscription && !subscription.isRestricted && subscription.status === 'trialing' &&
+    subscription.trialDaysRemaining !== null && subscription.trialDaysRemaining <= 3;
 
   const navLinks = (
     <>
@@ -90,6 +120,24 @@ export function Layout() {
       )}
 
       <main className="flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6">
+        {subscription?.isRestricted && (
+          <NavLink
+            to="/subscription"
+            className="mb-4 block rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 hover:underline"
+          >
+            انتهت صلاحية الاشتراك أو تم إيقافه - يمكنك الاطلاع على بياناتك الحالية، ولإجراء عمليات جديدة يرجى
+            التواصل مع الدعم لتجديد الاشتراك. عرض تفاصيل الاشتراك ←
+          </NavLink>
+        )}
+        {showTrialNotice && (
+          <NavLink
+            to="/subscription"
+            className="mb-4 block rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 hover:underline"
+          >
+            متبقٍ {subscription!.trialDaysRemaining} {subscription!.trialDaysRemaining === 1 ? 'يوم' : 'أيام'} على
+            انتهاء الفترة التجريبية. عرض تفاصيل الاشتراك ←
+          </NavLink>
+        )}
         <Outlet />
       </main>
     </div>

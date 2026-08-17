@@ -22,6 +22,13 @@
   في production (رفض إقلاع صريح بدونه)، واختياري في development/test
   (افتراضي: منافذ Vite المحلية). راجع `docs/SECURITY.md` "CORS" و
   `backend/.env.example`.
+- **صلاحية اشتراك (Milestone 8)**: بعض Endpoints تُعلن أيضًا
+  `@RequireFeature('<feature-key>')` بجانب `@RequirePermissions` — طبقة
+  إضافية منفصلة تمامًا عن RBAC (`403` بلا ميزة مشمولة في خطة المنشأة،
+  حتى مع صلاحية RBAC صحيحة). أي Endpoint مُغيِّر (POST/PUT/PATCH/DELETE)
+  يُرفَض أيضًا `403` إن كان اشتراك المنشأة منتهيًا/موقوفًا/ملغى — القراءة
+  تبقى متاحة دومًا. راجع `docs/SECURITY.md` "Milestone 8" و
+  `docs/DOMAIN_MODEL.md` "Milestone 8".
 
 ## Endpoints المرحلة الأولى
 
@@ -296,6 +303,25 @@ Endpoint مخصص، ولا صلاحية RBAC جديدة (يظهر ضمن `invoic
 
 لا `GET` لتنزيل الملف الخام لأي مهمة — غير مطلوب في هذه المرحلة، وتقليل
 سطح الهجوم عمدًا (راجع `docs/IMPORT_EXCEL.md` "الأمان").
+
+## Endpoints Milestone 8: SaaS / Subscription & Billing
+
+قراءة فقط بالكامل — **لا يوجد أي Endpoint تعديل** مكشوف للتاجر (لا تغيير
+خطة، لا تمديد تجربة، لا تغيير حد استخدام، لا تعديل بيانات فوترة). هذان
+المساران فقط، وكلاهما `@SubscriptionExempt()` (يعملان حتى لمنشأة
+موقوفة/اشتراك منتهي — راجع `docs/DOMAIN_MODEL.md` "Milestone 8"):
+
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/subscriptions/me` | الاشتراك الحالي: الحالة (`status`/`effectiveStatus`/`isRestricted`)، بيانات التجربة، الخطة، الميزات (`features`)، الاستخدام الحالي مقابل الحدود (`usage`)، رسالة الفوترة | عضوية نشطة فقط (بلا صلاحية RBAC إضافية) |
+| GET | `/subscriptions/plans` | كتالوج الخطط النشطة المتاحة (للعرض/الترقية المستقبلية) — بلا `id` داخلي | عضوية نشطة فقط |
+
+مسارات امتيازية لمركز تحكم مستقبلي (تغيير خطة، تعليق/إلغاء اشتراك،
+تمديد تجربة) **غير موجودة على الإطلاق** في هذا الـMilestone — الدوال
+المقابلة موجودة على مستوى الخدمة (`SubscriptionService.changePlan`/
+`setStatus`/`extendTrial`) لكنها غير مكشوفة عبر أي Controller، تفاديًا
+لكشف مسارات امتيازية بلا بنية مصادقة إدارية حقيقية بعد (راجع
+`docs/SECURITY.md` "Milestone 8").
 
 ## Endpoints المراحل القادمة
 

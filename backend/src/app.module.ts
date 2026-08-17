@@ -6,6 +6,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { MembershipGuard } from './common/guards/membership.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { SubscriptionGuard } from './common/guards/subscription.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { PrismaModule } from './common/prisma/prisma.module';
@@ -25,6 +26,7 @@ import { PurchasesModule } from './modules/purchases/purchases.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { ImportsModule } from './modules/imports/imports.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -46,12 +48,14 @@ import { ImportsModule } from './modules/imports/imports.module';
     ExpensesModule,
     StorageModule,
     ImportsModule,
+    SubscriptionsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: MembershipGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    { provide: APP_GUARD, useClass: SubscriptionGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
   ],

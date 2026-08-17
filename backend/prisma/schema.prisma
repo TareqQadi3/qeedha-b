@@ -73,6 +73,7 @@ model Company {
   purchaseReturns        PurchaseReturn[]
   purchaseReturnItems    PurchaseReturnItem[]
   bankReconciliations    BankReconciliation[]
+  subscription           Subscription?
 
   @@map("companies")
 }
@@ -1559,4 +1560,79 @@ model ImportJob {
   @@index([companyId, status])
   @@index([companyId, entityType, createdAt])
   @@map("import_jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 8: SaaS / Subscription & Billing
+// ---------------------------------------------------------------------------
+//
+// Plan: global catalog table, NOT tenant data (no company_id) - same
+// pattern as Permission/IntegrationProvider (see the RLS migration's own
+// comment on those two tables): every tenant is allowed to read the plan
+// catalog, so no RLS policy is needed here. `features` is a JSON map of
+// FEATURE_KEYS (backend/src/modules/subscriptions/constants/feature-keys.ts)
+// -> boolean, the single centralized source a plan's entitlements are read
+// from (docs/DOMAIN_MODEL.md "SaaS / Subscription"). `priceMonthlySar` is
+// placeholder/demo pricing only - see docs/DEMO.md and the Milestone 8
+// final report for why real commercial pricing was never invented here.
+model Plan {
+  id               String   @id @default(uuid()) @db.Uuid
+  code             String   @unique
+  name             String
+  description      String?
+  isActive         Boolean  @default(true) @map("is_active")
+  trialEligible    Boolean  @default(true) @map("trial_eligible")
+  priceMonthlySar  Decimal? @db.Decimal(10, 2) @map("price_monthly_sar")
+  billingInterval  String   @default("monthly") @map("billing_interval")
+  // null = unlimited for that resource - see SubscriptionService.assertWithinLimit.
+  maxUsers         Int?     @map("max_users")
+  maxBranches      Int?     @map("max_branches")
+  maxMonthlySales  Int?     @map("max_monthly_sales")
+  features         Json
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  expired
+  suspended
+  cancelled
+}
+
+// One row per Company (1:1 - "Company must be linked to its active
+// subscription", docs/DOMAIN_MODEL.md "SaaS / Subscription"). Tenant-scoped
+// (company_id) -> RLS required, unlike Plan.
+//
+// `status` is the last EXPLICITLY set status (via SubscriptionService, e.g.
+// registration creating `trialing`, or a future Control Center transition).
+// The effective status used for enforcement additionally accounts for
+// `trialEndsAt` having passed - see SubscriptionService.getEffectiveStatus.
+// When a request first observes an expired trial, SubscriptionService
+// persists status='expired' at that moment (lazy transition, audit-logged)
+// rather than requiring a background job, since this codebase has no job
+// scheduler - see docs/DOMAIN_MODEL.md "SaaS / Subscription" "Why no cron".
+model Subscription {
+  id                 String             @id @default(uuid()) @db.Uuid
+  companyId          String             @unique @map("company_id") @db.Uuid
+  planId             String             @map("plan_id") @db.Uuid
+  status             SubscriptionStatus @default(trialing)
+  trialEndsAt        DateTime?          @map("trial_ends_at")
+  currentPeriodStart DateTime?          @map("current_period_start")
+  currentPeriodEnd   DateTime?          @map("current_period_end")
+  cancelledAt        DateTime?          @map("cancelled_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  plan    Plan    @relation(fields: [planId], references: [id])
+
+  @@index([status])
+  @@index([planId])
+  @@map("subscriptions")
 }

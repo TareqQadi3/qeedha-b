@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FEATURE_KEYS } from '../subscriptions/constants/feature-keys';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { CreateStockCountDto } from './dto/create-stock-count.dto';
@@ -38,6 +40,7 @@ export class InventoryController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.INVENTORY)
   @RequirePermissions(PERMISSION_KEYS.INVENTORY_ADJUST)
   @Post('opening-balance')
   setOpeningBalance(@CurrentUser() user: AuthenticatedUser, @Body() dto: SetOpeningBalanceDto) {
@@ -52,6 +55,7 @@ export class InventoryController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.INVENTORY)
   @RequirePermissions(PERMISSION_KEYS.INVENTORY_ADJUST)
   @Post('adjustments')
   adjustStock(@CurrentUser() user: AuthenticatedUser, @Body() dto: AdjustStockDto) {
@@ -60,6 +64,7 @@ export class InventoryController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.INVENTORY)
   @RequirePermissions(PERMISSION_KEYS.INVENTORY_TRANSFER)
   @Post('transfers')
   transferStock(@CurrentUser() user: AuthenticatedUser, @Body() dto: TransferStockDto) {
@@ -84,6 +89,7 @@ export class InventoryController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.INVENTORY)
   @RequirePermissions(PERMISSION_KEYS.INVENTORY_COUNT)
   @Post('stock-counts')
   createStockCount(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateStockCountDto) {

@@ -15,6 +15,7 @@ import { PurchasesPage } from './pages/PurchasesPage';
 import { ReceivablesPayablesPage } from './pages/ReceivablesPayablesPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { SubscriptionPage } from './pages/SubscriptionPage';
 import { SuppliersPage } from './pages/SuppliersPage';
 import { useAuth } from './state/auth';
 
@@ -51,6 +52,7 @@ export function App() {
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/receivables-payables" element={<ReceivablesPayablesPage />} />
         <Route path="/import" element={<ImportPage />} />
+        <Route path="/subscription" element={<SubscriptionPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

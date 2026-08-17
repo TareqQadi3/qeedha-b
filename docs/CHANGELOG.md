@@ -1,5 +1,138 @@
 # سجل التغييرات (Changelog)
 
+## [Milestone 8: SaaS / Subscription & Billing] - 2026-08-17
+
+يحوّل Qeedha B إلى منتج SaaS حقيقي: نموذج خطط (`Plan`) واشتراك
+(`Subscription`) لكل منشأة، فترة تجريبية 14 يومًا حقيقية بعواقب فعلية
+عند الانتهاء، صلاحيات ميزات (Feature Entitlements) كطبقة **إضافية** على
+RBAC وليست بديلة عنها، حدود استخدام (مستخدمون/فروع/مبيعات شهرية) بتنفيذ
+آمن للتزامن، ودمج دورة حياة الاشتراك مع `CompanyStatus` الموجود سلفًا
+(والذي تبيَّن أنه لم يكن مُفعَّلًا فعليًا في أي مكان قبل هذا الـ
+Milestone). واجهة القراءة فقط للتاجر (`/subscriptions/me`,
+`/subscriptions/plans`) — لا endpoint تعديل واحد مكشوف للتاجر. لا تكامل
+دفع خارجي حقيقي (Stripe/Moyasar/... إلخ) — الفوترة الفعلية مؤجَّلة صراحةً
+لمركز التحكم المستقبلي، والأسعار المعروضة (`priceMonthlySar`) placeholder
+واضح، وليست تسعيرًا تجاريًا نهائيًا.
+
+### أُضيف
+
+**النموذج (Prisma)**:
+- `Plan` — جدول كتالوج عام (بلا `company_id`، بلا RLS — نفس معاملة
+  `permissions`/`integration_providers` الموجودة سلفًا): `code`, `name`,
+  `description`, `isActive`, `trialEligible`, `priceMonthlySar`
+  (placeholder)، `billingInterval`, `maxUsers`, `maxBranches`,
+  `maxMonthlySales`, `features` (JSON بمفاتيح `FEATURE_KEYS`).
+- `Subscription` — سطر واحد فريد لكل منشأة (`company_id` فريد)، بيانات
+  تعيّه (tenant-scoped) بـ RLS FORCE + `tenant_isolation` كاملة:
+  `status` (`SubscriptionStatus`: `trialing | active | expired |
+  suspended | cancelled`), `trialEndsAt`, `currentPeriodStart/End`,
+  `cancelledAt`.
+- `Company.subscription` علاقة عكسية جديدة فقط — **لم يتغيّر** حقل
+  `CompanyStatus` الموجود (`active | suspended`) ولا معناه.
+
+**الواجهة الخلفية**:
+- `SubscriptionService` — المصدر المركزي الوحيد لمنطق
+  الخطط/الاشتراك/الصلاحيات/الحدود: `loadContext` (يحمّل ويُطبِّق
+  انتقال "انتهت التجربة" بشكل كسول عند أول طلب بعد الانتهاء، مع تسجيل
+  Audit)، `hasFeature`, `assertWithinLimit` (قفل صف حقيقي `SELECT ...
+  FOR UPDATE` على سطر الاشتراك قبل العدّ والمقارنة، يمنع تجاوز الحد عبر
+  طلبين متزامنين)، `getMerchantView`, `listPlans`، ودوال انتقال جاهزة
+  لمركز تحكم مستقبلي (`changePlan`, `setStatus`, `extendTrial`) **غير
+  مكشوفة عبر أي Controller في هذا الـMilestone**.
+- `SubscriptionGuard` (`APP_GUARD` عام، يعمل بعد `PermissionsGuard`) —
+  فحصان مستقلّان: (1) منشأة موقوفة (`CompanyStatus.suspended`) تمنع كل
+  الطلبات ما عدا المسارات المُعفاة صراحة (`@SubscriptionExempt()`)؛ (2)
+  اشتراك مقيَّد فعليًا (`expired|suspended|cancelled`) يمنع الطلبات
+  **المُغيِّرة فقط** (POST/PUT/PATCH/DELETE) — القراءة تبقى متاحة دومًا
+  (سياسة "الاطلاع على الحساب أثناء التقييد").
+- `@RequireFeature(key)` — ديكوريتور جديد، طبقة إضافية فوق
+  `@RequirePermissions` (لا بديل لها): تُطبَّق على مسارات POS
+  (`sales.create/cancel/return`)، Inventory (`opening-balance/
+  adjustments/transfers/stock-counts`)، Accounting
+  (`accounts.create/update`, `opening-balance`, `fiscal-periods`,
+  `reconciliations`)، Reports (كل تقارير `/accounting/reports/*`)، AR/AP
+  (`payments`, `/accounting/ar/*`, `/accounting/ap/*`)، Excel Import
+  (`POST /imports/jobs`). ZATCA Phase 1 مُمثَّلة كمفتاح ميزة موثَّق
+  (مُفعَّل في كل خطة) دون بوابة على مسار — تبقى تلقائية ضمن
+  `SalesService.createSale` كما كانت، بلا مساس بمنطقها المُثبَت.
+- حدود استخدام آمنة للتزامن على 3 موارد فقط (مجموعة صغيرة ومتماسكة —
+  ليس على كل جدول): `TenancyService.createBranch` (`plan.maxBranches`)،
+  `IamService.createUser` (`plan.maxUsers`، يُحتسَب على كل Membership
+  جديدة بغض النظر عن كون الهوية جديدة أو مُعاد استخدامها)،
+  `SalesService.createSale` (`plan.maxMonthlySales`، لا يُحتسَب طلب
+  مكرَّر بنفس `clientReferenceId`). لا جدول عدّاد مُخزَّن جديد — العدّ
+  `COUNT(*)` مُشتقّ ضمن نفس القفل، تفاديًا لتخزين قيمة مُشتقَّة بلا داعٍ.
+- `AuthService.registerCompany` يُنشئ اشتراكًا حقيقيًا (`trialing`، خطة
+  Professional، تجربة 14 يومًا) لكل منشأة جديدة ضمن نفس معاملة التسجيل.
+- `SubscriptionsController` (`/subscriptions/me`, `/subscriptions/
+  plans`) — قراءة فقط، بلا أي endpoint تعديل، كلاهما `@SubscriptionExempt()`
+  ليبقيا متاحين حتى لمنشأة موقوفة/منتهية الاشتراك.
+- Audit جديد لكل انتقال دورة حياة اشتراك: `subscription.created`,
+  `subscription.trial_started`, `subscription.trial_expired`، ودوال
+  جاهزة لمركز التحكم (`subscription.plan_changed`, ...) — بلا أي سجل
+  Audit لعمليات القراءة.
+
+**البذر (Seed)**: خطتان في `prisma/seed.ts` (idempotent upsert بـ
+`code`): `starter` (فرع واحد، 3 مستخدمين، 200 عملية بيع شهريًا، بلا
+Excel Import ولا AR/AP) و`professional` (5 فروع، 15 مستخدمًا، 2000 عملية
+بيع شهريًا، كل الميزات) — المنشأة الافتراضية/التجريبية تحصل تلقائيًا على
+`professional` فلا يتعطَّل أي سيناريو Milestone سابق.
+
+**قاعدة البيانات**: migration واحدة
+(`20260817010000_milestone8_saas_subscription`) — جدولان جديدان
+(`plans` بلا RLS، `subscriptions` بـ RLS FORCE + `tenant_isolation`)،
+فهارس على `status` و`plan_id`، لا حذف بيانات، لا drift. أي منشأة سابقة
+لهذا الـMilestone بلا سطر اشتراك تحصل عليه بشكل كسول (lazy) عند أول طلب
+مصادَق بعد النشر — ضمن معاملة tenant-scoped فعلية، وليس عبر backfill
+مباشر في الـmigration (راجع `docs/DOMAIN_MODEL.md` "SaaS / Subscription"
+"لماذا لا Backfill في الـmigration").
+
+**الواجهة الأمامية**: صفحة جديدة `SubscriptionPage.tsx`
+(`/subscription`) — الخطة الحالية، حالة الاشتراك، الأيام المتبقية من
+التجربة، قائمة الميزات (✓/✕)، أشرطة استخدام (مستخدمون/فروع/مبيعات
+شهرية)، كتالوج الخطط المتاحة، ورسالة صادقة بديلة عن أي دفع/checkout
+("التواصل مع الدعم"). عنصر تنقّل جديد + شريط تنبيه عام في `Layout.tsx`
+عند تقييد الاشتراك أو اقتراب انتهاء التجربة (≤3 أيام).
+
+**الاختبارات**: `test/milestone8.e2e-spec.ts` (14 اختبارًا: اشتراك
+افتراضي عند التسجيل، صلاحيات ميزات مبنية على الخطة رغم RBAC كاملة، حدود
+استخدام تسلسلية ومتزامنة [مستخدمون/فروع/مبيعات]، دورة حياة التجربة
+وانتهاؤها، إيقاف منشأة، عزل مستأجرين مباشر لجدول `subscriptions`)،
+اختبار Vitest جديد (`SubscriptionPage.test.tsx`، 4 اختبارات)،
+`golden-path.spec.ts` مُمدَّد (لا ملف جديد) بقسم اشتراك جديد.
+
+### تصحيحات في التوثيق
+`docs/PROJECT_STATUS.md`/`docs/DOMAIN_MODEL.md`/`docs/DATABASE.md`/
+`docs/API.md`/`docs/SECURITY.md`/`docs/TESTING.md`/`docs/DEPLOYMENT.md`/
+`docs/DEMO.md` — إزالة كل إشارة سابقة لـ"Subscription/Billing" كنطاق
+مستقبلي/غير موجود، واستبدالها بالوصف الفعلي لما نُفِّذ في هذا
+الـMilestone.
+
+### قرارات مُتعمَّدة بلا تعقيد زائد
+- **لا حالة `past_due`**: لا يوجد تكامل تحصيل دفع خارجي في هذا
+  الـMilestone (قرار Section 16 صريح)، فلا حدث حقيقي يُنتج انتقالًا
+  لحالة "فشل الدفع" — إضافتها كانت ستكون Enum زخرفيًا بلا سلوك حقيقي.
+  حالة `expired` (انتهاء تجربة) تُغطّي السلوك المطلوب من "قيد تدريجي
+  قابل للاستعادة" بدلًا منها.
+- **لا جدول `UsageCounter` منفصل**: الموارد الثلاثة المحدودة (مستخدمون/
+  فروع/مبيعات شهرية) قليلة العدد لكل منشأة ومُشتقَّة رخيصًا بـ
+  `COUNT(*)` تحت قفل صف حقيقي — تخزين عدّاد منفصل كان سيكون Denormalization
+  بلا مبرر أداء واضح (Section 18).
+- **لا Backfill مباشر في الـmigration للمنشآت القديمة**: `subscriptions`
+  يحمل RLS FORCE، والدور الذي يُشغِّل الـmigrations/الـseed ليس Superuser
+  ولا BYPASSRLS — أي `INSERT ... SELECT FROM companies` عابر للمستأجرين
+  كان سيُمنَع صامتًا بواسطة RLS نفسه. الحل: إنشاء كسول داخل معاملة
+  tenant-scoped صحيحة عند أول طلب (نفس آلية اكتشاف انتهاء التجربة).
+
+### Tests
+Backend: **209/209** (195 + 14 جديدة). Frontend: **47/47** (43 + 4
+جديدة). Playwright: **4/4** (نفس العدد، `golden-path.spec.ts` مُمدَّد).
+كلها أُعيد تشغيلها فعليًا في هذه الدورة ضد قاعدتي بيانات حقيقيتين (dev
+وtest).
+
+### Push
+NOT PUSHED
+
 ## [Milestone 7: Merchant Operations & Business Completion] - 2026-08-17
 
 يُغلق فجوات مُوثَّقة صراحة منذ Milestone 1/5/6 تحت "مؤجَّل": بيع آجل

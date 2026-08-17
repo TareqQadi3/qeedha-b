@@ -15,6 +15,7 @@ import { hashToken } from '../../common/utils/token-hash';
 import { parseDurationMs } from '../../common/utils/duration';
 import { AccountingService } from '../accounting/accounting.service';
 import { IamService } from '../iam/iam.service';
+import { SubscriptionService } from '../subscriptions/subscription.service';
 import { AuthLookupService } from './auth-lookup.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly authLookupService: AuthLookupService,
     private readonly iamService: IamService,
     private readonly accountingService: AccountingService,
+    private readonly subscriptionService: SubscriptionService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
   ) {}
@@ -119,6 +121,11 @@ export class AuthService {
       // registration, no other step here changes.
       const accountsByCode = await this.accountingService.seedDefaultChartOfAccounts(tx, companyId);
       await this.accountingService.seedDefaultExpenseCategories(tx, companyId, accountsByCode);
+
+      // Milestone 8: every company gets a real subscription from the moment
+      // it exists (trialing, on the most generous seed plan) - never a
+      // null/absent subscription. See SubscriptionService.createInitialSubscription.
+      await this.subscriptionService.createInitialSubscription(tx, companyId);
 
       return { user, membership };
     });

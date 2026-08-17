@@ -483,3 +483,68 @@ tenant-scoped بنفس نمط RLS المعتاد، وكلها تُشير لكي�
 `docs/ACCOUNTING.md` "Milestone 7" للتصميم المحاسبي الكامل،
 `docs/DATABASE.md` الأقسام 4/5/7 للجداول، و`docs/SECURITY.md` للاعتبارات
 الأمنية/التزامن.
+
+## Milestone 8 (SaaS / Subscription & Billing)
+
+يضيف طبقة SaaS جديدة فوق نموذج الهوية/المنشآت **دون تغيير أي من كياناته
+الخمسة الأصلية**. كيانان جديدان فقط:
+
+- **`Plan`**: كتالوج عام، **ليس** tenant-scoped (بلا `company_id`، بلا
+  RLS) — نفس معاملة `Permission`/`IntegrationProvider` الموجودتين سلفًا:
+  كل منشأة تقرأ نفس كتالوج الخطط. `features` (JSON) هو المصدر المركزي
+  الوحيد لصلاحيات الميزات؛ `maxUsers`/`maxBranches`/`maxMonthlySales`
+  حدود الاستخدام (`null` = بلا حد).
+- **`Subscription`**: tenant-scoped (`company_id` **فريد** — سطر واحد
+  بالضبط لكل `Company`)، RLS FORCE + `tenant_isolation` كاملة كأي كيان
+  أعمال آخر منذ Phase 1. `Company.subscription` علاقة عكسية جديدة فقط.
+
+### لماذا لا Backfill في الـmigration (قرار تصميم، ليس قصورًا)
+
+`Subscription` يحمل `FORCE ROW LEVEL SECURITY`، والدور الذي تعمل به
+`prisma migrate deploy`/`prisma db seed` في هذا المشروع (`qeedha_dev`)
+**ليس Superuser ولا BYPASSRLS** (نفس الدور الذي يخدم التطبيق وقت
+التشغيل — تعمّدًا، fليس دورًا امتيازيًا منفصلًا لأدوات الهجرة). أي
+`INSERT ... SELECT FROM companies` عابر لكل المستأجرين داخل الـmigration
+كان سيُمنَع صامتًا بواسطة RLS نفسه (لا `app.tenant_id` مضبوطًا =
+`current_setting(...)` يُرجِع `NULL` = كل صف يُرفَض). الحل: أي منشأة بلا
+سطر اشتراك (سابقة لهذا الـMilestone، أو أي فجوة أخرى) تحصل عليه بشكل
+كسول عند أول طلب مصادَق — `SubscriptionService.loadContext` يُنشئ
+الاشتراك ضمن معاملة tenant-scoped صحيحة (نفس `tx` التي يستخدمها الطلب
+نفسه)، فلا حاجة لأي بايباس RLS على الإطلاق. نفس الآلية بالضبط تُستخدَم
+لاكتشاف انتهاء الفترة التجريبية (`trialing` → `expired`) بلا أي
+Background Job — لا بنية جدولة (cron/queue) موجودة في هذا المشروع، فبدل
+اختراعها، يُكتشَف الانتقال ويُحفَظ بشكل كسول في أول طلب بعد الانتهاء
+الفعلي، مع تسجيل Audit فوري.
+
+### طبقتا تفويض منفصلتان تمامًا (لا استبدال)
+
+RBAC (`Role`/`Permission`/`MembershipRole`, موجود منذ Phase 1) يُجيب
+"هل يملك هذا المستخدم صلاحية القيام بهذا الإجراء في هذه المنشأة؟".
+الاشتراك (`Plan.features`) يُجيب سؤالًا مختلفًا تمامًا: "هل تشمل خطة
+هذه المنشأة هذه الميزة أصلًا؟". السلسلة الكاملة لكل طلب:
+`JwtAuthGuard` (مُصادَق) → `MembershipGuard` (عضوية نشطة) →
+`PermissionsGuard` (RBAC) → `SubscriptionGuard` (منشأة موقوفة؟ اشتراك
+مقيَّد + طلب مُغيِّر؟ ميزة `@RequireFeature` مشمولة بالخطة؟) — مالك
+يملك كل صلاحيات RBAC (`Role: Owner`) لا يزال يُمنَع من ميزة غير مشمولة
+بخطة منشأته، ومستخدم بصلاحية RBAC صحيحة على خطة كاملة الميزات لا يزال
+يُمنَع إن كانت منشأته موقوفة/منتهية الاشتراك.
+
+### دمج دورة حياة المنشأة — اكتشاف مهم
+
+`Company.status` (`CompanyStatus: active | suspended`) موجود في الـ
+schema منذ Phase 1 لكنه **لم يكن مُفعَّلًا في أي Guard/Service/Controller
+قبل هذا الـMilestone** — حقل صامت تمامًا. `SubscriptionGuard` هو أول
+مكان يقرأه فعليًا: منشأة موقوفة (`suspended`) تمنع كل الطلبات ما عدا
+مسارات `@SubscriptionExempt()` الصغيرة (`/auth/me`, `/auth/logout`,
+`/auth/refresh`, `/auth/tenants`, `/auth/switch-tenant`,
+`/subscriptions/me`, `/subscriptions/plans`) — أشد تقييد من اشتراك
+مقيَّد (الذي يمنع الطلبات المُغيِّرة فقط). لم يُستبدَل `CompanyStatus`
+ولم يُدمَج مع `SubscriptionStatus` في enum واحد — يبقيان مفهومين
+منفصلين عمدًا: الأول تشغيلي/إداري (يُحدَّد لاحقًا عبر مركز تحكم مستقبلي
+لأسباب لا علاقة لها بالفوترة، مثل إساءة استخدام)، والثاني تجاري
+(اشتراك/فوترة). "لا تناقض" مطلوب وليس "دمج" — منشأة يمكن أن تكون
+`active` + اشتراكها `expired` معًا، وهذا سلوك صحيح ومقصود.
+
+راجع `docs/DATABASE.md` "Milestone 8" للجداول والفهارس،
+`docs/SECURITY.md` "Milestone 8" لتفصيل `SubscriptionGuard`/RLS/التزامن،
+و`docs/API.md` "Milestone 8" لعقد `/subscriptions/*`.

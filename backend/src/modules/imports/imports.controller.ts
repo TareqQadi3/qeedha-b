@@ -12,8 +12,10 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FEATURE_KEYS } from '../subscriptions/constants/feature-keys';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { MAX_IMPORT_FILE_SIZE_BYTES } from './constants/import-limits';
 import { CreateImportJobDto } from './dto/create-import-job.dto';
@@ -56,6 +58,7 @@ export class ImportsController {
   }
 
   /** Same idempotency-race handling as SalesController/PurchasesController - see docs/IMPORT_EXCEL.md "Idempotency". */
+  @RequireFeature(FEATURE_KEYS.EXCEL_IMPORT)
   @RequirePermissions(PERMISSION_KEYS.IMPORT_CREATE)
   @Post('jobs')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_IMPORT_FILE_SIZE_BYTES } }))

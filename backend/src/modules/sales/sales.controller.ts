@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FEATURE_KEYS } from '../subscriptions/constants/feature-keys';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { CreateSaleReturnDto } from './dto/create-sale-return.dto';
@@ -41,6 +43,7 @@ export class SalesController {
    * returned instead of surfacing as an error. See docs/SALES.md
    * "Idempotency" for why this can't live inside the transaction itself.
    */
+  @RequireFeature(FEATURE_KEYS.POS)
   @RequirePermissions(PERMISSION_KEYS.SALES_CREATE)
   @Post()
   async createSale(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateSaleDto) {
@@ -58,6 +61,7 @@ export class SalesController {
     }
   }
 
+  @RequireFeature(FEATURE_KEYS.POS)
   @RequirePermissions(PERMISSION_KEYS.SALES_CANCEL)
   @Post(':id/cancel')
   cancelSale(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
@@ -67,6 +71,7 @@ export class SalesController {
   }
 
   /** Milestone 7: settles (part of) a sale's outstanding AR balance - see SalesService.recordPayment. Same duplicate-race handling as createSale. */
+  @RequireFeature(FEATURE_KEYS.AR_AP)
   @RequirePermissions(PERMISSION_KEYS.SALES_PAYMENT_RECORD)
   @Post(':id/payments')
   async recordPayment(
@@ -96,6 +101,7 @@ export class SalesController {
   }
 
   /** Milestone 7: a genuine partial/full sales return - see SalesReturnService. */
+  @RequireFeature(FEATURE_KEYS.POS)
   @RequirePermissions(PERMISSION_KEYS.SALES_RETURN)
   @Post(':id/returns')
   async createReturn(

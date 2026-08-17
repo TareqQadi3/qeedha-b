@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FEATURE_KEYS } from '../subscriptions/constants/feature-keys';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { CreatePurchaseReturnDto } from './dto/create-purchase-return.dto';
@@ -75,6 +77,7 @@ export class PurchasesController {
   }
 
   /** Milestone 7: settles (part of) a purchase's outstanding AP balance - see PurchasesService.recordPayment. */
+  @RequireFeature(FEATURE_KEYS.AR_AP)
   @RequirePermissions(PERMISSION_KEYS.PURCHASES_PAYMENT_RECORD)
   @Post(':id/payments')
   async recordPayment(

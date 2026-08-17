@@ -8,6 +8,7 @@ import * as argon2 from 'argon2';
 import { TenantClient } from '../../common/prisma/prisma.service';
 import { paginate, paginationSkip } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
+import { SubscriptionService } from '../subscriptions/subscription.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 
@@ -25,7 +26,10 @@ const SAFE_USER_SELECT = {
 
 @Injectable()
 export class IamService {
-  constructor(private readonly auditService: AuditService) {}
+  constructor(
+    private readonly auditService: AuditService,
+    private readonly subscriptionService: SubscriptionService,
+  ) {}
 
   /**
    * Attaches a person to this company as a new Membership. If the
@@ -36,6 +40,11 @@ export class IamService {
    * required.
    */
   async createUser(tx: TenantClient, companyId: string, actorUserId: string, dto: CreateUserDto) {
+    // Milestone 8: usage limit (plan.maxUsers) counts active Memberships in
+    // THIS company, regardless of whether the underlying User identity is
+    // new or reused from another company - see SubscriptionService.assertWithinLimit.
+    await this.subscriptionService.assertWithinLimit(tx, companyId, 'users');
+
     const identifierFilters = [
       ...(dto.email ? [{ email: dto.email }] : []),
       ...(dto.mobile ? [{ mobile: dto.mobile }] : []),

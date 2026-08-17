@@ -1,7 +1,9 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FEATURE_KEYS } from '../subscriptions/constants/feature-keys';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { SubledgerService } from './subledger.service';
 
@@ -12,6 +14,7 @@ export class SubledgerController {
     private readonly subledgerService: SubledgerService,
   ) {}
 
+  @RequireFeature(FEATURE_KEYS.AR_AP)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_AR_VIEW)
   @Get('ar/customers')
   listCustomerBalances(@CurrentUser() user: AuthenticatedUser) {
@@ -20,6 +23,7 @@ export class SubledgerController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.AR_AP)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_AR_VIEW)
   @Get('ar/customers/:customerId')
   getCustomerStatement(
@@ -31,6 +35,7 @@ export class SubledgerController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.AR_AP)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_AP_VIEW)
   @Get('ap/suppliers')
   listSupplierBalances(@CurrentUser() user: AuthenticatedUser) {
@@ -39,6 +44,7 @@ export class SubledgerController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.AR_AP)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_AP_VIEW)
   @Get('ap/suppliers/:supplierId')
   getSupplierStatement(

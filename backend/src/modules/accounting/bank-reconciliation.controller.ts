@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { IsIn, IsOptional } from 'class-validator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FEATURE_KEYS } from '../subscriptions/constants/feature-keys';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { BankReconciliationService } from './bank-reconciliation.service';
 import { ACCOUNT_CODES } from './constants/default-chart-of-accounts';
@@ -29,6 +31,7 @@ export class BankReconciliationController {
     );
   }
 
+  @RequireFeature(FEATURE_KEYS.ACCOUNTING)
   @RequirePermissions(PERMISSION_KEYS.ACCOUNTING_RECONCILIATION_MANAGE)
   @Post()
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateBankReconciliationDto) {

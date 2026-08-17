@@ -1,10 +1,43 @@
 import { PrismaClient } from '@prisma/client';
 import { PERMISSIONS } from '../src/modules/iam/constants/permissions';
 import { SYSTEM_ROLES } from '../src/modules/iam/constants/default-roles';
+import { DEFAULT_PLANS, planFeaturesJson } from '../src/modules/subscriptions/constants/default-plans';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  for (const plan of DEFAULT_PLANS) {
+    await prisma.plan.upsert({
+      where: { code: plan.code },
+      update: {
+        name: plan.name,
+        description: plan.description,
+        isActive: plan.isActive,
+        trialEligible: plan.trialEligible,
+        priceMonthlySar: plan.priceMonthlySar,
+        billingInterval: plan.billingInterval,
+        maxUsers: plan.maxUsers,
+        maxBranches: plan.maxBranches,
+        maxMonthlySales: plan.maxMonthlySales,
+        features: planFeaturesJson(plan.features),
+      },
+      create: {
+        code: plan.code,
+        name: plan.name,
+        description: plan.description,
+        isActive: plan.isActive,
+        trialEligible: plan.trialEligible,
+        priceMonthlySar: plan.priceMonthlySar,
+        billingInterval: plan.billingInterval,
+        maxUsers: plan.maxUsers,
+        maxBranches: plan.maxBranches,
+        maxMonthlySales: plan.maxMonthlySales,
+        features: planFeaturesJson(plan.features),
+      },
+    });
+  }
+  console.log(`✔ ${DEFAULT_PLANS.length} خطة اشتراك`);
+
   for (const permission of PERMISSIONS) {
     await prisma.permission.upsert({
       where: { key: permission.key },

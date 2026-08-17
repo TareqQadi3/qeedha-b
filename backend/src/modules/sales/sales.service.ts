@@ -16,6 +16,7 @@ import { EInvoiceService } from '../einvoice/einvoice.service';
 import { BranchScope, BranchScopeService } from '../iam/branch-scope.service';
 import { PERMISSION_KEYS } from '../iam/constants/permissions';
 import { InventoryValuationService } from '../inventory/inventory-valuation.service';
+import { SubscriptionService } from '../subscriptions/subscription.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { QuerySalesDto } from './dto/query-sales.dto';
 import { RecordSalePaymentDto } from './dto/record-sale-payment.dto';
@@ -42,6 +43,7 @@ export class SalesService {
     private readonly invoiceNumberService: InvoiceNumberService,
     private readonly journalService: JournalService,
     private readonly einvoiceService: EInvoiceService,
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
   /**
@@ -77,6 +79,11 @@ export class SalesService {
       include: SALE_INCLUDE,
     });
     if (existing) return existing;
+
+    // Milestone 8: usage limit (plan.maxMonthlySales) - checked on the
+    // genuinely-new-sale path only, so a retried/duplicate clientReferenceId
+    // request (caught above) never gets double-counted against the limit.
+    await this.subscriptionService.assertWithinLimit(tx, companyId, 'monthlySales');
 
     const warehouse = await tx.warehouse.findFirst({
       where: { id: dto.warehouseId, companyId, deletedAt: null },

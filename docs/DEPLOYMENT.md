@@ -172,3 +172,14 @@ pg_restore -h localhost -U qeedha_app -d qeedha_accounting_restored backup.dump
   تطوير حتى الآن. كل ما هو موجود هو التهيئة الجاهزة الموثَّقة في هذا
   الملف (Dockerfiles، `docker-compose.yml`، CI) — وليس نشرًا فعليًا. لا
   تفترض وجود بيئة Demo/Staging تعمل فعليًا بناءً على وجود هذا التوثيق.
+
+## Milestone 8 (SaaS / Subscription & Billing) — لا خطوة نشر جديدة
+
+الـmigration الجديدة (`20260817010000_milestone8_saas_subscription`)
+وبذور خطط الاشتراك (`DEFAULT_PLANS` في `prisma/seed.ts`) تُطبَّقان عبر
+نفس الخطوتين الموجودتين أصلًا في القسم 2/ج أعلاه —
+`prisma migrate deploy` ثم `npm run prisma:seed` — بلا أي دور DB إضافي،
+بلا سكربت manual-sql جديد، وبلا متغيّر بيئة جديد. أي منشأة موجودة قبل
+هذا الـMilestone تحصل على اشتراك تجريبي بشكل كسول عند أول طلب مصادَق
+بعد النشر (راجع `docs/DOMAIN_MODEL.md` "Milestone 8") — لا خطوة يدوية
+إضافية مطلوبة بعد النشر.
