@@ -42,6 +42,14 @@ services:
         condition: service_healthy
     ports:
       - '3000:3000'
+    volumes:
+      # Persists Excel Import uploads (STORAGE_LOCAL_DIR) across container
+      # recreation - only "local" storage is implemented (see
+      # backend/src/modules/storage/storage.module.ts), so without this
+      # volume, uploaded files are lost on every `docker compose up`
+      # rebuild. Path must match STORAGE_LOCAL_DIR resolved against the
+      # image's WORKDIR (/app) - default "./storage-data" -> /app/storage-data.
+      - qeedha_storage_data:/app/storage-data
     healthcheck:
       test: ['CMD', 'node', '-e', "require('http').get('http://localhost:3000/api/v1/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 15s
@@ -61,3 +69,4 @@ services:
 
 volumes:
   qeedha_postgres_data:
+  qeedha_storage_data:

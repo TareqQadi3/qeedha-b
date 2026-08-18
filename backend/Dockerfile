@@ -44,6 +44,13 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY package.json ./
 
+# Excel Import uploads (STORAGE_LOCAL_DIR, default ./storage-data - see
+# docs/DEPLOYMENT.md "Storage") - pre-created and owned by the non-root
+# runtime user so a persistent volume mounted here (docker-compose.yml)
+# is writable. Without this, Docker creates the mount point as root and
+# the app (running as `qeedha` below) would fail to write into it.
+RUN mkdir -p /app/storage-data && chown -R qeedha:qeedha /app/storage-data
+
 USER qeedha
 EXPOSE 3000
 

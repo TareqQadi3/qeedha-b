@@ -2046,9 +2046,12 @@ NOT PUSHED — ولن يُدفَع تحت أي ظرف.
 - [x] CORS configured (Allowlist مُتحقَّق حيًا، لا Wildcard ممكن)
 - [x] Health check passing (`/health` 200 حي)
 - [x] Database connectivity verified (حي)
-- [x] Storage persistence — مُتحقَّق محليًا فقط؛ **حجم Docker دائم يتطلب
-      إجراء المُشغِّل عند نشر Docker فعلي** (راجع `docs/DEPLOYMENT.md`
-      §2/د)
+- [x] Storage persistence — **أُصلِح**: volume دائم (`qeedha_storage_data`)
+      أُضيف لـ`docker-compose.yml` + إصلاح ملكية المجلد في
+      `backend/Dockerfile` قبل التبديل للمستخدم غير الجذري؛ مُتحقَّق منه
+      ثابتًا عبر `docker compose config` فقط (لا daemon حقيقي لتشغيله).
+      القرار النهائي: local + volume، لا S3 (غير مُنفَّذ فعليًا في
+      الكود). راجع `docs/DEPLOYMENT.md` §2/د.
 - [~] CI verified — SYNTAX/STATIC فقط، لا Runner حقيقي متاح
 - [x] Smoke tests passing (Playwright 4/4 + curl تكامل قيّدها، ضد حزمة
       إنتاجية حية)
@@ -2075,10 +2078,10 @@ NOT PUSHED — ولن يُدفَع تحت أي ظرف.
 - **قيمة `VITE_API_BASE_URL` الإنتاجية الحقيقية** عند بناء صورة
   الواجهة الأمامية = رابط الـbackend العام المنشور (HTTPS).
 - **Docker daemon حقيقي** لبناء/تشغيل الصور فعليًا (غير متاح في أي بيئة
-  تطوير توفّرت حتى الآن، بما فيها هذه الجلسة).
-- **حجم تخزين دائم (Volume) حقيقي** لـ`STORAGE_LOCAL_DIR` عند نشر
-  Docker — بدونه، ملفات استيراد Excel المرفوعة تُفقَد عند إعادة إنشاء
-  الحاوية (راجع `docs/DEPLOYMENT.md` §2/د، قيد موثَّق منذ Milestone 3).
+  تطوير توفّرت حتى الآن، بما فيها هذه الجلسة) — الـvolume الدائم للتخزين
+  **أصبح مُعرَّفًا بالفعل** في `docker-compose.yml` (لم يعد يتطلب إجراء
+  مُشغِّل بعد الآن)، لكن لا يزال يحتاج `docker compose up` فعليًا على
+  daemon حقيقي ليُنشأ فعليًا.
 - **استضافة/حساب سحابي فعلي** لا يزال غير متاح — لا نشر Demo/Staging
   حقيقي تم أو يمكن ادّعاؤه.
 

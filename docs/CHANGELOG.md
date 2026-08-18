@@ -1,5 +1,39 @@
 # سجل التغييرات (Changelog)
 
+## [Production Deployment & Go-Live] - 2026-08-18
+
+**ليست Milestone جديدة** — تحقق/تنفيذ نشر إضافي فوق Milestone 10 المكتمل
+وتحقق Go-Live السابق. عيب نشر حقيقي واحد اكتُشف وأُصلِح (أصغر سطح ممكن)،
+لا تغيير في منطق العمل. راجع `docs/PROJECT_STATUS.md` §"تحقق Go-Live
+الإنتاجي" و`docs/DEPLOYMENT.md` §"استيراد من Excel" للتفصيل الكامل.
+
+### أُصلِح (عيب نشر حقيقي)
+
+- **فقدان صمود ملفات استيراد Excel عبر Docker**: خدمة `backend` في
+  `docker-compose.yml` الجذري لم يكن لها `volumes:` لـ`STORAGE_LOCAL_DIR`
+  (`/app/storage-data` داخل الحاوية) — أي نشر Docker كان سيفقد كل ملفات
+  الاستيراد المرفوعة عند كل إعادة إنشاء حاوية. أُضيف volume دائم
+  (`qeedha_storage_data`) في `docker-compose.yml`، و`backend/Dockerfile`
+  يُنشئ `/app/storage-data` ويملّكه للمستخدم غير الجذري `qeedha` **قبل**
+  `USER qeedha` (وإلا كانت نقطة الوصل ستُنشأ مملوكة لـ`root` فيفشل
+  التطبيق بكتابة الملفات). مُتحقَّق منه ثابتًا عبر `docker compose config`
+  (لا daemon حقيقي متاح في هذه البيئة لتشغيله فعليًا). **القرار النهائي:
+  local + volume دائم، لا S3** — `StorageModule` يرفض صراحةً أي
+  `STORAGE_DRIVER` غير `"local"` عند الإقلاع (S3 مصمَّم للواجهة فقط، غير
+  مُنفَّذ في الكود، ولا اعتمادات S3 حقيقية مُخترَعة).
+
+### الاختبارات
+Backend: **242/242** e2e، **9/9** unit. Frontend: **53/53** Vitest.
+Playwright: **4/4** (ضد backend حي محليًا). `prisma migrate status`:
+مطابق (dev + test). فحص أسرار على diff هذه المهمة: نظيف (لا مطابقات).
+
+### متطلبات خارجية متبقية
+Docker daemon حقيقي لتشغيل `docker build`/`docker compose up` فعليًا (غير
+متاح في أي بيئة تطوير توفّرت حتى الآن) — الـvolume الدائم للتخزين لم يعد
+يتطلب إجراء مُشغِّل، فقط daemon حقيقي لإنشائه فعليًا. دومين/HTTPS
+حقيقيان، Reverse proxy، استضافة/نشر فعلي، نسخ احتياطي مُجدوَل آليًا —
+بلا تغيير عن التحققات السابقة، موثَّقة بالتفصيل في `docs/PROJECT_STATUS.md`.
+
 ## [Production Go-Live Verification] - 2026-08-18
 
 **ليست Milestone جديدة** — تحقق تشغيلي حي إضافي فوق Milestone 10 المكتمل.

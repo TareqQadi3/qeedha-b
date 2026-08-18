@@ -89,13 +89,21 @@ docker compose up -d backend frontend
 الـbackend على `http://localhost:3000/api/v1` (جرّب `GET /health`)،
 الواجهة الأمامية على `http://localhost:8080` (منفذ nginx في compose).
 
-**استيراد من Excel (Milestone 3)**: ملفات الاستيراد المرفوعة تُخزَّن على
-القرص المحلي لحاوية الـbackend (`STORAGE_LOCAL_DIR`، افتراضي
-`./storage-data`) — **غير مُضاف كـvolume دائم في `docker-compose.yml`
-الجذري بعد**، فستُفقَد عند إعادة إنشاء الحاوية (وليس عند إعادة تشغيلها
-فقط). مقبول لتجربة Demo (الملفات نفسها غير مطلوبة بعد اكتمال الاستيراد
-فعليًا)؛ نشر حقيقي طويل الأمد يحتاج `volume` مخصصًا لهذا المسار أو التحول
-لمزوّد S3-compatible (راجع `docs/IMPORT_EXCEL.md` §1).
+**استيراد من Excel (Milestone 3، مُصلَح في تحقق Go-Live الثاني)**: ملفات
+الاستيراد المرفوعة تُخزَّن على القرص المحلي لحاوية الـbackend
+(`STORAGE_LOCAL_DIR`، افتراضي `./storage-data` = `/app/storage-data` داخل
+الحاوية). **الآن مُضاف كـvolume دائم** (`qeedha_storage_data`) في
+`docker-compose.yml` الجذري — تنجو الملفات من إعادة إنشاء الحاوية.
+`backend/Dockerfile` يُنشئ `/app/storage-data` ويملّكه للمستخدم غير
+الجذري `qeedha` **قبل** التبديل إليه (`USER qeedha`)، وإلا كان Docker
+سينشئ نقطة الوصل مملوكة لـ`root` فيفشل التطبيق بكتابة الملفات. مُتحقَّق
+منه ثابتًا عبر `docker compose config` (لا daemon متاح لتشغيله فعليًا،
+راجع "القيود المعروفة" أدناه). **لا S3-compatible مُنفَّذ فعليًا** —
+`file-storage-provider.interface.ts` مصمَّم لمزوّد S3 مستقبلي، لكن
+`StorageModule` يرفض أي `STORAGE_DRIVER` غير `"local"` صراحةً (فشل فوري
+عند الإقلاع، لا سقوط صامت) — **القرار النهائي لهذا الإصدار: local +
+volume دائم**، وليس S3 (لا مزوّد/اعتمادات S3 حقيقية متاحة أو مُخترَعة).
+راجع `docs/IMPORT_EXCEL.md` §1 لتفاصيل الواجهة.
 
 ## 3) مرجع متغيرات البيئة
 
