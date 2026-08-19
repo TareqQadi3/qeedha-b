@@ -3,14 +3,17 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
-      // Native/system stack, not a webfont - no external network dependency
-      // (verified during Playwright runs: a Google Fonts <link> in
-      // index.html caused hard-navigation hangs under this environment's
-      // proxy). Every platform's own UI font already covers Arabic well
-      // (SF Arabic, Segoe UI, Noto Sans Arabic, Roboto), so this renders
-      // just as modern with zero request and no offline/outage risk.
+      // Tajawal, self-hosted from src/assets/fonts (see LICENSE.txt there)
+      // - bundled with the app build, not loaded from Google Fonts at
+      // runtime. An earlier attempt used a Google Fonts <link> in
+      // index.html and caused real hard-navigation hangs under this
+      // environment's proxy (a production reliability risk too - the same
+      // request repeats on every full page load). Self-hosting keeps the
+      // distinct typeface with zero external request. System fonts are
+      // still the fallback stack in case the local file ever fails to load.
       fontFamily: {
         sans: [
+          '"Tajawal"',
           'ui-sans-serif',
           'system-ui',
           '-apple-system',

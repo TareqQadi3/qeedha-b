@@ -1,3 +1,6 @@
+/* Self-hosted (see assets/fonts/LICENSE.txt) - no external font request. */
+@import './assets/fonts/tajawal.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

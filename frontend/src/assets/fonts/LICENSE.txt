@@ -1,0 +1,13 @@
+Tajawal (weights 400/500/700/800, Arabic + Latin subsets)
+Designer: Boutros International
+Source: https://fonts.google.com/specimen/Tajawal
+License: SIL Open Font License 1.1 (https://openfontlicense.org)
+
+Self-hosted here (fetched once from Google Fonts' static file server and
+committed to the repo) instead of loaded at runtime from
+fonts.googleapis.com/fonts.gstatic.com - see docs/CHANGELOG.md "Frontend
+Typography" for why: an external font request on every page navigation
+caused real Playwright navigation timeouts under this environment's
+network proxy, which is also a production reliability risk for merchants
+on restrictive networks. Self-hosting removes the external dependency
+entirely while keeping the same typeface.
