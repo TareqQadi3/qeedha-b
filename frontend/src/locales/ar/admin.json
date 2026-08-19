@@ -107,6 +107,7 @@
       "name": "الاسم",
       "priceMonthly": "السعر الشهري",
       "priceAnnual": "السعر السنوي",
+      "trialDays": "أيام التجربة",
       "products": "المنتجات",
       "recommended": "مقترحة",
       "active": "مفعّلة"
@@ -119,6 +120,7 @@
       "description": "الوصف",
       "priceMonthly": "السعر الشهري (ر.س)",
       "priceAnnual": "السعر السنوي (ر.س)",
+      "trialDays": "مدة التجربة المجانية (أيام)",
       "products": "المنتجات المشمولة",
       "isRecommended": "باقة مقترحة",
       "isActive": "مفعّلة",

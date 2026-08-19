@@ -170,7 +170,11 @@ describe('Website phase (e2e)', () => {
 
     const affiliateRes = await request(server)
       .post('/api/v1/affiliates/register')
-      .send({ fullName: `مسوّق ${id}`, email: `affiliate-${id}@test.qeedha.local` })
+      .send({
+        fullName: `مسوّق ${id}`,
+        email: `affiliate-${id}@test.qeedha.local`,
+        password: 'AffiliatePass123',
+      })
       .expect(201);
     const referralCode = affiliateRes.body.code as string;
     expect(referralCode).toEqual(expect.any(String));

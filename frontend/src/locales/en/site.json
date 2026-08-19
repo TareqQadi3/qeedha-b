@@ -163,12 +163,44 @@
   "affiliate": {
     "title": "Affiliate program",
     "subtitle": "Register as an affiliate and get your own referral link, and earn a commission for every merchant who subscribes through it.",
-    "fields": { "fullName": "Full name", "email": "Email", "mobile": "Mobile number (optional)" },
+    "fields": {
+      "fullName": "Full name",
+      "email": "Email",
+      "mobile": "Mobile number (optional)",
+      "password": "Password"
+    },
     "submit": "Register as an affiliate",
     "submitting": "Registering...",
     "successTitle": "You're registered",
     "codeLabel": "Your referral code",
     "linkLabel": "Your referral link",
-    "error": "Could not register"
+    "error": "Could not register",
+    "goToLogin": "Log into your dashboard",
+    "hasAccountPrompt": "Already have an affiliate account?",
+    "loginLink": "Log in",
+    "loginTitle": "Affiliate login",
+    "loginSubtitle": "Track your referrals and commissions",
+    "loginPassword": "Password",
+    "loginSubmit": "Log in",
+    "logout": "Log out",
+    "dashboardTitle": "Affiliate dashboard",
+    "noReferrals": "No referrals yet",
+    "summary": {
+      "totalReferrals": "Total referrals",
+      "trials": "Active trials",
+      "conversions": "Active subscriptions",
+      "totalCommission": "Total commission (SAR)",
+      "pendingCommission": "Pending commission (SAR)"
+    },
+    "table": { "referredAt": "Referral date", "status": "Status", "commission": "Commission" },
+    "status": {
+      "trialing": "Trial",
+      "active": "Active",
+      "expired": "Expired",
+      "suspended": "Suspended",
+      "cancelled": "Cancelled",
+      "none": "—"
+    },
+    "commissionStatus": { "pending": "Pending", "approved": "Approved", "paid": "Paid" }
   }
 }

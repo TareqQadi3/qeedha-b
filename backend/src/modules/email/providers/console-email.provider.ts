@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EmailMessage, EmailProvider } from '../email-provider.interface';
 
 /**
- * Default (EMAIL_DRIVER=console) and only implemented provider in this
- * phase - logs the full message via Nest's structured Logger instead of
- * sending real email, exactly like the project's structured HTTP logging
+ * Default provider (EMAIL_DRIVER=console) - logs the full message via
+ * Nest's structured Logger instead of sending real email, exactly like
+ * the project's structured HTTP logging
  * (docs/SECURITY.md "Logging المهيكل") never puts secrets in logs, this
  * puts no email credentials anywhere. Makes local/dev/test genuinely
  * usable without any external account (same reasoning as

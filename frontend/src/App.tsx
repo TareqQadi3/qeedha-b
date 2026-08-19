@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { AdminAuthProvider, useAdminAuth } from './admin/AdminAuthContext';
 import { AdminDashboardPage } from './admin/AdminDashboardPage';
 import { AdminLoginPage } from './admin/AdminLoginPage';
+import { AffiliateAuthProvider, useAffiliateAuth } from './affiliate/AffiliateAuthContext';
+import { AffiliateDashboardPage } from './affiliate/AffiliateDashboardPage';
+import { AffiliateLoginPage } from './affiliate/AffiliateLoginPage';
 import { Layout } from './components/Layout';
 import { AccountingPage } from './pages/AccountingPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -57,6 +60,15 @@ function RequireAdminAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
+/** Affiliates are a third, completely separate actor type (Phase 9 "Affiliate Dashboard") - own session, own login page, isolated from both the tenant and Control Center sessions. */
+function RequireAffiliateAuth({ children }: { children: JSX.Element }) {
+  const { t } = useTranslation('common');
+  const { affiliate, loading } = useAffiliateAuth();
+  if (loading) return <div className="p-8 text-center text-slate-400">{t('loading')}</div>;
+  if (!affiliate) return <Navigate to="/affiliate/login" replace />;
+  return children;
+}
+
 export function App() {
   return (
     <Routes>
@@ -86,6 +98,17 @@ export function App() {
             <RequireAdminAuth>
               <AdminDashboardPage />
             </RequireAdminAuth>
+          }
+        />
+      </Route>
+      <Route element={<AffiliateAuthProvider><Outlet /></AffiliateAuthProvider>}>
+        <Route path="/affiliate/login" element={<AffiliateLoginPage />} />
+        <Route
+          path="/affiliate/dashboard"
+          element={
+            <RequireAffiliateAuth>
+              <AffiliateDashboardPage />
+            </RequireAffiliateAuth>
           }
         />
       </Route>

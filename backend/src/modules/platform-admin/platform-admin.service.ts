@@ -13,6 +13,7 @@ import { PlatformAdminPrismaService } from '../../common/prisma/platform-admin-p
 import { AffiliatesService } from '../affiliates/affiliates.service';
 import { CareersService } from '../careers/careers.service';
 import { AuthService } from '../auth/auth.service';
+import { PlanProductKey } from '../subscriptions/constants/products';
 import { SubscriptionService } from '../subscriptions/subscription.service';
 import { CreateCompanyByAdminDto } from './dto/create-company-by-admin.dto';
 import { CreateMarketDto, UpdateMarketDto } from './dto/market.dto';
@@ -174,10 +175,10 @@ export class PlatformAdminService {
     const byStatus = (status: SubscriptionStatus) =>
       merchants.filter((m) => m.subscription?.status === status).length;
 
-    const hasProduct = (m: (typeof merchants)[number], product: 'qeedha_b' | 'qeedha') => {
-      const products = (m.subscription?.plan?.products as string[] | undefined) ?? [];
-      return products.includes(product);
-    };
+    const hasProduct = (m: (typeof merchants)[number], product: PlanProductKey) =>
+      m.subscription?.plan
+        ? this.subscriptionService.hasProduct(m.subscription.plan, product)
+        : false;
     const paidOrTrialing = merchants.filter(
       (m) => m.subscription?.status === 'active' || m.subscription?.status === 'trialing',
     );
@@ -300,6 +301,7 @@ export class PlatformAdminService {
         priceAnnualSar: dto.priceAnnualSar,
         billingInterval: dto.billingInterval ?? 'monthly',
         trialEligible: dto.trialEligible ?? true,
+        trialDays: dto.trialDays ?? 14,
         maxUsers: dto.maxUsers,
         maxBranches: dto.maxBranches,
         maxMonthlySales: dto.maxMonthlySales,

@@ -30,6 +30,15 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * regardless of status/method the moment the current plan doesn't include
  * that feature - this is the plan-based entitlement check from spec section
  * 11's worked example (Plan A: POS=true, Excel Import=false).
+ *
+ * 3. Product entitlement (Phase 9): every route in this codebase IS the
+ *    qeedha_b product (see docs/WEBSITE.md "البنية العامة والمنتجان") - a
+ *    company whose current plan doesn't include "qeedha_b" in
+ *    `Plan.products` (e.g. it picked a qeedha-only package on the
+ *    website) never bought this product at all, so it is blocked from
+ *    every non-exempt route regardless of method, not just mutations -
+ *    stronger than the "restricted" status check above, which only ever
+ *    blocks writes for a company that DID buy this product.
  */
 @Injectable()
 export class SubscriptionGuard implements CanActivate {
@@ -76,6 +85,12 @@ export class SubscriptionGuard implements CanActivate {
     }
 
     if (isExempt) return true;
+
+    if (!this.subscriptionService.hasProduct(plan, 'qeedha_b')) {
+      throw new ForbiddenException(
+        'باقتك الحالية لا تشمل منتج qeedha B - يرجى التواصل مع الدعم لترقية باقتك.',
+      );
+    }
 
     if (company.status === 'suspended') {
       throw new ForbiddenException('المنشأة موقوفة حاليًا - يرجى التواصل مع الدعم لاستعادة الوصول');

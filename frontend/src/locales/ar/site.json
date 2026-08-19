@@ -163,12 +163,44 @@
   "affiliate": {
     "title": "التسويق بالعمولة",
     "subtitle": "سجّل كمسوّق واحصل على رابط إحالة خاص بك، واكسب عمولة عن كل تاجر يشترك عبر رابطك.",
-    "fields": { "fullName": "الاسم الكامل", "email": "البريد الإلكتروني", "mobile": "رقم الجوال (اختياري)" },
+    "fields": {
+      "fullName": "الاسم الكامل",
+      "email": "البريد الإلكتروني",
+      "mobile": "رقم الجوال (اختياري)",
+      "password": "كلمة المرور"
+    },
     "submit": "سجّل كمسوّق",
     "submitting": "...جارٍ التسجيل",
     "successTitle": "تم تسجيلك بنجاح",
     "codeLabel": "رمز الإحالة الخاص بك",
     "linkLabel": "رابط الإحالة الخاص بك",
-    "error": "تعذّر التسجيل"
+    "error": "تعذّر التسجيل",
+    "goToLogin": "تسجيل الدخول إلى لوحتك",
+    "hasAccountPrompt": "لديك حساب مسوّق بالفعل؟",
+    "loginLink": "تسجيل الدخول",
+    "loginTitle": "دخول المسوّق بالعمولة",
+    "loginSubtitle": "تابع إحالاتك وعمولاتك",
+    "loginPassword": "كلمة المرور",
+    "loginSubmit": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "dashboardTitle": "لوحة المسوّق بالعمولة",
+    "noReferrals": "لا توجد إحالات بعد",
+    "summary": {
+      "totalReferrals": "إجمالي الإحالات",
+      "trials": "تجارب نشطة",
+      "conversions": "اشتراكات مفعَّلة",
+      "totalCommission": "إجمالي العمولة (ر.س)",
+      "pendingCommission": "عمولة معلّقة (ر.س)"
+    },
+    "table": { "referredAt": "تاريخ الإحالة", "status": "الحالة", "commission": "العمولة" },
+    "status": {
+      "trialing": "تجريبي",
+      "active": "نشط",
+      "expired": "منتهٍ",
+      "suspended": "موقوف",
+      "cancelled": "ملغى",
+      "none": "—"
+    },
+    "commissionStatus": { "pending": "معلّقة", "approved": "معتمدة", "paid": "مدفوعة" }
   }
 }

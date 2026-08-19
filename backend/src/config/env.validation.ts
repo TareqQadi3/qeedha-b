@@ -103,6 +103,49 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   WEBSITE_BASE_URL?: string;
+
+  // Phase 9: real SMTP delivery, only used when EMAIL_DRIVER="smtp" - see
+  // SmtpEmailProvider. All optional at this layer (EMAIL_DRIVER="console"
+  // needs none of them); EmailModule's factory throws a clear error at
+  // boot if EMAIL_DRIVER="smtp" and SMTP_HOST/SMTP_FROM are missing,
+  // rather than silently failing on the first send.
+  @IsOptional()
+  @IsString()
+  SMTP_HOST?: string;
+
+  @IsOptional()
+  @IsInt()
+  SMTP_PORT?: number;
+
+  @IsOptional()
+  @IsString()
+  SMTP_USER?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PASSWORD?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_FROM?: string;
+
+  // Phase 9: subscription-billing payment provider driver - only "none"
+  // (never fakes a successful charge; Control Center activation stays
+  // manual) is implemented; see SubscriptionsModule. Optional, defaults
+  // to "none".
+  @IsOptional()
+  @IsString()
+  SUBSCRIPTION_PAYMENT_DRIVER?: string;
+
+  // Phase 9 ("Affiliate Dashboard"): signs the affiliate self-service
+  // session token - deliberately independent from every other actor's
+  // secret above (User, PlatformAdmin), same isolation reasoning as
+  // JWT_PLATFORM_ADMIN_SECRET - see AffiliateAuthGuard.
+  @IsString()
+  JWT_AFFILIATE_SECRET: string;
+
+  @IsString()
+  JWT_AFFILIATE_TTL: string;
 }
 
 // Milestone 10 (production release hardening): the exact placeholder
@@ -114,6 +157,7 @@ const PLACEHOLDER_SECRET_VALUES = new Set([
   'change-me-refresh-secret',
   'change-me-tenant-selection-secret',
   'change-me-platform-admin-secret',
+  'change-me-affiliate-secret',
   'change-me-32-byte-base64-encryption-key==',
 ]);
 
@@ -123,6 +167,7 @@ const PRODUCTION_SECRET_KEYS = [
   'JWT_REFRESH_SECRET',
   'JWT_TENANT_SELECTION_SECRET',
   'JWT_PLATFORM_ADMIN_SECRET',
+  'JWT_AFFILIATE_SECRET',
   'INTEGRATION_CREDENTIALS_ENCRYPTION_KEY',
 ] as const;
 
@@ -160,10 +205,11 @@ function assertSecretsProductionSafe(config: Record<string, unknown>) {
     String(config.JWT_REFRESH_SECRET),
     String(config.JWT_TENANT_SELECTION_SECRET),
     String(config.JWT_PLATFORM_ADMIN_SECRET),
+    String(config.JWT_AFFILIATE_SECRET),
   ];
   if (new Set(jwtSecrets).size !== jwtSecrets.length) {
     throw new Error(
-      'JWT_ACCESS_SECRET وJWT_REFRESH_SECRET وJWT_TENANT_SELECTION_SECRET وJWT_PLATFORM_ADMIN_SECRET يجب أن تكون قيمًا مختلفة تمامًا في بيئة الإنتاج.',
+      'JWT_ACCESS_SECRET وJWT_REFRESH_SECRET وJWT_TENANT_SELECTION_SECRET وJWT_PLATFORM_ADMIN_SECRET وJWT_AFFILIATE_SECRET يجب أن تكون قيمًا مختلفة تمامًا في بيئة الإنتاج.',
     );
   }
 }

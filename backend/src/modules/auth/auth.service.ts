@@ -8,10 +8,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomBytes, randomUUID } from 'crypto';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { PrismaService, TenantClient } from '../../common/prisma/prisma.service';
 import { hashToken } from '../../common/utils/token-hash';
 import { parseDurationMs } from '../../common/utils/duration';
 import { AccountingService } from '../accounting/accounting.service';
@@ -101,7 +102,7 @@ export class AuthService {
     const userId = randomUUID();
     const membershipId = randomUUID();
 
-    const { user, membership } = await this.prisma.withTenant(companyId, async (tx) => {
+    const registerTx = async (tx: TenantClient) => {
       await tx.company.create({
         data: {
           id: companyId,
@@ -193,7 +194,28 @@ export class AuthService {
       }
 
       return { user, membership };
-    });
+    };
+
+    // Phase 9 ("handle concurrent registration safely"): the app-level
+    // pre-check above is the fast/friendly path, but two requests with
+    // the exact same email/mobile can still both pass it before either
+    // commits - the partial unique indexes on users(email)/users(mobile)
+    // (migration 20260819133742_phase9_billing_affiliate_auth) are what
+    // actually close that race, and this catches the resulting P2002 from
+    // whichever request loses it, converting it to the same generic
+    // conflict response rather than a raw 500.
+    let user: Awaited<ReturnType<typeof registerTx>>['user'];
+    let membership: Awaited<ReturnType<typeof registerTx>>['membership'];
+    try {
+      ({ user, membership } = await this.prisma.withTenant(companyId, registerTx));
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException(
+          'تعذّر إكمال التسجيل بهذه البيانات - إن كان لديك حساب بالفعل، يرجى تسجيل الدخول',
+        );
+      }
+      throw err;
+    }
 
     // Best-effort, outside the transaction and never allowed to fail
     // registration itself (see EmailService's doc comment) - the account

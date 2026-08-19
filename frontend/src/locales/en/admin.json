@@ -107,6 +107,7 @@
       "name": "Name",
       "priceMonthly": "Monthly price",
       "priceAnnual": "Annual price",
+      "trialDays": "Trial days",
       "products": "Products",
       "recommended": "Recommended",
       "active": "Active"
@@ -119,6 +120,7 @@
       "description": "Description",
       "priceMonthly": "Monthly price (SAR)",
       "priceAnnual": "Annual price (SAR)",
+      "trialDays": "Free trial length (days)",
       "products": "Included products",
       "isRecommended": "Recommended plan",
       "isActive": "Active",

@@ -1,13 +1,14 @@
 import { FormEvent, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../../api/client';
 import { Button, ErrorBanner, Field, Input } from '../../components/ui';
 import { SitePageContainer } from '../SiteLayout';
 
-/** Public affiliate self-registration - Website phase spec "Affiliate system". The referral link is built as `<site>/register?ref=<code>`, consumed by RegisterPage/AuthService first-touch attribution. */
+/** Public affiliate self-registration - Website phase spec "Affiliate system". The referral link is built as `<site>/register?ref=<code>`, consumed by RegisterPage/AuthService first-touch attribution. Phase 9 adds a password so the affiliate can log into their own dashboard right after. */
 export function AffiliatePage() {
   const { t } = useTranslation('site');
-  const [form, setForm] = useState({ fullName: '', email: '', mobile: '' });
+  const [form, setForm] = useState({ fullName: '', email: '', mobile: '', password: '' });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ code: string } | null>(null);
@@ -21,6 +22,7 @@ export function AffiliatePage() {
         fullName: form.fullName,
         email: form.email,
         mobile: form.mobile || undefined,
+        password: form.password,
       });
       setResult({ code: res.code });
     } catch (err) {
@@ -50,6 +52,12 @@ export function AffiliatePage() {
               </div>
             </div>
           </div>
+          <Link
+            to="/affiliate/login"
+            className="mt-6 inline-block rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700"
+          >
+            {t('affiliate.goToLogin')}
+          </Link>
         </div>
       </SitePageContainer>
     );
@@ -71,9 +79,25 @@ export function AffiliatePage() {
           <Field label={t('affiliate.fields.mobile')}>
             <Input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} dir="ltr" />
           </Field>
+          <Field label={t('affiliate.fields.password')}>
+            <Input
+              type="password"
+              minLength={8}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
+              dir="ltr"
+            />
+          </Field>
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? t('affiliate.submitting') : t('affiliate.submit')}
           </Button>
+          <p className="text-center text-sm text-slate-500">
+            {t('affiliate.hasAccountPrompt')}{' '}
+            <Link to="/affiliate/login" className="font-medium text-brand-600 hover:underline">
+              {t('affiliate.loginLink')}
+            </Link>
+          </p>
         </form>
       </div>
     </SitePageContainer>

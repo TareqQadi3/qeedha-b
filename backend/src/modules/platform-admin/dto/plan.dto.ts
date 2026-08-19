@@ -8,11 +8,11 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   Min,
   MinLength,
 } from 'class-validator';
-
-const PRODUCT_KEYS = ['qeedha_b', 'qeedha'] as const;
+import { PRODUCT_KEYS } from '../../subscriptions/constants/products';
 
 export class CreatePlanDto {
   @IsString()
@@ -46,6 +46,15 @@ export class CreatePlanDto {
   @IsOptional()
   @IsBoolean()
   trialEligible?: boolean;
+
+  // Phase 9 ("Control Center must manage trial period") - length of the
+  // free trial this plan grants at registration. Optional, defaults to
+  // the schema column's default (14) if omitted.
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  trialDays?: number;
 
   @IsOptional()
   @IsInt()
@@ -111,6 +120,12 @@ export class UpdatePlanDto {
   @IsOptional()
   @IsBoolean()
   trialEligible?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  trialDays?: number;
 
   @IsOptional()
   @IsInt()

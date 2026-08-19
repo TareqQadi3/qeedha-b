@@ -10,6 +10,7 @@ interface Plan {
   description: string | null;
   priceMonthlySar: string | null;
   priceAnnualSar: string | null;
+  trialDays: number;
   products: string[];
   isRecommended: boolean;
   isActive: boolean;
@@ -23,6 +24,7 @@ const emptyForm = {
   description: '',
   priceMonthlySar: '',
   priceAnnualSar: '',
+  trialDays: '14',
   products: ['qeedha_b'] as string[],
   isRecommended: false,
 };
@@ -72,6 +74,7 @@ export function PlansTab() {
       description: plan.description ?? '',
       priceMonthlySar: plan.priceMonthlySar ?? '',
       priceAnnualSar: plan.priceAnnualSar ?? '',
+      trialDays: String(plan.trialDays),
       products: plan.products,
       isRecommended: plan.isRecommended,
     });
@@ -96,6 +99,7 @@ export function PlansTab() {
         description: form.description || undefined,
         priceMonthlySar: form.priceMonthlySar ? Number(form.priceMonthlySar) : undefined,
         priceAnnualSar: form.priceAnnualSar ? Number(form.priceAnnualSar) : undefined,
+        trialDays: form.trialDays ? Number(form.trialDays) : undefined,
         products: form.products,
         isRecommended: form.isRecommended,
       };
@@ -128,6 +132,7 @@ export function PlansTab() {
                   <th className="py-2">{t('plans.table.name')}</th>
                   <th className="py-2">{t('plans.table.priceMonthly')}</th>
                   <th className="py-2">{t('plans.table.priceAnnual')}</th>
+                  <th className="py-2">{t('plans.table.trialDays')}</th>
                   <th className="py-2">{t('plans.table.products')}</th>
                   <th className="py-2">{t('plans.table.recommended')}</th>
                   <th className="py-2">{t('plans.table.active')}</th>
@@ -143,6 +148,7 @@ export function PlansTab() {
                     <td className="py-2 font-medium">{p.name}</td>
                     <td className="py-2 text-slate-500">{p.priceMonthlySar ?? '—'}</td>
                     <td className="py-2 text-slate-500">{p.priceAnnualSar ?? '—'}</td>
+                    <td className="py-2 tabular-nums text-slate-500">{p.trialDays}</td>
                     <td className="py-2 text-slate-500">{p.products.join(', ')}</td>
                     <td className="py-2">{p.isRecommended && <Badge variant="brand">✓</Badge>}</td>
                     <td className="py-2">
@@ -157,7 +163,7 @@ export function PlansTab() {
                 ))}
                 {plans.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-6 text-center text-slate-400">
+                    <td colSpan={9} className="py-6 text-center text-slate-400">
                       {t('plans.empty')}
                     </td>
                   </tr>
@@ -197,6 +203,16 @@ export function PlansTab() {
               min={0}
               value={form.priceAnnualSar}
               onChange={(e) => setForm({ ...form, priceAnnualSar: e.target.value })}
+              dir="ltr"
+            />
+          </Field>
+          <Field label={t('plans.modal.trialDays')}>
+            <Input
+              type="number"
+              min={0}
+              max={365}
+              value={form.trialDays}
+              onChange={(e) => setForm({ ...form, trialDays: e.target.value })}
               dir="ltr"
             />
           </Field>

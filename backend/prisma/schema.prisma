@@ -1762,6 +1762,12 @@ model Plan {
   description     String?
   isActive        Boolean  @default(true) @map("is_active")
   trialEligible   Boolean  @default(true) @map("trial_eligible")
+  // Phase 9 ("Control Center must manage trial period"): length of the
+  // free trial a company gets when registering on this plan - replaces
+  // the previously-hardcoded TRIAL_PERIOD_DAYS=14 constant, which is now
+  // only this column's default for every pre-existing plan (see
+  // SubscriptionService.createInitialSubscription).
+  trialDays       Int      @default(14) @map("trial_days")
   priceMonthlySar Decimal? @map("price_monthly_sar") @db.Decimal(10, 2)
   // Website phase: optional annual price alongside the existing monthly
   // one - null means "annual billing not offered for this plan", not
@@ -1889,6 +1895,13 @@ model Affiliate {
   // commission - Control Center configurable per affiliate (spec:
   // "Commission rules should be configurable from the Control Center").
   commissionPercent Decimal         @default(10) @map("commission_percent") @db.Decimal(5, 2)
+  // Phase 9 ("Affiliate Dashboard" - self-service login). Nullable so
+  // affiliates registered before this phase (no password collected at the
+  // time) don't break the migration; AffiliatesService.login rejects a
+  // null hash with the same generic invalid-credentials message as a
+  // wrong password, never a distinct "no password set" error (would leak
+  // account existence/state).
+  passwordHash      String?         @map("password_hash")
   status            AffiliateStatus @default(active)
   createdAt         DateTime        @default(now()) @map("created_at")
   updatedAt         DateTime        @updatedAt @map("updated_at")

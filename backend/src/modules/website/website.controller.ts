@@ -41,6 +41,7 @@ export class WebsiteController {
       priceAnnualSar: plan.priceAnnualSar,
       billingInterval: plan.billingInterval,
       trialEligible: plan.trialEligible,
+      trialDays: plan.trialDays,
       maxUsers: plan.maxUsers,
       maxBranches: plan.maxBranches,
       maxMonthlySales: plan.maxMonthlySales,

@@ -4,7 +4,7 @@ import { TenantClient } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { FeatureKey } from './constants/feature-keys';
 import { PLAN_CODES } from './constants/default-plans';
-import { TRIAL_PERIOD_DAYS } from './constants/trial';
+import { PlanProductKey } from './constants/products';
 
 export type UsageLimitResource = 'users' | 'branches' | 'monthlySales';
 
@@ -55,6 +55,21 @@ export class SubscriptionService {
   hasFeature(plan: Plan, featureKey: FeatureKey): boolean {
     const features = plan.features as Record<string, boolean> | null;
     return features?.[featureKey] === true;
+  }
+
+  /**
+   * Phase 9 ("product entitlements correctly control access to qeedha B /
+   * qeedha"). Single source of truth for reading `Plan.products` -
+   * replaces the identical closure that used to live only inside
+   * PlatformAdminService.getOverview, now also the check SubscriptionGuard
+   * enforces on every request (see that guard for why this is a stronger
+   * gate than hasFeature: a plan without 'qeedha_b' means the company
+   * never bought this product at all, not "bought it but a specific
+   * feature is excluded").
+   */
+  hasProduct(plan: { products: unknown }, productKey: PlanProductKey): boolean {
+    const products = (plan.products as string[] | null) ?? [];
+    return products.includes(productKey);
   }
 
   /**
@@ -144,7 +159,7 @@ export class SubscriptionService {
       );
     }
 
-    const trialEndsAt = new Date(Date.now() + TRIAL_PERIOD_DAYS * 24 * 60 * 60 * 1000);
+    const trialEndsAt = new Date(Date.now() + plan.trialDays * 24 * 60 * 60 * 1000);
     const subscription = await tx.subscription.create({
       data: { companyId, planId: plan.id, status: 'trialing', trialEndsAt },
     });
@@ -274,6 +289,10 @@ export class SubscriptionService {
         description: plan.description,
         priceMonthlySar: plan.priceMonthlySar,
         billingInterval: plan.billingInterval,
+        // Phase 9: lets the merchant-facing UI show which product(s)
+        // ("qeedha_b"/"qeedha") their current plan actually grants -
+        // SubscriptionGuard is what enforces it; this is read-only display.
+        products: plan.products,
       },
       features: plan.features,
       usage: {
@@ -305,6 +324,7 @@ export class SubscriptionService {
       maxBranches: plan.maxBranches,
       maxMonthlySales: plan.maxMonthlySales,
       features: plan.features,
+      products: plan.products,
     }));
   }
 
