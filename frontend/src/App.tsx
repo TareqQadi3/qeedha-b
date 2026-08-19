@@ -19,6 +19,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SubscriptionPage } from './pages/SubscriptionPage';
 import { SuppliersPage } from './pages/SuppliersPage';
+import { TeamPage } from './pages/TeamPage';
 import { useAuth } from './state/auth';
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -57,6 +58,7 @@ export function App() {
         <Route path="/import" element={<ImportPage />} />
         <Route path="/subscription" element={<SubscriptionPage />} />
         <Route path="/integration" element={<QeedhaIntegrationPage />} />
+        <Route path="/team" element={<TeamPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

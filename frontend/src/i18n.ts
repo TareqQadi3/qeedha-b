@@ -20,6 +20,7 @@ import arReceivablesPayables from './locales/ar/receivablesPayables.json';
 import arSubscription from './locales/ar/subscription.json';
 import arIntegration from './locales/ar/integration.json';
 import arOnboarding from './locales/ar/onboarding.json';
+import arTeam from './locales/ar/team.json';
 
 import enCommon from './locales/en/common.json';
 import enNav from './locales/en/nav.json';
@@ -40,6 +41,7 @@ import enReceivablesPayables from './locales/en/receivablesPayables.json';
 import enSubscription from './locales/en/subscription.json';
 import enIntegration from './locales/en/integration.json';
 import enOnboarding from './locales/en/onboarding.json';
+import enTeam from './locales/en/team.json';
 
 export const SUPPORTED_LANGUAGES = ['ar', 'en'] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
@@ -76,6 +78,7 @@ i18n.use(initReactI18next).init({
       subscription: arSubscription,
       integration: arIntegration,
       onboarding: arOnboarding,
+      team: arTeam,
     },
     en: {
       common: enCommon,
@@ -97,6 +100,7 @@ i18n.use(initReactI18next).init({
       subscription: enSubscription,
       integration: enIntegration,
       onboarding: enOnboarding,
+      team: enTeam,
     },
   },
   ns: [
@@ -119,6 +123,7 @@ i18n.use(initReactI18next).init({
     'subscription',
     'integration',
     'onboarding',
+    'team',
   ],
   defaultNS: 'common',
   lng: detectInitialLanguage(),

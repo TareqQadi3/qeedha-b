@@ -18,6 +18,7 @@ const SAFE_USER_SELECT = {
   fullName: true,
   email: true,
   mobile: true,
+  username: true,
   status: true,
   locale: true,
   createdAt: true,
@@ -33,17 +34,38 @@ export class IamService {
 
   /**
    * Attaches a person to this company as a new Membership. If the
-   * email/mobile already belongs to an existing global User (they already
-   * have an account - possibly in a different company), that identity is
-   * reused as-is: no password change, no fullName overwrite. Only a
-   * genuinely new identity gets created here, and only then is `password`
-   * required.
+   * email/mobile/username already belongs to an existing global User (they
+   * already have an account - possibly in a different company), that
+   * identity is reused as-is: no password change, no fullName overwrite.
+   * Only a genuinely new identity gets created here, and only then is
+   * `password` required.
    */
   async createUser(tx: TenantClient, companyId: string, actorUserId: string, dto: CreateUserDto) {
+    if (!dto.email && !dto.mobile && !dto.username) {
+      throw new BadRequestException('يجب إدخال بريد إلكتروني أو رقم جوال أو اسم مستخدم');
+    }
+
     // Milestone 8: usage limit (plan.maxUsers) counts active Memberships in
     // THIS company, regardless of whether the underlying User identity is
     // new or reused from another company - see SubscriptionService.assertWithinLimit.
     await this.subscriptionService.assertWithinLimit(tx, companyId, 'users');
+
+    // Unlike email/mobile, a username is not a stable real-world identity a
+    // person carries between companies - it's just a login label the
+    // merchant picked for this employee. So a username match must never
+    // trigger the "reuse existing identity" path below (that would silently
+    // attach this company's new employee to a stranger's account at another
+    // company just because they typed the same username); it can only ever
+    // mean "already taken, pick another".
+    if (dto.username) {
+      const usernameTaken = await tx.user.findFirst({
+        where: { deletedAt: null, username: dto.username },
+        select: { id: true },
+      });
+      if (usernameTaken) {
+        throw new ConflictException('اسم المستخدم هذا مُستخدَم بالفعل');
+      }
+    }
 
     const identifierFilters = [
       ...(dto.email ? [{ email: dto.email }] : []),
@@ -65,7 +87,13 @@ export class IamService {
       }
       const passwordHash = await argon2.hash(dto.password);
       user = await tx.user.create({
-        data: { fullName: dto.fullName, email: dto.email, mobile: dto.mobile, passwordHash },
+        data: {
+          fullName: dto.fullName,
+          email: dto.email,
+          mobile: dto.mobile,
+          username: dto.username,
+          passwordHash,
+        },
         select: SAFE_USER_SELECT,
       });
       isNewUser = true;
@@ -102,6 +130,7 @@ export class IamService {
         fullName: user.fullName,
         email: user.email,
         mobile: user.mobile,
+        username: user.username,
         isNewUser,
       },
     });

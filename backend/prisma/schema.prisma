@@ -187,6 +187,12 @@ model User {
   fullName     String     @map("full_name")
   email        String?
   mobile       String?
+  // Team members created by a merchant (POS/accountant/...) via IamService.createUser
+  // rarely have a real email/mobile - a username lets the merchant set up
+  // that identity with only a name, username, and password. Owners created
+  // through company registration still use email/mobile as before; this is
+  // purely an additional identifier, never required together with them.
+  username     String?    @unique
   passwordHash String     @map("password_hash")
   status       UserStatus @default(active)
   locale       String     @default("ar")

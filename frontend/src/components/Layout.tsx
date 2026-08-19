@@ -196,6 +196,17 @@ const NAV_ITEMS: { to: string; labelKey: string; end?: boolean; icon: ReactNode 
       </Icon>
     ),
   },
+  {
+    to: '/team',
+    labelKey: 'items.team',
+    icon: (
+      <Icon>
+        <rect x="3" y="2.5" width="14" height="15" rx="2" />
+        <circle cx="10" cy="8" r="2.2" />
+        <path d="M6 14.5c.5-2 2-3 4-3s3.5 1 4 3" />
+      </Icon>
+    ),
+  },
 ];
 
 /**

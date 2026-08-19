@@ -75,6 +75,10 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
       PERMISSION_KEYS.SALES_CREATE,
       PERMISSION_KEYS.SALES_PAYMENT_RECORD,
       PERMISSION_KEYS.INVOICES_READ,
+      // The POS screen loads the warehouse list on open (to know which
+      // warehouse's stock to sell from) - without this a Cashier, whose
+      // entire job is running POS, can't even open the page.
+      PERMISSION_KEYS.TENANCY_WAREHOUSES_VIEW,
     ],
   },
   {

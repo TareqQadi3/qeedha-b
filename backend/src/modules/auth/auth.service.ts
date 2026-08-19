@@ -151,7 +151,7 @@ export class AuthService {
     const user = await this.prisma.user.findFirst({
       where: {
         deletedAt: null,
-        OR: [{ email: dto.identifier }, { mobile: dto.identifier }],
+        OR: [{ email: dto.identifier }, { mobile: dto.identifier }, { username: dto.identifier }],
       },
     });
     if (!user || user.status !== 'active') {
@@ -334,6 +334,7 @@ export class AuthService {
         fullName: membership.user.fullName,
         email: membership.user.email,
         mobile: membership.user.mobile,
+        username: membership.user.username,
         locale: membership.user.locale,
         companyId: user.companyId,
         membershipId: membership.id,
@@ -361,6 +362,7 @@ export class AuthService {
     fullName: string;
     email: string | null;
     mobile: string | null;
+    username: string | null;
     locale: string;
   }) {
     return {
@@ -368,6 +370,7 @@ export class AuthService {
       fullName: user.fullName,
       email: user.email,
       mobile: user.mobile,
+      username: user.username,
       locale: user.locale,
     };
   }

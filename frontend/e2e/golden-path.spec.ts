@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { login, logout, registerMerchant, uniqueId } from './helpers';
+import { login, loginWithIdentifier, logout, registerMerchant, uniqueId } from './helpers';
 
 /**
  * Full merchant journey (Milestone 2 "Playwright" / "Full Trial", extended
@@ -248,7 +248,34 @@ test('merchant can go from registration to a posted sale, expense, and see it al
   await expect(page.getByText('موقوف')).toBeVisible();
   await expect(page.getByRole('button', { name: 'إعادة ربط التكامل' })).toBeVisible();
 
-  // ---- Logout -> Login again (session survives a fresh login) ----
+  // ---------------------------------------------------------------------------
+  // Team: the owner creates a POS (Cashier) account with only a name,
+  // username and password (no email) - see docs/DOMAIN_MODEL.md "Team
+  // accounts". The cashier logs in with that username, can use POS, but is
+  // blocked from Team/Accounting (role-scoped permissions, not just UI).
+  // ---------------------------------------------------------------------------
+  const cashierUsername = `cashier-pw-${id}`;
+  const cashierPassword = 'CashierPassPW123';
+  await page.goto('/team');
+  await page.getByRole('button', { name: '+ عضو جديد' }).click();
+  await page.getByLabel('اسم الموظف').fill('كاشير بلايرايت');
+  await page.getByLabel(/^اسم المستخدم/).fill(cashierUsername);
+  await page.getByLabel(/^كلمة المرور/).fill(cashierPassword);
+  await page.getByLabel('نوع الحساب (الدور)').selectOption({ label: 'Cashier' });
+  await page.getByRole('button', { name: 'إنشاء الحساب' }).click();
+  await expect(page.getByText(cashierUsername)).toBeVisible();
+
+  await logout(page);
+  await loginWithIdentifier(page, cashierUsername, cashierPassword);
+  await expect(page.getByText('مرحبًا،')).toBeVisible();
+  await page.goto('/team');
+  await expect(page.getByText('لا تملك صلاحية عرض الفريق')).toBeVisible();
+  await page.goto('/accounting');
+  await expect(page.getByText('لا تملك صلاحية عرض الحسابات')).toBeVisible();
+  await page.goto('/pos');
+  await expect(page.getByPlaceholder('ابحث بالاسم أو SKU أو امسح الباركود...')).toBeVisible();
+
+  // ---- Logout -> Login again as the owner (session survives a fresh login) ----
   await logout(page);
   await login(page, merchant);
   await expect(page.getByText('مرحبًا،')).toBeVisible();

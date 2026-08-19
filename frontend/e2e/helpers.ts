@@ -34,9 +34,14 @@ export async function registerMerchant(page: Page): Promise<RegisteredMerchant> 
 }
 
 export async function login(page: Page, merchant: RegisteredMerchant) {
+  await loginWithIdentifier(page, merchant.ownerEmail, merchant.password);
+}
+
+/** Logs in with any identifier the backend accepts (email, mobile, or team-account username) - see docs/DOMAIN_MODEL.md "Team accounts". */
+export async function loginWithIdentifier(page: Page, identifier: string, password: string) {
   await page.goto('/login');
-  await page.getByLabel('البريد الإلكتروني أو رقم الجوال').fill(merchant.ownerEmail);
-  await page.getByLabel('كلمة المرور').fill(merchant.password);
+  await page.getByLabel('البريد الإلكتروني أو رقم الجوال أو اسم المستخدم').fill(identifier);
+  await page.getByLabel('كلمة المرور').fill(password);
   await page.getByRole('button', { name: 'تسجيل الدخول' }).click();
   await page.waitForURL('/');
 }

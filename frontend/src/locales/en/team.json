@@ -1,0 +1,47 @@
+{
+  "title": "Team",
+  "subtitle": "Create accounts for your staff (POS, accountant...) and set each one's permissions",
+  "addButton": "+ New Member",
+  "loading": "Loading...",
+  "loadError": "Could not load team members",
+  "noPermission": "You don't have permission to view the team",
+  "table": {
+    "name": "Name",
+    "identifier": "Login name",
+    "roles": "Permissions (Roles)",
+    "status": "Status",
+    "actions": ""
+  },
+  "status": {
+    "active": "Active",
+    "suspended": "Suspended"
+  },
+  "noRoles": "No role",
+  "removeRole": "Remove",
+  "addRole": "+ Add role",
+  "empty": "No team members yet",
+  "createModal": {
+    "title": "New Team Member",
+    "fullName": "Employee name",
+    "username": "Username",
+    "usernameHint": "English letters/numbers only, no spaces (3-32 chars) - the employee uses this to log in",
+    "password": "Password",
+    "passwordHint": "At least 8 characters - share it with the employee",
+    "role": "Account type (Role)",
+    "branch": "Branch (optional - leave empty for access to all branches)",
+    "allBranches": "All branches",
+    "submit": "Create Account",
+    "submitting": "Creating..."
+  },
+  "addRoleModal": {
+    "title": "Add Role",
+    "role": "Role",
+    "branch": "Branch (optional)",
+    "submit": "Add",
+    "submitting": "Adding..."
+  },
+  "errors": {
+    "createFailed": "Could not create the account",
+    "roleActionFailed": "Could not complete the action"
+  }
+}

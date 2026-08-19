@@ -36,7 +36,7 @@
 | Method | Path | الوصف | صلاحية |
 |---|---|---|---|
 | POST | `/register-company` | تسجيل منشأة جديدة + مستخدم Owner أول + Membership | عام (Rate-limited) |
-| POST | `/login` | تسجيل دخول (email/mobile + password) — انظر ملاحظة أدناه | عام (Rate-limited) |
+| POST | `/login` | تسجيل دخول (`identifier` = email أو mobile أو username + password) — انظر ملاحظة أدناه | عام (Rate-limited) |
 | POST | `/select-tenant` | إتمام الدخول لمستخدم بعدة عضويات (tenantSelectionToken + companyId) | عام، يتطلب tenantSelectionToken صالح |
 | POST | `/refresh` | تجديد access token عبر refresh token (لنفس الـtenant) | يتطلب refresh token صالح |
 | POST | `/logout` | إبطال refresh token الحالي | يتطلب مصادقة |
@@ -56,7 +56,7 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 | GET | `/roles` | قائمة الأدوار المتاحة للمنشأة | `iam.roles.view` |
 | GET | `/permissions` | قائمة الصلاحيات المتاحة في النظام | `iam.roles.view` |
 | GET | `/users` | أعضاء المنشأة (Memberships) وأدوارهم ضمنها — مُرقَّم (`?page&pageSize`)، صيغة `{data, meta}` القياسية أعلاه منذ Milestone 2 (كانت مصفوفة مسطّحة غير محدودة قبلها) | `iam.users.view` |
-| POST | `/users` | إضافة عضوية جديدة — تُنشئ مستخدمًا جديدًا، أو تُرفق مستخدمًا موجودًا بالفعل (بدون لمس كلمة مروره) إن تطابق البريد/الجوال | `iam.users.manage` |
+| POST | `/users` | إضافة عضوية جديدة — تُنشئ مستخدمًا جديدًا، أو تُرفق مستخدمًا موجودًا بالفعل (بدون لمس كلمة مروره) إن تطابق البريد/الجوال. يقبل `username` بديلًا كاملًا عن `email`/`mobile` (حسابات فريق بلا بريد إلكتروني — انظر `DOMAIN_MODEL.md` "حسابات الفريق")؛ خلافًا للبريد/الجوال، تطابق `username` **لا** يُعيد استخدام هوية موجودة — يُرفض بـ409 | `iam.users.manage` |
 | POST | `/users/:id/roles` | إسناد دور لمستخدم ضمن هذه المنشأة (مع نطاق فرع اختياري) | `iam.users.manage` |
 | DELETE | `/users/:id/roles/:membershipRoleId` | إلغاء إسناد دور | `iam.users.manage` |
 

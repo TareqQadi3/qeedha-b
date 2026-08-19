@@ -19,7 +19,8 @@
     "reports": "Financial Reports",
     "receivablesPayables": "Receivables & Payables",
     "subscription": "Subscription & Plan",
-    "integration": "Qeedha Integration"
+    "integration": "Qeedha Integration",
+    "team": "Team"
   },
   "subscriptionRestrictedBanner": "Your subscription has expired or been suspended - you can still view your existing data, but to perform new operations please contact support to renew. View subscription details →",
   "trialNotice_one": "1 day left in your trial period. View subscription details →",
