@@ -11,6 +11,15 @@
     "email": "Email",
     "password": "Password"
   },
+  "tabs": {
+    "overview": "Overview",
+    "merchants": "Merchants",
+    "plans": "Plans",
+    "markets": "Markets",
+    "affiliates": "Affiliates",
+    "applications": "Applications",
+    "staff": "Staff"
+  },
   "dashboard": {
     "title": "Companies",
     "subtitle": "Every merchant company on the platform",
@@ -22,14 +31,27 @@
       "legalName": "Legal name",
       "tradeName": "Trade name",
       "vatNumber": "VAT number",
+      "country": "Country",
       "status": "Status",
-      "createdAt": "Created"
+      "subscription": "Subscription",
+      "product": "Product",
+      "createdAt": "Created",
+      "actions": "Actions"
     },
     "status": {
       "active": "Active",
       "suspended": "Suspended"
     },
-    "empty": "No companies yet"
+    "subStatus": {
+      "trialing": "Trial",
+      "active": "Active",
+      "expired": "Expired",
+      "suspended": "Suspended",
+      "cancelled": "Cancelled",
+      "none": "No subscription"
+    },
+    "empty": "No companies yet",
+    "manage": "Manage subscription"
   },
   "createModal": {
     "title": "New merchant company",
@@ -48,7 +70,130 @@
     "instructions": "Share these login credentials with the merchant so they can log in directly:",
     "close": "Close"
   },
+  "subscriptionModal": {
+    "title": "Manage subscription: {{name}}",
+    "status": "Subscription status",
+    "changeStatus": "Update status",
+    "plan": "Plan",
+    "changePlan": "Change plan",
+    "extendDays": "Days to extend trial",
+    "extendTrial": "Extend trial",
+    "close": "Close"
+  },
+  "overview": {
+    "totalMerchants": "Total merchants",
+    "activeMerchants": "Active merchants",
+    "trialSubscriptions": "Trial subscriptions",
+    "expiredTrials": "Expired trials",
+    "activeSubscriptions": "Active subscriptions",
+    "suspendedSubscriptions": "Suspended subscriptions",
+    "cancelledSubscriptions": "Cancelled subscriptions",
+    "qeedhaBSubscribers": "qeedha B only subscribers",
+    "qeedhaSubscribers": "qeedha only subscribers",
+    "combinedSubscribers": "Combined-plan subscribers",
+    "totalAffiliates": "Total affiliates",
+    "totalCommissionSar": "Total commission (SAR)",
+    "pendingCommissionSar": "Pending commission (SAR)",
+    "totalApplications": "Job applications",
+    "newApplications": "New applications",
+    "recentMerchants": "Recent merchants"
+  },
+  "plans": {
+    "title": "Plans",
+    "subtitle": "Subscription plans - pricing and included products",
+    "addButton": "+ New plan",
+    "table": {
+      "code": "Code",
+      "name": "Name",
+      "priceMonthly": "Monthly price",
+      "priceAnnual": "Annual price",
+      "products": "Products",
+      "recommended": "Recommended",
+      "active": "Active"
+    },
+    "modal": {
+      "createTitle": "New plan",
+      "editTitle": "Edit plan",
+      "code": "Code (English)",
+      "name": "Name",
+      "description": "Description",
+      "priceMonthly": "Monthly price (SAR)",
+      "priceAnnual": "Annual price (SAR)",
+      "products": "Included products",
+      "isRecommended": "Recommended plan",
+      "isActive": "Active",
+      "submit": "Save",
+      "submitting": "Saving..."
+    },
+    "empty": "No plans"
+  },
+  "markets": {
+    "title": "Markets",
+    "subtitle": "Countries and languages supported on the website",
+    "addButton": "+ New market",
+    "table": { "code": "Code", "nameAr": "Arabic name", "nameEn": "English name", "currency": "Currency", "active": "Active" },
+    "modal": {
+      "createTitle": "New market",
+      "editTitle": "Edit market",
+      "code": "Country code (ISO Alpha-2)",
+      "nameAr": "Arabic name",
+      "nameEn": "English name",
+      "currency": "Currency code (ISO 4217)",
+      "isActive": "Active",
+      "submit": "Save",
+      "submitting": "Saving..."
+    },
+    "empty": "No markets"
+  },
+  "affiliates": {
+    "title": "Affiliates",
+    "subtitle": "Affiliates and their referral/commission stats",
+    "table": {
+      "fullName": "Name",
+      "email": "Email",
+      "code": "Referral code",
+      "commissionPercent": "Commission %",
+      "referralsCount": "Referrals",
+      "totalCommission": "Total commission",
+      "pendingCommission": "Pending commission",
+      "status": "Status"
+    },
+    "empty": "No affiliates yet"
+  },
+  "applications": {
+    "title": "Job applications",
+    "subtitle": "Join Us applications",
+    "table": { "fullName": "Name", "email": "Email", "role": "Role applied for", "status": "Status", "createdAt": "Date" },
+    "status": { "new": "New", "reviewed": "Reviewed", "accepted": "Accepted", "rejected": "Rejected" },
+    "empty": "No applications yet"
+  },
+  "staff": {
+    "title": "Staff",
+    "subtitle": "Control Center staff accounts and their permissions",
+    "addButton": "+ New staff member",
+    "table": { "fullName": "Name", "email": "Email", "role": "Role", "status": "Status" },
+    "roles": {
+      "admin": "Admin",
+      "finance": "Finance",
+      "support": "Support",
+      "marketing": "Marketing",
+      "developer": "Developer"
+    },
+    "modal": {
+      "title": "New staff member",
+      "fullName": "Full name",
+      "email": "Email",
+      "password": "Password",
+      "role": "Role",
+      "submit": "Create",
+      "submitting": "Creating..."
+    },
+    "empty": "No staff yet"
+  },
   "errors": {
-    "createFailed": "Could not create the company"
+    "createFailed": "Could not create the company",
+    "loadFailed": "Could not load data",
+    "actionFailed": "Could not complete the action",
+    "forbidden": "You don't have access to this section"
   }
 }

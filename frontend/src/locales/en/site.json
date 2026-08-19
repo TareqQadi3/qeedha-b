@@ -1,0 +1,174 @@
+{
+  "nav": {
+    "home": "Home",
+    "qeedhaB": "qeedha B Accounting",
+    "qeedha": "qeedha Financing",
+    "combined": "Combined plan",
+    "pricing": "Pricing",
+    "features": "Features",
+    "about": "About",
+    "contact": "Contact",
+    "faq": "FAQ",
+    "joinUs": "Join us",
+    "affiliate": "Affiliate program",
+    "login": "Log in",
+    "startTrial": "Start your free trial"
+  },
+  "footer": {
+    "tagline": "The Qeedha platform - run your business with confidence",
+    "product": "Product",
+    "company": "Company",
+    "legal": "Legal",
+    "rights": "© {{year}} Qeedha. All rights reserved.",
+    "terms": "Terms & conditions",
+    "privacy": "Privacy policy"
+  },
+  "home": {
+    "heroEyebrow": "A Saudi platform for shops and grocery stores",
+    "heroTitle": "Run your store and your books from one place",
+    "heroSubtitle": "Point of sale, inventory, ZATCA-compliant invoices, and full accounting - built for shop and grocery owners in Saudi Arabia.",
+    "ctaPrimary": "Start your 14-day free trial",
+    "ctaSecondary": "See pricing",
+    "productsTitle": "Two products, matched to what your business needs",
+    "qeedhaBTitle": "qeedha B - Accounting & POS",
+    "qeedhaBDesc": "Point of sale, inventory, sales and purchases, full accounting, and e-invoices compliant with Saudi e-invoicing.",
+    "qeedhaTitle": "qeedha - Financing & wallet",
+    "qeedhaDesc": "An independent financing and digital wallet platform, with an optional future link to your qeedha B account.",
+    "combinedTitle": "Or get both together",
+    "combinedDesc": "A combined plan that gives you full accounting and financing in a single subscription.",
+    "whyTitle": "Why Qeedha",
+    "why1Title": "E-invoicing compliant",
+    "why1Desc": "A QR code on every invoice, matching Saudi ZATCA e-invoicing requirements.",
+    "why2Title": "Arabic first",
+    "why2Desc": "A full right-to-left Arabic interface, with English support.",
+    "why3Title": "A real free trial",
+    "why3Desc": "A full 14 days, no credit card, with every feature included.",
+    "ctaBottomTitle": "Ready to get started?",
+    "ctaBottomSubtitle": "Create your account in minutes - no card required."
+  },
+  "qeedhaB": {
+    "title": "qeedha B - Accounting & point of sale for shops and grocery stores",
+    "subtitle": "Everything your store needs: point of sale, inventory, purchases, receivables, and full accounting - in one app.",
+    "featuresTitle": "Key features",
+    "f1": "A fast point of sale that runs in the browser",
+    "f2": "Inventory management with weighted-average cost valuation",
+    "f3": "E-invoices compliant with Saudi e-invoicing requirements",
+    "f4": "Full accounting: general ledger, journal entries, financial reports",
+    "f5": "Receivables, payables, and bank reconciliation",
+    "f6": "Import data from Excel files",
+    "cta": "Get started with qeedha B"
+  },
+  "qeedha": {
+    "title": "qeedha - Financing & digital wallet",
+    "subtitle": "An independent financing platform with its own wallet and technical infrastructure - qeedha B data is never merged into it.",
+    "note": "qeedha (financing) is a technically and financially independent product from qeedha B (accounting), with an optional future link between the two accounts through a secure API.",
+    "cta": "Request the qeedha plan"
+  },
+  "combined": {
+    "title": "The combined plan",
+    "subtitle": "qeedha B accounting and qeedha financing together, in one subscription at a better price.",
+    "point1": "Every qeedha B accounting and POS feature",
+    "point2": "Every qeedha financing and wallet feature",
+    "point3": "Unified support for both products",
+    "cta": "Subscribe to the combined plan"
+  },
+  "pricing": {
+    "title": "Clear pricing, no surprises",
+    "subtitle": "Pick the plan that fits your business - a 14-day free trial on every eligible plan.",
+    "monthly": "Monthly",
+    "annually": "Annually",
+    "perMonth": "SAR / month",
+    "recommended": "Most popular",
+    "startTrial": "Start free trial",
+    "loadError": "Could not load plans",
+    "loading": "Loading...",
+    "countryLabel": "Market"
+  },
+  "features": {
+    "title": "Everything you need to run your store",
+    "subtitle": "Features built specifically for shop and grocery owners in the Saudi market.",
+    "items": [
+      { "title": "Fast point of sale", "desc": "Sell quickly from any internet-connected device, no software install." },
+      { "title": "Accurate inventory", "desc": "Quantities and cost update automatically with every sale or purchase." },
+      { "title": "E-invoicing", "desc": "A ZATCA-compliant QR code on every invoice." },
+      { "title": "Full accounting", "desc": "General ledger, journal entries, and profit & loss / balance sheet reports." },
+      { "title": "Customer & supplier receivables", "desc": "Track balances and payments, with bank reconciliation." },
+      { "title": "Excel import", "desc": "Import your products and opening balances from an Excel file in minutes." },
+      { "title": "Team permissions", "desc": "Add your staff and control exactly what they can access." },
+      { "title": "Multiple branches & warehouses", "desc": "Manage more than one branch and warehouse from a single account." }
+    ]
+  },
+  "about": {
+    "title": "About us",
+    "body1": "Qeedha is a Saudi platform built to simplify running shops and grocery stores - from point of sale to full accounting, in one place, Arabic-first.",
+    "body2": "We believe shop owners deserve simple, powerful tools, without the complexity of traditional accounting systems.",
+    "missionTitle": "Our mission",
+    "missionBody": "Empower every Saudi merchant to run their business with confidence, using digital tools compliant with local regulations."
+  },
+  "contact": {
+    "title": "Contact us",
+    "subtitle": "Our support team is ready to help.",
+    "emailLabel": "Email",
+    "email": "support@qeedha.com",
+    "hoursLabel": "Business hours",
+    "hours": "Sunday - Thursday, 9am - 6pm (Saudi time)"
+  },
+  "faq": {
+    "title": "Frequently asked questions",
+    "items": [
+      { "q": "Does the free trial require a credit card?", "a": "No, you can try Qeedha for a full 14 days without a bank card." },
+      { "q": "Are invoices compliant with e-invoicing requirements?", "a": "Yes, every invoice carries a QR code matching the first phase of Saudi e-invoicing." },
+      { "q": "Can I upgrade to a different plan later?", "a": "Yes, you can change your plan anytime from the dashboard or by contacting support." },
+      { "q": "Does qeedha financing share my accounting data?", "a": "No, qeedha financing is a technically and financially independent product - your accounting data is never merged into it." },
+      { "q": "How do I join as an affiliate?", "a": "Register on the Affiliate program page and get your own referral link instantly." }
+    ]
+  },
+  "terms": {
+    "title": "Terms & conditions",
+    "updated": "Last updated: 2026",
+    "body": "By using the Qeedha platform you agree to these terms. The service is provided \"as is\", and users are responsible for the accuracy of the data they enter and for compliance with applicable Saudi invoicing and tax regulations. The platform may update these terms, and users are notified of material changes."
+  },
+  "privacy": {
+    "title": "Privacy policy",
+    "updated": "Last updated: 2026",
+    "body": "We respect the privacy of your data. Your account and business data are used only to operate and improve the service, and are never shared with third parties except to comply with regulations or with your explicit consent. Every user has the right to request a copy of their data or delete their account."
+  },
+  "joinUs": {
+    "title": "Join the Qeedha team",
+    "subtitle": "We're always looking for passionate talent - developers, designers, business experts, and partners.",
+    "fields": {
+      "fullName": "Full name",
+      "email": "Email",
+      "mobile": "Mobile number (optional)",
+      "role": "Role you're applying for",
+      "message": "A bit about you (optional)",
+      "cv": "CV (optional, PDF)"
+    },
+    "roles": {
+      "developer": "Developer",
+      "designer": "Designer",
+      "software_expert": "Software expert",
+      "marketing": "Marketing",
+      "sales": "Sales",
+      "support": "Support",
+      "consultant": "Consultant",
+      "partner": "Business partner",
+      "other": "Other"
+    },
+    "submit": "Submit application",
+    "submitting": "Submitting...",
+    "success": "Your application was received - we'll be in touch soon.",
+    "error": "Could not submit the application"
+  },
+  "affiliate": {
+    "title": "Affiliate program",
+    "subtitle": "Register as an affiliate and get your own referral link, and earn a commission for every merchant who subscribes through it.",
+    "fields": { "fullName": "Full name", "email": "Email", "mobile": "Mobile number (optional)" },
+    "submit": "Register as an affiliate",
+    "submitting": "Registering...",
+    "successTitle": "You're registered",
+    "codeLabel": "Your referral code",
+    "linkLabel": "Your referral link",
+    "error": "Could not register"
+  }
+}

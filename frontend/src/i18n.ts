@@ -22,6 +22,7 @@ import arIntegration from './locales/ar/integration.json';
 import arOnboarding from './locales/ar/onboarding.json';
 import arTeam from './locales/ar/team.json';
 import arAdmin from './locales/ar/admin.json';
+import arSite from './locales/ar/site.json';
 
 import enCommon from './locales/en/common.json';
 import enNav from './locales/en/nav.json';
@@ -44,6 +45,7 @@ import enIntegration from './locales/en/integration.json';
 import enOnboarding from './locales/en/onboarding.json';
 import enTeam from './locales/en/team.json';
 import enAdmin from './locales/en/admin.json';
+import enSite from './locales/en/site.json';
 
 export const SUPPORTED_LANGUAGES = ['ar', 'en'] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
@@ -82,6 +84,7 @@ i18n.use(initReactI18next).init({
       onboarding: arOnboarding,
       team: arTeam,
       admin: arAdmin,
+      site: arSite,
     },
     en: {
       common: enCommon,
@@ -105,6 +108,7 @@ i18n.use(initReactI18next).init({
       onboarding: enOnboarding,
       team: enTeam,
       admin: enAdmin,
+      site: enSite,
     },
   },
   ns: [
@@ -129,6 +133,7 @@ i18n.use(initReactI18next).init({
     'onboarding',
     'team',
     'admin',
+    'site',
   ],
   defaultNS: 'common',
   lng: detectInitialLanguage(),

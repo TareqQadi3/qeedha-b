@@ -1,15 +1,18 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { PlatformAdminRole } from '@prisma/client';
 import { PLATFORM_ADMIN_JWT_SCOPE } from './platform-admin.service';
 
 export interface AuthenticatedPlatformAdmin {
   adminId: string;
+  role: PlatformAdminRole;
 }
 
 interface PlatformAdminTokenPayload {
   sub: string;
   scope: string;
+  role: PlatformAdminRole;
 }
 
 /**
@@ -51,7 +54,10 @@ export class PlatformAdminAuthGuard implements CanActivate {
       throw new UnauthorizedException('رمز غير صالح لهذا الغرض');
     }
 
-    const authenticatedAdmin: AuthenticatedPlatformAdmin = { adminId: payload.sub };
+    const authenticatedAdmin: AuthenticatedPlatformAdmin = {
+      adminId: payload.sub,
+      role: payload.role,
+    };
     request.platformAdmin = authenticatedAdmin;
     return true;
   }

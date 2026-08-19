@@ -1,5 +1,43 @@
 # سجل التغييرات (Changelog)
 
+## [Website Phase: الموقع الرسمي، التسجيل، التسويق بالعمولة، مركز تحكم مُوسَّع] - 2026-08-19
+
+راجع `docs/WEBSITE.md` للتوثيق الكامل. ملخّص:
+
+### الخلفية (Backend)
+- Schema: `Market`، `Affiliate`/`AffiliateReferral`/`Commission`،
+  `JoinApplication`، `EmailVerificationToken`، `PlatformAdmin.role`
+  (Enum `PlatformAdminRole`)، `Company.countryCode`، وامتداد `Plan`
+  (`priceAnnualSar`, `products`, `isRecommended`, `displayOrder`).
+- وحدات جديدة: `email` (منفذ/مزوّد على نمط `StorageModule`)، `website`
+  (قراءة عامة للباقات/الأسواق)، `affiliates`، `careers`.
+- `AuthService`: تسجيل يقبل الآن `countryCode`/`planCode`/`referralCode`
+  اختياريًا، تأكيد بريد إلكتروني حقيقي، **ورفض تسجيل بريد/جوال مكرر
+  بأمان** (كان غائبًا تمامًا من قبل — `User.email` بلا قيد فريد، وتسجيل
+  الدخول كان يستخدم `findFirst` غير حتمي عند وجود تكرار).
+- `PlatformAdminController`/`Service` مُوسَّعان بالكامل: RBAC داخلي
+  بخمسة أدوار (`admin/finance/support/marketing/developer`)، نظرة عامة،
+  إدارة اشتراك (حالة/باقة/تمديد تجربة)، CRUD للباقات والأسواق، وعرض
+  المسوّقين/طلبات التوظيف.
+- منح Postgres جديدان (`005`, `006`) على الدور المتجاوز لـRLS
+  `qeedha_platform_admin` لعمودي `subscriptions` و`companies.country_code`
+  فقط — نطاق ضيّق كسابقيه بالضبط.
+
+### الواجهة الأمامية (Frontend)
+- موقع تسويقي عام كامل تحت `/site/*` (13 صفحة + تخطيط مشترك RTL/LTR).
+- `RegisterPage` تقرأ `?plan=&country=&ref=` وتعرض شاشة تأكيد بعد
+  التسجيل؛ صفحة `/verify-email` جديدة.
+- مركز التحكم (`/admin`) أصبح بتبويبات سبعة (نظرة عامة، المنشآت، الباقات،
+  الأسواق، المسوّقون، طلبات التوظيف، الموظفون) — كل تبويب يظهر فقط لدور
+  يملك صلاحيته فعليًا على الخلفية.
+
+### الاختبارات
+- `test/website.e2e-spec.ts` جديد (6 سيناريوهات) + `platform-admin.e2e-spec.ts`
+  الموجود لا يزال ناجحًا بعد إصلاح صلاحية عمود كانت تمنع قائمة المنشآت
+  (`42501 permission denied`) — 257/257 اختبار خلفي ناجح.
+- 61/61 اختبار Vitest أمامي ناجح، `tsc`/`eslint`/`vite build` نظيفة،
+  وتحقّق بصري حقيقي بمتصفح (Playwright) لكل المسارات الجديدة.
+
 ## [لوحة تحكم SaaS: مدير منصة منفصل] - 2026-08-19
 
 **ليست Milestone جديدة — ميزة مطلوبة صراحةً.** فاعل جديد كليًا

@@ -11,6 +11,15 @@
     "email": "البريد الإلكتروني",
     "password": "كلمة المرور"
   },
+  "tabs": {
+    "overview": "نظرة عامة",
+    "merchants": "المنشآت",
+    "plans": "الباقات",
+    "markets": "الأسواق",
+    "affiliates": "المسوّقون بالعمولة",
+    "applications": "طلبات التوظيف",
+    "staff": "الموظفون"
+  },
   "dashboard": {
     "title": "المنشآت",
     "subtitle": "كل منشآت التجار على المنصة",
@@ -22,14 +31,27 @@
       "legalName": "الاسم القانوني",
       "tradeName": "الاسم التجاري",
       "vatNumber": "الرقم الضريبي",
+      "country": "الدولة",
       "status": "الحالة",
-      "createdAt": "تاريخ الإنشاء"
+      "subscription": "الاشتراك",
+      "product": "المنتج",
+      "createdAt": "تاريخ الإنشاء",
+      "actions": "إجراءات"
     },
     "status": {
       "active": "نشطة",
       "suspended": "موقوفة"
     },
-    "empty": "لا توجد منشآت بعد"
+    "subStatus": {
+      "trialing": "تجريبي",
+      "active": "نشط",
+      "expired": "منتهٍ",
+      "suspended": "موقوف",
+      "cancelled": "ملغى",
+      "none": "بلا اشتراك"
+    },
+    "empty": "لا توجد منشآت بعد",
+    "manage": "إدارة الاشتراك"
   },
   "createModal": {
     "title": "منشأة تاجر جديدة",
@@ -48,7 +70,130 @@
     "instructions": "شارك بيانات الدخول التالية مع التاجر كي يسجّل دخوله مباشرة:",
     "close": "إغلاق"
   },
+  "subscriptionModal": {
+    "title": "إدارة اشتراك: {{name}}",
+    "status": "حالة الاشتراك",
+    "changeStatus": "تحديث الحالة",
+    "plan": "الباقة",
+    "changePlan": "تغيير الباقة",
+    "extendDays": "عدد أيام تمديد التجربة",
+    "extendTrial": "تمديد التجربة",
+    "close": "إغلاق"
+  },
+  "overview": {
+    "totalMerchants": "إجمالي المنشآت",
+    "activeMerchants": "منشآت نشطة",
+    "trialSubscriptions": "اشتراكات تجريبية",
+    "expiredTrials": "تجارب منتهية",
+    "activeSubscriptions": "اشتراكات نشطة",
+    "suspendedSubscriptions": "اشتراكات موقوفة",
+    "cancelledSubscriptions": "اشتراكات ملغاة",
+    "qeedhaBSubscribers": "مشتركو qeedha B فقط",
+    "qeedhaSubscribers": "مشتركو qeedha فقط",
+    "combinedSubscribers": "مشتركو الباقة المدمجة",
+    "totalAffiliates": "عدد المسوّقين",
+    "totalCommissionSar": "إجمالي العمولات (ر.س)",
+    "pendingCommissionSar": "عمولات معلّقة (ر.س)",
+    "totalApplications": "طلبات التوظيف",
+    "newApplications": "طلبات جديدة",
+    "recentMerchants": "أحدث المنشآت"
+  },
+  "plans": {
+    "title": "الباقات",
+    "subtitle": "باقات الاشتراك - أسعارها ومنتجاتها المتاحة",
+    "addButton": "+ باقة جديدة",
+    "table": {
+      "code": "الرمز",
+      "name": "الاسم",
+      "priceMonthly": "السعر الشهري",
+      "priceAnnual": "السعر السنوي",
+      "products": "المنتجات",
+      "recommended": "مقترحة",
+      "active": "مفعّلة"
+    },
+    "modal": {
+      "createTitle": "باقة جديدة",
+      "editTitle": "تعديل الباقة",
+      "code": "الرمز (إنجليزي)",
+      "name": "الاسم",
+      "description": "الوصف",
+      "priceMonthly": "السعر الشهري (ر.س)",
+      "priceAnnual": "السعر السنوي (ر.س)",
+      "products": "المنتجات المشمولة",
+      "isRecommended": "باقة مقترحة",
+      "isActive": "مفعّلة",
+      "submit": "حفظ",
+      "submitting": "...جارٍ الحفظ"
+    },
+    "empty": "لا توجد باقات"
+  },
+  "markets": {
+    "title": "الأسواق",
+    "subtitle": "الدول واللغات المدعومة على الموقع",
+    "addButton": "+ سوق جديد",
+    "table": { "code": "الرمز", "nameAr": "الاسم بالعربية", "nameEn": "الاسم بالإنجليزية", "currency": "العملة", "active": "مفعّل" },
+    "modal": {
+      "createTitle": "سوق جديد",
+      "editTitle": "تعديل السوق",
+      "code": "رمز الدولة (ISO Alpha-2)",
+      "nameAr": "الاسم بالعربية",
+      "nameEn": "الاسم بالإنجليزية",
+      "currency": "رمز العملة (ISO 4217)",
+      "isActive": "مفعّل",
+      "submit": "حفظ",
+      "submitting": "...جارٍ الحفظ"
+    },
+    "empty": "لا توجد أسواق"
+  },
+  "affiliates": {
+    "title": "المسوّقون بالعمولة",
+    "subtitle": "المسوّقون وإحصائيات الإحالة والعمولة",
+    "table": {
+      "fullName": "الاسم",
+      "email": "البريد الإلكتروني",
+      "code": "رمز الإحالة",
+      "commissionPercent": "نسبة العمولة",
+      "referralsCount": "عدد الإحالات",
+      "totalCommission": "إجمالي العمولة",
+      "pendingCommission": "عمولة معلّقة",
+      "status": "الحالة"
+    },
+    "empty": "لا يوجد مسوّقون بعد"
+  },
+  "applications": {
+    "title": "طلبات التوظيف",
+    "subtitle": "طلبات الانضمام (Join Us)",
+    "table": { "fullName": "الاسم", "email": "البريد الإلكتروني", "role": "الدور المطلوب", "status": "الحالة", "createdAt": "التاريخ" },
+    "status": { "new": "جديد", "reviewed": "قيد المراجعة", "accepted": "مقبول", "rejected": "مرفوض" },
+    "empty": "لا توجد طلبات بعد"
+  },
+  "staff": {
+    "title": "الموظفون",
+    "subtitle": "حسابات موظفي مركز التحكم وصلاحياتهم",
+    "addButton": "+ موظف جديد",
+    "table": { "fullName": "الاسم", "email": "البريد الإلكتروني", "role": "الدور", "status": "الحالة" },
+    "roles": {
+      "admin": "مدير عام",
+      "finance": "مالية",
+      "support": "دعم",
+      "marketing": "تسويق",
+      "developer": "تقني"
+    },
+    "modal": {
+      "title": "موظف جديد",
+      "fullName": "الاسم الكامل",
+      "email": "البريد الإلكتروني",
+      "password": "كلمة المرور",
+      "role": "الدور",
+      "submit": "إنشاء",
+      "submitting": "...جارٍ الإنشاء"
+    },
+    "empty": "لا يوجد موظفون بعد"
+  },
   "errors": {
-    "createFailed": "تعذّر إنشاء المنشأة"
+    "createFailed": "تعذّر إنشاء المنشأة",
+    "loadFailed": "تعذّر تحميل البيانات",
+    "actionFailed": "تعذّر تنفيذ الإجراء",
+    "forbidden": "لا تملك صلاحية الوصول لهذا القسم"
   }
 }

@@ -89,6 +89,20 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   STORAGE_LOCAL_DIR?: string;
+
+  // Website phase: email provider driver - only "console" (log, no real
+  // delivery) is implemented; see EmailModule. Optional, defaults to "console".
+  @IsOptional()
+  @IsString()
+  EMAIL_DRIVER?: string;
+
+  // Website phase: public frontend origin used to build links inside
+  // transactional emails (e.g. the email-verification link) - see
+  // EmailService.websiteBaseUrl. Optional, defaults to the local Vite dev
+  // server origin.
+  @IsOptional()
+  @IsString()
+  WEBSITE_BASE_URL?: string;
 }
 
 // Milestone 10 (production release hardening): the exact placeholder

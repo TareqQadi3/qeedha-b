@@ -22,6 +22,19 @@ export class CreateCompanyByAdminDto {
   @IsString()
   branchName?: string;
 
+  // Website phase: admin picks the merchant's market and package, same as
+  // the merchant would on the public pricing page. Optional (defaults
+  // applied in AuthService.createCompanyWithOwner) - no referralCode here,
+  // that's specifically for organic website signups, not admin-created
+  // companies.
+  @IsOptional()
+  @IsString()
+  countryCode?: string;
+
+  @IsOptional()
+  @IsString()
+  planCode?: string;
+
   @IsString()
   @MinLength(2)
   ownerFullName: string;

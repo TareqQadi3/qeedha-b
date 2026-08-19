@@ -23,6 +23,21 @@ import { ReportsPage } from './pages/ReportsPage';
 import { SubscriptionPage } from './pages/SubscriptionPage';
 import { SuppliersPage } from './pages/SuppliersPage';
 import { TeamPage } from './pages/TeamPage';
+import { VerifyEmailPage } from './pages/VerifyEmailPage';
+import { SiteLayout } from './site/SiteLayout';
+import { AboutPage } from './site/pages/AboutPage';
+import { AffiliatePage } from './site/pages/AffiliatePage';
+import { CombinedPage } from './site/pages/CombinedPage';
+import { ContactPage } from './site/pages/ContactPage';
+import { FaqPage } from './site/pages/FaqPage';
+import { FeaturesPage } from './site/pages/FeaturesPage';
+import { HomePage } from './site/pages/HomePage';
+import { JoinUsPage } from './site/pages/JoinUsPage';
+import { PricingPage } from './site/pages/PricingPage';
+import { PrivacyPage } from './site/pages/PrivacyPage';
+import { QeedhaBPage } from './site/pages/QeedhaBPage';
+import { QeedhaPage } from './site/pages/QeedhaPage';
+import { TermsPage } from './site/pages/TermsPage';
 import { useAuth } from './state/auth';
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -47,6 +62,22 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/site" element={<SiteLayout />}>
+        <Route index element={<HomePage />} />
+        <Route path="qeedha-b" element={<QeedhaBPage />} />
+        <Route path="qeedha" element={<QeedhaPage />} />
+        <Route path="combined" element={<CombinedPage />} />
+        <Route path="pricing" element={<PricingPage />} />
+        <Route path="features" element={<FeaturesPage />} />
+        <Route path="about" element={<AboutPage />} />
+        <Route path="contact" element={<ContactPage />} />
+        <Route path="faq" element={<FaqPage />} />
+        <Route path="terms" element={<TermsPage />} />
+        <Route path="privacy" element={<PrivacyPage />} />
+        <Route path="join-us" element={<JoinUsPage />} />
+        <Route path="affiliate" element={<AffiliatePage />} />
+      </Route>
       <Route element={<AdminAuthProvider><Outlet /></AdminAuthProvider>}>
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route

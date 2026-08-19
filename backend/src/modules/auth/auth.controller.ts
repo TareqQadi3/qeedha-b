@@ -9,6 +9,7 @@ import { RefreshDto } from './dto/refresh.dto';
 import { RegisterCompanyDto } from './dto/register-company.dto';
 import { SelectTenantDto } from './dto/select-tenant.dto';
 import { SwitchTenantDto } from './dto/switch-tenant.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -73,5 +74,22 @@ export class AuthController {
   @Post('switch-tenant')
   switchTenant(@CurrentUser() user: AuthenticatedUser, @Body() dto: SwitchTenantDto) {
     return this.authService.switchTenant(user.userId, dto.companyId);
+  }
+
+  /** Website phase - consumes the token from the verification email link. */
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('verify-email')
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  /** Website phase - re-sends the verification email for the CURRENT session's user only (never accepts an arbitrary email, to avoid leaking account existence). */
+  @SubscriptionExempt()
+  @HttpCode(HttpStatus.OK)
+  @Post('resend-verification')
+  resendVerification(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.resendVerification(user.userId);
   }
 }

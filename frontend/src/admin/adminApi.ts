@@ -49,4 +49,5 @@ async function request(path: string, options: { method?: string; body?: unknown 
 export const adminApi = {
   get: (path: string) => request(path, { method: 'GET' }),
   post: (path: string, body?: unknown) => request(path, { method: 'POST', body }),
+  patch: (path: string, body?: unknown) => request(path, { method: 'PATCH', body }),
 };

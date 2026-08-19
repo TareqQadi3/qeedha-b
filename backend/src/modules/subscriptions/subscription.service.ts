@@ -122,8 +122,22 @@ export class SubscriptionService {
    * PLAN_CODES.PROFESSIONAL (the most generous seed plan) is the one
    * assigned here.
    */
-  async createInitialSubscription(tx: TenantClient, companyId: string) {
-    const plan = await tx.plan.findUnique({ where: { code: PLAN_CODES.PROFESSIONAL } });
+  /**
+   * `planCode` is the Website phase's package selection (Pricing page ->
+   * RegisterCompanyDto.planCode) - optional, defaults to
+   * PLAN_CODES.PROFESSIONAL exactly as before this parameter existed, so
+   * every pre-existing caller (registerCompany with no planCode, the
+   * lazy-backfill path in loadContext) is unaffected. Falls back to the
+   * same default if the requested code doesn't resolve to an active plan,
+   * rather than failing registration over an invalid/stale code from the
+   * client.
+   */
+  async createInitialSubscription(tx: TenantClient, companyId: string, planCode?: string) {
+    const requestedPlan = planCode
+      ? await tx.plan.findFirst({ where: { code: planCode, isActive: true } })
+      : null;
+    const plan =
+      requestedPlan ?? (await tx.plan.findUnique({ where: { code: PLAN_CODES.PROFESSIONAL } }));
     if (!plan) {
       throw new InternalServerErrorException(
         'خطة الاشتراك الافتراضية غير موجودة - تأكد من تشغيل prisma db seed',

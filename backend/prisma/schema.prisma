@@ -28,6 +28,10 @@ model Company {
   vatNumber       String?       @map("vat_number")
   crNumber        String?       @map("cr_number")
   defaultCurrency String        @default("SAR") @map("default_currency")
+  // Market the company registered under (Website phase) - free-text ISO
+  // country code, not an FK to Market.code, so a company keeps its history
+  // even if a market is later deactivated/removed. See Market model below.
+  countryCode     String        @default("SA") @map("country_code")
   status          CompanyStatus @default(active)
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
@@ -183,25 +187,33 @@ enum UserStatus {
 }
 
 model User {
-  id           String     @id @default(uuid()) @db.Uuid
-  fullName     String     @map("full_name")
-  email        String?
-  mobile       String?
+  id              String     @id @default(uuid()) @db.Uuid
+  fullName        String     @map("full_name")
+  email           String?
+  mobile          String?
   // Team members created by a merchant (POS/accountant/...) via IamService.createUser
   // rarely have a real email/mobile - a username lets the merchant set up
   // that identity with only a name, username, and password. Owners created
   // through company registration still use email/mobile as before; this is
   // purely an additional identifier, never required together with them.
-  username     String?    @unique
-  passwordHash String     @map("password_hash")
-  status       UserStatus @default(active)
-  locale       String     @default("ar")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  deletedAt    DateTime?  @map("deleted_at")
+  username        String?    @unique
+  passwordHash    String     @map("password_hash")
+  status          UserStatus @default(active)
+  locale          String     @default("ar")
+  // Website phase: set the first time EmailVerificationService.verify()
+  // succeeds for this user. Deliberately NOT enforced as a login/access
+  // gate yet (see docs/WEBSITE.md "Email verification") - registration
+  // still issues tokens immediately, matching every existing
+  // register-company caller/test. This column exists so verification is
+  // real, persisted state a merchant/admin can see, not a UI-only flag.
+  emailVerifiedAt DateTime?  @map("email_verified_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
 
-  memberships   Membership[]
-  refreshTokens RefreshToken[]
+  memberships             Membership[]
+  refreshTokens           RefreshToken[]
+  emailVerificationTokens EmailVerificationToken[]
 
   // Globally unique on purpose: one person, one login identity, usable
   // across every company they hold a Membership in. Login resolves the
@@ -218,6 +230,22 @@ enum PlatformAdminStatus {
   disabled
 }
 
+// Control Center RBAC (Website phase) - deliberately a single role field,
+// not a full permission-key system like tenant IAM's Role/Permission/
+// RolePermission: the Control Center has a handful of fixed sections
+// (merchants, subscriptions, plans, markets, affiliates, applications,
+// staff), not an open-ended per-tenant-customizable permission catalog.
+// `admin` is the only role that can manage staff/plans/markets - every
+// other role is read/act-scoped to its own section (RequirePlatformAdminRole
+// guard, platform-admin.controller.ts).
+enum PlatformAdminRole {
+  admin
+  finance
+  support
+  marketing
+  developer
+}
+
 // The SaaS control-panel actor: an Anthropic/Qeedha-side operator who can
 // create merchant companies on their behalf and see the platform across
 // every tenant. Deliberately a SEPARATE identity from `User` - it is not a
@@ -229,13 +257,14 @@ enum PlatformAdminStatus {
 // `companies` across every tenant without touching the narrow
 // qeedha_auth_lookup role's grants).
 model PlatformAdmin {
-  id           String               @id @default(uuid()) @db.Uuid
-  fullName     String               @map("full_name")
-  email        String               @unique
-  passwordHash String               @map("password_hash")
-  status       PlatformAdminStatus  @default(active)
-  createdAt    DateTime             @default(now()) @map("created_at")
-  updatedAt    DateTime             @updatedAt @map("updated_at")
+  id           String              @id @default(uuid()) @db.Uuid
+  fullName     String              @map("full_name")
+  email        String              @unique
+  passwordHash String              @map("password_hash")
+  role         PlatformAdminRole   @default(admin)
+  status       PlatformAdminStatus @default(active)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
 
   @@map("platform_admins")
 }
@@ -356,6 +385,24 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// Website phase - see docs/WEBSITE.md "Email verification". Same
+// hashed-opaque-token pattern as RefreshToken (tokenHash unique, never
+// store the raw token). Not RLS-protected: same reasoning as RefreshToken
+// (users carries no company_id, this isn't tenant data).
+model EmailVerificationToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
 }
 
 // ---------------------------------------------------------------------------
@@ -1716,12 +1763,29 @@ model Plan {
   isActive        Boolean  @default(true) @map("is_active")
   trialEligible   Boolean  @default(true) @map("trial_eligible")
   priceMonthlySar Decimal? @map("price_monthly_sar") @db.Decimal(10, 2)
+  // Website phase: optional annual price alongside the existing monthly
+  // one - null means "annual billing not offered for this plan", not
+  // "free". billingInterval stays the DEFAULT interval shown/selected,
+  // unchanged in meaning from before this column existed.
+  priceAnnualSar  Decimal? @map("price_annual_sar") @db.Decimal(10, 2)
   billingInterval String   @default("monthly") @map("billing_interval")
   // null = unlimited for that resource - see SubscriptionService.assertWithinLimit.
   maxUsers        Int?     @map("max_users")
   maxBranches     Int?     @map("max_branches")
   maxMonthlySales Int?     @map("max_monthly_sales")
   features        Json
+  // Website phase ("Packages/Commercial model"): which product(s) this
+  // plan/package grants - a JSON array of ProductKey values ("qeedha_b" |
+  // "qeedha"), e.g. ["qeedha_b"], ["qeedha"], or ["qeedha_b","qeedha"] for
+  // a combined package. Every plan seeded before this phase defaults to
+  // ["qeedha_b"] (see migration) - qeedha B is the only product that
+  // actually exists in this codebase; "qeedha" entries are prepared
+  // product-entitlement state only, not a working integration (the qeedha
+  // financing platform is a separate project/database - see
+  // docs/WEBSITE.md "qeedha integration boundary").
+  products        Json     @default("[\"qeedha_b\"]")
+  isRecommended   Boolean  @default(false) @map("is_recommended")
+  displayOrder    Int      @default(0) @map("display_order")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -1768,4 +1832,148 @@ model Subscription {
   @@index([status])
   @@index([planId])
   @@map("subscriptions")
+}
+
+// ---------------------------------------------------------------------------
+// Website / SaaS entry platform (not a Milestone - explicitly requested
+// feature; see docs/WEBSITE.md for the full design). Global catalog data,
+// same "every tenant/visitor may read this, no RLS needed" reasoning as
+// Plan above - Market/Affiliate/JoinApplication are platform-level, not
+// tenant-owned.
+// ---------------------------------------------------------------------------
+
+// Country/market the Control Center can add/activate without a code
+// deploy (Website phase spec "Language and country"). `code` is a plain
+// ISO 3166-1 alpha-2 string, not an enum, so adding a market is a data
+// change only. Company.countryCode is NOT a foreign key to this table
+// (see that field's comment) - a company keeps its registered country
+// even if the market row is later deactivated.
+model Market {
+  code               String   @id
+  nameAr             String   @map("name_ar")
+  nameEn             String   @map("name_en")
+  currency           String
+  // JSON array of supported language codes for this market, e.g. ["ar","en"].
+  supportedLanguages Json     @default("[\"ar\",\"en\"]") @map("supported_languages")
+  isActive           Boolean  @default(true) @map("is_active")
+  displayOrder       Int      @default(0) @map("display_order")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("markets")
+}
+
+enum AffiliateStatus {
+  active
+  disabled
+}
+
+// A person/organization registered via the public "/site/affiliate" page
+// to earn commission for merchants they refer. Deliberately NOT a
+// PlatformAdmin or a User/Membership - a third distinct identity kind,
+// same reasoning as PlatformAdmin's own doc comment: different trust
+// level and lifecycle from either a tenant Membership or a platform
+// operator. No login/session exists for affiliates yet (read-only
+// self-service dashboard is a documented follow-up, see
+// docs/WEBSITE.md "Known gaps") - only the Control Center can view
+// affiliate/referral/commission data in this phase.
+model Affiliate {
+  id                String          @id @default(uuid()) @db.Uuid
+  fullName          String          @map("full_name")
+  email             String          @unique
+  mobile            String?
+  // Short, URL-safe, unique code used as `?ref=<code>` - see AuthService
+  // referral attribution in createCompanyWithOwner.
+  code              String          @unique
+  // Percentage (0-100) of the referred company's plan price awarded as
+  // commission - Control Center configurable per affiliate (spec:
+  // "Commission rules should be configurable from the Control Center").
+  commissionPercent Decimal         @default(10) @map("commission_percent") @db.Decimal(5, 2)
+  status            AffiliateStatus @default(active)
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  referrals AffiliateReferral[]
+
+  @@map("affiliates")
+}
+
+// One row per referred Company (first-touch attribution: a company is
+// attributed to whichever affiliate code was present at registration
+// time, and never re-attributed afterward - see AuthService). companyId
+// is unique for exactly this reason. Deliberately NOT tenant-scoped/RLS
+// (this is platform-level attribution data the merchant's own tenant
+// never reads) - only Company.id is stored, no other tenant data.
+model AffiliateReferral {
+  id          String   @id @default(uuid()) @db.Uuid
+  affiliateId String   @map("affiliate_id") @db.Uuid
+  companyId   String   @unique @map("company_id") @db.Uuid
+  code        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  commission Commission?
+
+  @@index([affiliateId])
+  @@map("affiliate_referrals")
+}
+
+enum CommissionStatus {
+  pending
+  approved
+  paid
+}
+
+// Computed electronically, once, the first time a referred company's
+// subscription transitions to `active` (paid) - see
+// SubscriptionService.setStatus. Never created/edited with a fabricated
+// amount (Website phase spec: "Do not implement fake/manual commission
+// values") - `amountSar` is always `referral.affiliate.commissionPercent`
+// applied to the plan price in effect at that moment, captured once so a
+// later price/percent change never retroactively changes a
+// already-computed commission.
+model Commission {
+  id                  String           @id @default(uuid()) @db.Uuid
+  affiliateReferralId String           @unique @map("affiliate_referral_id") @db.Uuid
+  amountSar           Decimal          @map("amount_sar") @db.Decimal(10, 2)
+  status              CommissionStatus @default(pending)
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  affiliateReferral AffiliateReferral @relation(fields: [affiliateReferralId], references: [id], onDelete: Cascade)
+
+  @@map("commissions")
+}
+
+enum JoinApplicationStatus {
+  new
+  reviewed
+  accepted
+  rejected
+}
+
+// "Join Us" / careers / partner applications (Website phase spec). No
+// applicant login/session - this is a one-way public submission, reviewed
+// only from the Control Center. `cvFileKey` reuses the existing
+// StorageService (same key/buffer abstraction Excel import already uses)
+// - see StorageService.buildJoinApplicationFileKey.
+model JoinApplication {
+  id        String                @id @default(uuid()) @db.Uuid
+  fullName  String                @map("full_name")
+  email     String
+  mobile    String?
+  // Free-text role label (spec lists examples: Developer, Designer,
+  // Marketing, Sales, Support, Consultant, Partner, Other) - not an enum,
+  // since the Control Center should never need a deploy to accept a new
+  // role label.
+  role      String
+  message   String?
+  cvFileKey String?               @map("cv_file_key")
+  status    JoinApplicationStatus @default(new)
+  createdAt DateTime              @default(now()) @map("created_at")
+  updatedAt DateTime              @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("join_applications")
 }

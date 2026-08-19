@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
@@ -14,6 +15,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { hashToken } from '../../common/utils/token-hash';
 import { parseDurationMs } from '../../common/utils/duration';
 import { AccountingService } from '../accounting/accounting.service';
+import { EmailService } from '../email/email.service';
 import { IamService } from '../iam/iam.service';
 import { SubscriptionService } from '../subscriptions/subscription.service';
 import { AuthLookupService } from './auth-lookup.service';
@@ -24,6 +26,8 @@ import { SelectTenantDto } from './dto/select-tenant.dto';
 
 const OWNER_ROLE_NAME = 'Owner';
 const TENANT_SELECTION_PURPOSE = 'tenant_selection';
+const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_COUNTRY_CODE = 'SA';
 
 interface TenantSelectionPayload {
   sub: string; // userId
@@ -38,6 +42,7 @@ export class AuthService {
     private readonly iamService: IamService,
     private readonly accountingService: AccountingService,
     private readonly subscriptionService: SubscriptionService,
+    private readonly emailService: EmailService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
   ) {}
@@ -65,6 +70,26 @@ export class AuthService {
    * never change what a company starts with.
    */
   async createCompanyWithOwner(dto: RegisterCompanyDto) {
+    // Website phase ("duplicate email/mobile rejected safely and without
+    // leaking account existence"): User.email/mobile carry no DB-level
+    // unique constraint (team members created via IamService.createUser
+    // routinely share neither), so this is an explicit app-level check
+    // rather than relying on a constraint violation. The message names
+    // neither which field matched nor which account it belongs to - just
+    // that registration can't proceed with these details.
+    const duplicateFilters = [
+      dto.ownerEmail ? { email: dto.ownerEmail } : null,
+      dto.ownerMobile ? { mobile: dto.ownerMobile } : null,
+    ].filter((f): f is { email: string } | { mobile: string } => f !== null);
+    if (duplicateFilters.length > 0) {
+      const existing = await this.prisma.user.findFirst({ where: { OR: duplicateFilters } });
+      if (existing) {
+        throw new ConflictException(
+          'تعذّر إكمال التسجيل بهذه البيانات - إن كان لديك حساب بالفعل، يرجى تسجيل الدخول',
+        );
+      }
+    }
+
     const passwordHash = await argon2.hash(dto.password);
 
     // Ids are pre-generated so we can open the RLS tenant transaction for
@@ -84,6 +109,7 @@ export class AuthService {
           tradeName: dto.tradeName,
           vatNumber: dto.vatNumber,
           crNumber: dto.crNumber,
+          countryCode: dto.countryCode ?? DEFAULT_COUNTRY_CODE,
         },
       });
 
@@ -145,14 +171,108 @@ export class AuthService {
       await this.accountingService.seedDefaultExpenseCategories(tx, companyId, accountsByCode);
 
       // Milestone 8: every company gets a real subscription from the moment
-      // it exists (trialing, on the most generous seed plan) - never a
-      // null/absent subscription. See SubscriptionService.createInitialSubscription.
-      await this.subscriptionService.createInitialSubscription(tx, companyId);
+      // it exists (trialing, on the most generous seed plan by default, or
+      // the Website phase's selected package - see createInitialSubscription).
+      await this.subscriptionService.createInitialSubscription(tx, companyId, dto.planCode);
+
+      // Website phase ("Affiliate system"): first-touch attribution only -
+      // a company is linked to whichever referral code was present at
+      // registration, and this is the only moment that ever happens (no
+      // later re-attribution). Silently skipped for an unknown/inactive
+      // code rather than failing registration over it - referral tracking
+      // is a courtesy to the affiliate, never a blocker for the merchant.
+      if (dto.referralCode) {
+        const affiliate = await tx.affiliate.findFirst({
+          where: { code: dto.referralCode, status: 'active' },
+        });
+        if (affiliate) {
+          await tx.affiliateReferral.create({
+            data: { affiliateId: affiliate.id, companyId, code: dto.referralCode },
+          });
+        }
+      }
 
       return { user, membership };
     });
 
+    // Best-effort, outside the transaction and never allowed to fail
+    // registration itself (see EmailService's doc comment) - the account
+    // is fully created and usable either way.
+    try {
+      const rawToken = randomBytes(32).toString('hex');
+      await this.prisma.emailVerificationToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: hashToken(rawToken),
+          expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+        },
+      });
+      if (user.email) {
+        await this.emailService.sendVerificationEmail({
+          to: user.email,
+          fullName: user.fullName,
+          token: rawToken,
+        });
+        await this.emailService.sendWelcomeEmail({
+          to: user.email,
+          fullName: user.fullName,
+          companyName: dto.legalName,
+        });
+      }
+    } catch {
+      // Logged inside EmailService/ConsoleEmailProvider's own call path if
+      // relevant - never rethrown here.
+    }
+
     return { companyId, user, membership };
+  }
+
+  /** Consumes a raw email-verification token - see docs/WEBSITE.md "Email verification". */
+  async verifyEmail(rawToken: string) {
+    const tokenHash = hashToken(rawToken);
+    const token = await this.prisma.emailVerificationToken.findUnique({ where: { tokenHash } });
+    if (!token || token.consumedAt || token.expiresAt < new Date()) {
+      throw new UnauthorizedException('رابط التأكيد غير صالح أو منتهي الصلاحية');
+    }
+
+    const [user] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: token.userId },
+        data: { emailVerifiedAt: new Date() },
+      }),
+      this.prisma.emailVerificationToken.update({
+        where: { id: token.id },
+        data: { consumedAt: new Date() },
+      }),
+    ]);
+
+    return { success: true, email: user.email };
+  }
+
+  /** Re-sends a fresh verification email for the currently authenticated user - never leaks whether an arbitrary email exists (auth required, not identifier-based). */
+  async resendVerification(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.email) {
+      throw new NotFoundException('لا يوجد بريد إلكتروني على هذا الحساب');
+    }
+    if (user.emailVerifiedAt) {
+      return { success: true, alreadyVerified: true };
+    }
+
+    const rawToken = randomBytes(32).toString('hex');
+    await this.prisma.emailVerificationToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(rawToken),
+        expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+      },
+    });
+    await this.emailService.sendVerificationEmail({
+      to: user.email,
+      fullName: user.fullName,
+      token: rawToken,
+    });
+    return { success: true, alreadyVerified: false };
   }
 
   /**
@@ -352,6 +472,7 @@ export class AuthService {
         mobile: membership.user.mobile,
         username: membership.user.username,
         locale: membership.user.locale,
+        emailVerified: membership.user.emailVerifiedAt !== null,
         companyId: user.companyId,
         membershipId: membership.id,
         roles: membership.membershipRoles.map((mr) => ({

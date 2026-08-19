@@ -29,6 +29,10 @@ import { ImportsModule } from './modules/imports/imports.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { QeedhaIntegrationModule } from './modules/qeedha-integration/qeedha-integration.module';
 import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module';
+import { EmailModule } from './modules/email/email.module';
+import { WebsiteModule } from './modules/website/website.module';
+import { AffiliatesModule } from './modules/affiliates/affiliates.module';
+import { CareersModule } from './modules/careers/careers.module';
 
 @Module({
   imports: [
@@ -53,6 +57,10 @@ import { PlatformAdminModule } from './modules/platform-admin/platform-admin.mod
     SubscriptionsModule,
     QeedhaIntegrationModule,
     PlatformAdminModule,
+    EmailModule,
+    WebsiteModule,
+    AffiliatesModule,
+    CareersModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

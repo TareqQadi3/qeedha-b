@@ -52,7 +52,13 @@ describe('RegisterPage', () => {
     );
     await waitFor(() => expect(setSessionSpy).toHaveBeenCalledWith('access', 'refresh'));
     await waitFor(() => expect(refreshMe).toHaveBeenCalled());
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/'));
+
+    // Lands on the success confirmation screen (Website phase) rather than
+    // navigating immediately - the account is already usable, this just
+    // tells the merchant a verification email was sent.
+    expect(await screen.findByText('تم إنشاء منشأتك بنجاح')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'الدخول إلى لوحة التحكم' }));
+    expect(navigate).toHaveBeenCalledWith('/');
   });
 
   it('shows the server error message on failed registration', async () => {

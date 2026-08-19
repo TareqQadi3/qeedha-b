@@ -1,10 +1,13 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { adminApi, clearAdminToken, getAdminToken, setAdminToken } from './adminApi';
 
+export type PlatformAdminRole = 'admin' | 'finance' | 'support' | 'marketing' | 'developer';
+
 interface AdminMe {
   id: string;
   fullName: string;
   email: string;
+  role: PlatformAdminRole;
 }
 
 interface AdminAuthContextValue {

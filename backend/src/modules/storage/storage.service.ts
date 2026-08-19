@@ -38,6 +38,11 @@ export class StorageService {
     return `imports/${companyId}/${jobId}/source.xlsx`;
   }
 
+  /** Website phase ("Join Us" CV upload) - same server-generated-key discipline as buildImportFileKey, never derived from the client's original filename. */
+  buildJoinApplicationFileKey(applicationId: string): string {
+    return `join-applications/${applicationId}/cv`;
+  }
+
   sanitizeDisplayFilename(originalName: string): string {
     const printableOnly = Array.from(originalName)
       .filter((ch) => {
