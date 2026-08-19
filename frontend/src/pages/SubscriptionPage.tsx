@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Card, ErrorBanner, PageHeader } from '../components/ui';
+import { Badge, Card, ErrorBanner, PageHeader } from '../components/ui';
 
 const money = (n: number | string | null) => (n === null ? null : Number(n).toFixed(2));
 
@@ -186,13 +186,11 @@ export function SubscriptionPage() {
           {plans.map((plan) => (
             <div
               key={plan.code}
-              className={`rounded-md border p-3 ${plan.code === data.plan.code ? 'border-brand-500 bg-brand-50/40' : 'border-slate-200'}`}
+              className={`rounded-xl border p-3 transition-colors ${plan.code === data.plan.code ? 'border-brand-500 bg-brand-50/40' : 'border-slate-200'}`}
             >
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-800">{plan.name}</span>
-                {plan.code === data.plan.code && (
-                  <span className="rounded-full bg-brand-500 px-2 py-0.5 text-xs text-white">الخطة الحالية</span>
-                )}
+                {plan.code === data.plan.code && <Badge variant="brand">الخطة الحالية</Badge>}
               </div>
               {plan.description && <div className="mt-1 text-xs text-slate-500">{plan.description}</div>}
               <div className="mt-2 text-sm text-slate-700">
