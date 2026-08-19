@@ -1,5 +1,8 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { AdminAuthProvider, useAdminAuth } from './admin/AdminAuthContext';
+import { AdminDashboardPage } from './admin/AdminDashboardPage';
+import { AdminLoginPage } from './admin/AdminLoginPage';
 import { Layout } from './components/Layout';
 import { AccountingPage } from './pages/AccountingPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -30,11 +33,31 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
+/** Platform admins are a completely separate actor type from tenant Users/Memberships - own session, own login page, never mixed with RequireAuth above (see docs/DOMAIN_MODEL.md "Platform admin"). */
+function RequireAdminAuth({ children }: { children: JSX.Element }) {
+  const { t } = useTranslation('common');
+  const { admin, loading } = useAdminAuth();
+  if (loading) return <div className="p-8 text-center text-slate-400">{t('loading')}</div>;
+  if (!admin) return <Navigate to="/admin/login" replace />;
+  return children;
+}
+
 export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route element={<AdminAuthProvider><Outlet /></AdminAuthProvider>}>
+        <Route path="/admin/login" element={<AdminLoginPage />} />
+        <Route
+          path="/admin"
+          element={
+            <RequireAdminAuth>
+              <AdminDashboardPage />
+            </RequireAdminAuth>
+          }
+        />
+      </Route>
       <Route
         element={
           <RequireAuth>

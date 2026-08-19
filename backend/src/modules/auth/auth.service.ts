@@ -43,6 +43,28 @@ export class AuthService {
   ) {}
 
   async registerCompany(dto: RegisterCompanyDto) {
+    const { companyId, user, membership } = await this.createCompanyWithOwner(dto);
+
+    const tokens = await this.issueTokens(user.id, membership.id, companyId);
+    return {
+      company: { id: companyId, legalName: dto.legalName },
+      user: { id: user.id, fullName: user.fullName, email: user.email, mobile: user.mobile },
+      activeTenant: { companyId, membershipId: membership.id },
+      ...tokens,
+    };
+  }
+
+  /**
+   * The actual company+owner creation, shared by two entry points that
+   * differ only in who's asking and what happens after: a merchant
+   * self-registering via `registerCompany` above (logs the new owner in
+   * immediately), and a platform admin creating a company on a merchant's
+   * behalf via `PlatformAdminService.createCompany` (no session to log
+   * into - the admin isn't the owner). Same tenant, same Chart of
+   * Accounts, same trial subscription either way - "who created it" must
+   * never change what a company starts with.
+   */
+  async createCompanyWithOwner(dto: RegisterCompanyDto) {
     const passwordHash = await argon2.hash(dto.password);
 
     // Ids are pre-generated so we can open the RLS tenant transaction for
@@ -130,13 +152,7 @@ export class AuthService {
       return { user, membership };
     });
 
-    const tokens = await this.issueTokens(user.id, membership.id, companyId);
-    return {
-      company: { id: companyId, legalName: dto.legalName },
-      user: { id: user.id, fullName: user.fullName, email: user.email, mobile: user.mobile },
-      activeTenant: { companyId, membershipId: membership.id },
-      ...tokens,
-    };
+    return { companyId, user, membership };
   }
 
   /**

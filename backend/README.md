@@ -29,8 +29,11 @@ psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting" \
   -f prisma/manual-sql/001_auth_lookup_role.sql
 psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting" \
   -f prisma/manual-sql/002_auth_lookup_role_update.sql
+psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting" \
+  -f prisma/manual-sql/004_platform_admin_role.sql
 
-# 4) بذر الصلاحيات والأدوار النظامية
+# 4) بذر الصلاحيات والأدوار النظامية (يبذر أيضًا مدير منصة واحدًا للوحة
+#    تحكم SaaS إن كان PLATFORM_ADMIN_SEED_EMAIL/PASSWORD معيَّنين في .env)
 npm run prisma:seed
 
 # 5) التشغيل
@@ -55,7 +58,7 @@ database}}`، أو `503` إن فشل فحص قاعدة البيانات — را
 المرفوعة — خارج git) اختياريان في `.env.example`. راجع
 `docs/IMPORT_EXCEL.md` للتصميم الكامل.
 
-## لماذا يوجد دوران لقاعدة البيانات (roles)؟
+## لماذا يوجد دوران (والآن ثلاثة) لقاعدة البيانات (roles)؟
 
 `qeedha_dev`: الدور الرئيسي للتطبيق، خاضع لـRow-Level Security بالكامل
 (`FORCE ROW LEVEL SECURITY` على كل جدول tenant-owned).
@@ -67,6 +70,12 @@ database}}`، أو `503` إن فشل فحص قاعدة البيانات — را
 لأنها لم تعد بيانات tenant. راجع `docs/DOMAIN_MODEL.md`.) التفاصيل والمبرر
 الكامل في `docs/SECURITY.md` وتعليقات
 `src/common/prisma/auth-lookup-prisma.service.ts`.
+
+`qeedha_platform_admin`: دور ثالث، بنفس الفلسفة تمامًا لكن غرض مختلف
+كليًا - يُستخدم حصرًا من لوحة تحكم SaaS (`PlatformAdminService`) لعرض
+`companies` عبر كل الـtenants دفعة واحدة. لم يُوسَّع `qeedha_auth_lookup`
+لهذا الغرض عمدًا (راجع `prisma/manual-sql/004_platform_admin_role.sql`) -
+كل ميزة بدور مستقل بأضيق صلاحية ممكنة له.
 
 **لا تمنح الدور الرئيسي `BYPASSRLS` أبدًا** - هذا يُبطل RLS كخط دفاع لكل
 شيء آخر في النظام.
@@ -81,6 +90,8 @@ psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting_tes
   -c "GRANT CONNECT ON DATABASE qeedha_accounting_test TO qeedha_auth_lookup;"
 psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting_test" \
   -c "GRANT USAGE ON SCHEMA public TO qeedha_auth_lookup; GRANT SELECT (id, company_id, user_id, status) ON memberships TO qeedha_auth_lookup; GRANT SELECT (id, legal_name, trade_name, status) ON companies TO qeedha_auth_lookup;"
+psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting_test" \
+  -f prisma/manual-sql/004_platform_admin_role.sql
 DATABASE_URL="postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting_test?schema=public" npm run prisma:seed
 
 # التشغيل

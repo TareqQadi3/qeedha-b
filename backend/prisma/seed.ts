@@ -3,7 +3,10 @@ import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 import { PERMISSIONS } from '../src/modules/iam/constants/permissions';
 import { SYSTEM_ROLES } from '../src/modules/iam/constants/default-roles';
-import { DEFAULT_PLANS, planFeaturesJson } from '../src/modules/subscriptions/constants/default-plans';
+import {
+  DEFAULT_PLANS,
+  planFeaturesJson,
+} from '../src/modules/subscriptions/constants/default-plans';
 import {
   INTEGRATION_SYSTEM_USER_EMAIL,
   INTEGRATION_SYSTEM_USER_FULL_NAME,
@@ -120,6 +123,28 @@ async function main() {
     console.log('✔ هوية نظام تكامل قيّدها');
   } else {
     console.log('✔ هوية نظام تكامل قيّدها (موجودة بالفعل)');
+  }
+
+  // SaaS admin control panel: platform admins are never self-registered
+  // (unlike merchant Owners via /auth/register-company) - this is the only
+  // way one gets created, and only when both env vars are explicitly set.
+  // Idempotent: re-running the seed never resets an existing admin's
+  // password, matching how every other seed step here behaves.
+  const platformAdminEmail = process.env.PLATFORM_ADMIN_SEED_EMAIL;
+  const platformAdminPassword = process.env.PLATFORM_ADMIN_SEED_PASSWORD;
+  if (platformAdminEmail && platformAdminPassword) {
+    const existingAdmin = await prisma.platformAdmin.findUnique({
+      where: { email: platformAdminEmail },
+    });
+    if (!existingAdmin) {
+      const passwordHash = await argon2.hash(platformAdminPassword);
+      await prisma.platformAdmin.create({
+        data: { fullName: 'مدير المنصة', email: platformAdminEmail, passwordHash },
+      });
+      console.log(`✔ مدير منصة (${platformAdminEmail})`);
+    } else {
+      console.log(`✔ مدير منصة (${platformAdminEmail}) (موجود بالفعل)`);
+    }
   }
 }
 

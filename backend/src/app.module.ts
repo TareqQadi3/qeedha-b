@@ -28,6 +28,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { ImportsModule } from './modules/imports/imports.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { QeedhaIntegrationModule } from './modules/qeedha-integration/qeedha-integration.module';
+import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { QeedhaIntegrationModule } from './modules/qeedha-integration/qeedha-int
     ImportsModule,
     SubscriptionsModule,
     QeedhaIntegrationModule,
+    PlatformAdminModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

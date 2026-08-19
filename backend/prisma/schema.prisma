@@ -213,6 +213,33 @@ model User {
   @@map("users")
 }
 
+enum PlatformAdminStatus {
+  active
+  disabled
+}
+
+// The SaaS control-panel actor: an Anthropic/Qeedha-side operator who can
+// create merchant companies on their behalf and see the platform across
+// every tenant. Deliberately a SEPARATE identity from `User` - it is not a
+// Membership, holds no company_id, and is never RLS-scoped - because
+// "sees every company" and "is scoped to exactly one company at a time"
+// are fundamentally different trust levels that must never share one
+// login/session mechanism (see PlatformAdminAuthGuard, and
+// prisma/manual-sql/004_platform_admin_role.sql for how it reads
+// `companies` across every tenant without touching the narrow
+// qeedha_auth_lookup role's grants).
+model PlatformAdmin {
+  id           String               @id @default(uuid()) @db.Uuid
+  fullName     String               @map("full_name")
+  email        String               @unique
+  passwordHash String               @map("password_hash")
+  status       PlatformAdminStatus  @default(active)
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@map("platform_admins")
+}
+
 enum MembershipStatus {
   active
   suspended

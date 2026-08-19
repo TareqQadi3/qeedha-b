@@ -347,6 +347,24 @@ Endpoint مخصص، ولا صلاحية RBAC جديدة (يظهر ضمن `invoic
 لماذا). لا مسار هنا يقبل `companyId` من الطالب — سياق المنشأة يُشتَق
 حصرًا من الربط المُصادَق عليه عبر السر.
 
+## لوحة تحكم SaaS (`/api/v1/platform-admin`) — مصادقة منفصلة تمامًا عن حسابات التجار
+
+`@Public()` + `PlatformAdminAuthGuard` على كل هذا الـcontroller (نفس نمط
+مسارات قيّدها الخارجية أعلاه) - الفكرة نفسها: هذا فاعل بمستوى ثقة مختلف
+جذريًا (يرى كل منشآت المنصة)، فلا يجوز أن يشارك أي جزء من سلسلة الحراسة
+العادية (`JwtAuthGuard`/`MembershipGuard`/...) التي تفترض جلسة Membership
+مستأجِر واحد. راجع `docs/DOMAIN_MODEL.md` "Platform admin" للتصميم الكامل.
+
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| POST | `/platform-admin/auth/login` | تسجيل دخول مدير المنصة (`email` + `password`) → `{accessToken, admin}` | عام (Rate-limited) |
+| GET | `/platform-admin/auth/me` | بيانات مدير المنصة الحالي | رمز وصول مدير منصة صالح |
+| GET | `/platform-admin/companies` | كل منشآت المنصة عبر كل الـtenants (عبر دور Postgres ثالث ضيق `qeedha_platform_admin` - راجع `prisma/manual-sql/004_platform_admin_role.sql`) | رمز وصول مدير منصة صالح |
+| POST | `/platform-admin/companies` | ينشئ منشأة تاجر + Owner بالنيابة عنه (نفس منطق `POST /auth/register-company` بالضبط - نفس الفرع/المستودع الافتراضي/دليل الحسابات/الاشتراك التجريبي) - لا يُصدر tokens للمدير نفسه، التاجر يسجّل دخوله بنفسه لاحقًا ببيانات الاعتماد التي أدخلها المدير | رمز وصول مدير منصة صالح |
+
+مدير منصة لا يُسجَّل ذاتيًا أبدًا - يُبذَر فقط عبر `prisma/seed.ts` عند
+تعيين `PLATFORM_ADMIN_SEED_EMAIL`/`PLATFORM_ADMIN_SEED_PASSWORD`.
+
 ## Endpoints المراحل القادمة
 
 لا Endpoint مخصص لـZATCA حتى الآن — Phase 1 (توليد QR) مُدمَج ضمن استجابة

@@ -1,0 +1,54 @@
+{
+  "appName": "Qeedha Control Panel",
+  "login": {
+    "title": "Platform admin login",
+    "subtitle": "SaaS control panel - manage merchant companies",
+    "submit": "Log in",
+    "submitting": "Logging in...",
+    "genericConnectionError": "Could not connect to the server"
+  },
+  "fields": {
+    "email": "Email",
+    "password": "Password"
+  },
+  "dashboard": {
+    "title": "Companies",
+    "subtitle": "Every merchant company on the platform",
+    "addButton": "+ New company",
+    "logout": "Log out",
+    "loading": "Loading...",
+    "loadError": "Could not load companies",
+    "table": {
+      "legalName": "Legal name",
+      "tradeName": "Trade name",
+      "vatNumber": "VAT number",
+      "status": "Status",
+      "createdAt": "Created"
+    },
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "empty": "No companies yet"
+  },
+  "createModal": {
+    "title": "New merchant company",
+    "legalName": "Company legal name",
+    "tradeName": "Trade name (optional)",
+    "vatNumber": "VAT number (optional)",
+    "ownerFullName": "Owner's full name",
+    "ownerEmail": "Owner's email",
+    "password": "Owner's password",
+    "passwordHint": "At least 8 characters - share it with the merchant to log in",
+    "submit": "Create company",
+    "submitting": "Creating..."
+  },
+  "createSuccess": {
+    "title": "Company created successfully",
+    "instructions": "Share these login credentials with the merchant so they can log in directly:",
+    "close": "Close"
+  },
+  "errors": {
+    "createFailed": "Could not create the company"
+  }
+}

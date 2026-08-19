@@ -14,9 +14,11 @@ describe('validateEnv - production secret hardening (Milestone 10)', () => {
     PORT: 3000,
     DATABASE_URL: 'postgresql://user:pass@host:5432/db',
     AUTH_LOOKUP_DATABASE_URL: 'postgresql://user:pass@host:5432/db',
+    PLATFORM_ADMIN_DATABASE_URL: 'postgresql://user:pass@host:5432/db',
     JWT_ACCESS_TTL: '15m',
     JWT_REFRESH_TTL: '30d',
     JWT_TENANT_SELECTION_TTL: '10m',
+    JWT_PLATFORM_ADMIN_TTL: '8h',
     CORS_ALLOWED_ORIGINS: 'https://app.example.com',
   };
 
@@ -29,6 +31,7 @@ describe('validateEnv - production secret hardening (Milestone 10)', () => {
         JWT_ACCESS_SECRET: 'change-me-access-secret',
         JWT_REFRESH_SECRET: realSecret('refresh'),
         JWT_TENANT_SELECTION_SECRET: realSecret('tenant'),
+        JWT_PLATFORM_ADMIN_SECRET: realSecret('platform-admin'),
         INTEGRATION_CREDENTIALS_ENCRYPTION_KEY: realSecret('key'),
       }),
     ).toThrow(/JWT_ACCESS_SECRET/);
@@ -41,6 +44,7 @@ describe('validateEnv - production secret hardening (Milestone 10)', () => {
         JWT_ACCESS_SECRET: 'too-short',
         JWT_REFRESH_SECRET: realSecret('refresh'),
         JWT_TENANT_SELECTION_SECRET: realSecret('tenant'),
+        JWT_PLATFORM_ADMIN_SECRET: realSecret('platform-admin'),
         INTEGRATION_CREDENTIALS_ENCRYPTION_KEY: realSecret('key'),
       }),
     ).toThrow(/JWT_ACCESS_SECRET/);
@@ -54,6 +58,7 @@ describe('validateEnv - production secret hardening (Milestone 10)', () => {
         JWT_ACCESS_SECRET: shared,
         JWT_REFRESH_SECRET: shared,
         JWT_TENANT_SELECTION_SECRET: realSecret('tenant'),
+        JWT_PLATFORM_ADMIN_SECRET: realSecret('platform-admin'),
         INTEGRATION_CREDENTIALS_ENCRYPTION_KEY: realSecret('key'),
       }),
     ).toThrow(/مختلفة تمامًا/);
@@ -66,6 +71,7 @@ describe('validateEnv - production secret hardening (Milestone 10)', () => {
         JWT_ACCESS_SECRET: realSecret('access'),
         JWT_REFRESH_SECRET: realSecret('refresh'),
         JWT_TENANT_SELECTION_SECRET: realSecret('tenant'),
+        JWT_PLATFORM_ADMIN_SECRET: realSecret('platform-admin'),
         INTEGRATION_CREDENTIALS_ENCRYPTION_KEY: realSecret('key'),
       }),
     ).not.toThrow();
@@ -79,6 +85,7 @@ describe('validateEnv - production secret hardening (Milestone 10)', () => {
         JWT_ACCESS_SECRET: 'change-me-access-secret',
         JWT_REFRESH_SECRET: 'change-me-refresh-secret',
         JWT_TENANT_SELECTION_SECRET: 'change-me-tenant-selection-secret',
+        JWT_PLATFORM_ADMIN_SECRET: 'change-me-platform-admin-secret',
         INTEGRATION_CREDENTIALS_ENCRYPTION_KEY: 'change-me-32-byte-base64-encryption-key==',
       }),
     ).not.toThrow();

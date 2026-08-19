@@ -22,6 +22,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   providers: [AuthService, AuthLookupService, AuthLookupPrismaService, JwtStrategy],
   // Milestone 9: QeedhaIntegrationAuthGuard needs the same pre-tenant-context
   // bootstrap lookup human login already uses - see AuthLookupService.
-  exports: [AuthLookupService],
+  // AuthService: PlatformAdminService reuses createCompanyWithOwner (the SaaS
+  // admin control panel creates merchant companies the same way self-registration
+  // does - see docs/DOMAIN_MODEL.md "Platform admin").
+  exports: [AuthLookupService, AuthService],
 })
 export class AuthModule {}

@@ -38,6 +38,32 @@ class EnvironmentVariables {
   @IsString()
   JWT_TENANT_SELECTION_TTL: string;
 
+  // Third, narrowly-scoped Postgres connection (qeedha_platform_admin role,
+  // BYPASSRLS + SELECT on `companies` only) - see
+  // prisma/manual-sql/004_platform_admin_role.sql and PlatformAdminPrismaService.
+  @IsString()
+  PLATFORM_ADMIN_DATABASE_URL: string;
+
+  // Signs the SaaS control-panel session token - deliberately independent
+  // from every tenant-session secret above (see PlatformAdminAuthGuard).
+  @IsString()
+  JWT_PLATFORM_ADMIN_SECRET: string;
+
+  @IsString()
+  JWT_PLATFORM_ADMIN_TTL: string;
+
+  // Optional: if both are set, prisma/seed.ts upserts one PlatformAdmin on
+  // startup so there's a way to log into the control panel at all -
+  // platform admins are never self-registered. Leave unset in an
+  // environment that shouldn't get one seeded automatically.
+  @IsOptional()
+  @IsString()
+  PLATFORM_ADMIN_SEED_EMAIL?: string;
+
+  @IsOptional()
+  @IsString()
+  PLATFORM_ADMIN_SEED_PASSWORD?: string;
+
   @IsString()
   INTEGRATION_CREDENTIALS_ENCRYPTION_KEY: string;
 
@@ -73,6 +99,7 @@ const PLACEHOLDER_SECRET_VALUES = new Set([
   'change-me-access-secret',
   'change-me-refresh-secret',
   'change-me-tenant-selection-secret',
+  'change-me-platform-admin-secret',
   'change-me-32-byte-base64-encryption-key==',
 ]);
 
@@ -81,6 +108,7 @@ const PRODUCTION_SECRET_KEYS = [
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET',
   'JWT_TENANT_SELECTION_SECRET',
+  'JWT_PLATFORM_ADMIN_SECRET',
   'INTEGRATION_CREDENTIALS_ENCRYPTION_KEY',
 ] as const;
 
@@ -117,10 +145,11 @@ function assertSecretsProductionSafe(config: Record<string, unknown>) {
     String(config.JWT_ACCESS_SECRET),
     String(config.JWT_REFRESH_SECRET),
     String(config.JWT_TENANT_SELECTION_SECRET),
+    String(config.JWT_PLATFORM_ADMIN_SECRET),
   ];
   if (new Set(jwtSecrets).size !== jwtSecrets.length) {
     throw new Error(
-      'JWT_ACCESS_SECRET وJWT_REFRESH_SECRET وJWT_TENANT_SELECTION_SECRET يجب أن تكون قيمًا مختلفة تمامًا في بيئة الإنتاج.',
+      'JWT_ACCESS_SECRET وJWT_REFRESH_SECRET وJWT_TENANT_SELECTION_SECRET وJWT_PLATFORM_ADMIN_SECRET يجب أن تكون قيمًا مختلفة تمامًا في بيئة الإنتاج.',
     );
   }
 }
