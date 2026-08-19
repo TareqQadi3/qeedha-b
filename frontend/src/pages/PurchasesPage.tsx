@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import {
   Button,
@@ -11,6 +12,7 @@ import {
   Select,
 } from '../components/ui';
 import { useAuth } from '../state/auth';
+import { formatDate, formatDateTime } from '../utils/formatDate';
 
 interface Supplier {
   id: string;
@@ -73,24 +75,11 @@ interface PurchaseReturnRow {
   items: { purchaseItemId: string; quantity: string }[];
 }
 
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  cash: 'نقدًا',
-  card: 'بطاقة',
-  transfer: 'تحويل بنكي',
-  other: 'أخرى',
-};
-
 function newClientReferenceId() {
   return typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
-
-const STATUS_LABELS: Record<PurchaseRow['status'], string> = {
-  ordered: 'قيد الطلب',
-  received: 'مُستلَم',
-  cancelled: 'ملغى',
-};
 
 /**
  * Purchases screen (docs/PURCHASING.md). Order -> Receive is two explicit
@@ -99,6 +88,7 @@ const STATUS_LABELS: Record<PurchaseRow['status'], string> = {
  * Accounts Payable journal entry.
  */
 export function PurchasesPage() {
+  const { t } = useTranslation('purchases');
   const { hasPermission } = useAuth();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -138,7 +128,7 @@ export function PurchasesPage() {
       setData(res.data);
       setMeta(res.meta);
     } catch (err) {
-      setListError(err instanceof ApiError ? err.message : 'تعذّر تحميل أوامر الشراء');
+      setListError(err instanceof ApiError ? err.message : t('errors.loadFailed'));
     } finally {
       setListLoading(false);
     }
@@ -193,7 +183,7 @@ export function PurchasesPage() {
     e.preventDefault();
     setFormError(null);
     if (items.length === 0) {
-      setFormError('أضف منتجًا واحدًا على الأقل');
+      setFormError(t('errors.itemRequired'));
       return;
     }
     setSubmitting(true);
@@ -211,7 +201,7 @@ export function PurchasesPage() {
       setModalOpen(false);
       await load(1);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'تعذّر إنشاء أمر الشراء');
+      setFormError(err instanceof ApiError ? err.message : t('errors.createFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -224,7 +214,7 @@ export function PurchasesPage() {
       await api.post(`/purchases/${id}/receive`);
       await load();
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : 'تعذّر استلام أمر الشراء');
+      setActionError(err instanceof ApiError ? err.message : t('errors.receiveFailed'));
     } finally {
       setBusyId(null);
     }
@@ -237,7 +227,7 @@ export function PurchasesPage() {
       await api.post(`/purchases/${id}/cancel`);
       await load();
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : 'تعذّر إلغاء أمر الشراء');
+      setActionError(err instanceof ApiError ? err.message : t('errors.cancelFailed'));
     } finally {
       setBusyId(null);
     }
@@ -257,7 +247,7 @@ export function PurchasesPage() {
       setDetail(purchase);
       setDetailReturns(returns);
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : 'تعذّر تحميل تفاصيل أمر الشراء');
+      setActionError(err instanceof ApiError ? err.message : t('errors.detailLoadFailed'));
     }
   };
 
@@ -288,7 +278,7 @@ export function PurchasesPage() {
       setPaymentAmount('');
       setPaymentReference('');
     } catch (err) {
-      setDetailError(err instanceof ApiError ? err.message : 'تعذّر تسجيل الدفعة');
+      setDetailError(err instanceof ApiError ? err.message : t('errors.paymentFailed'));
     } finally {
       setPaymentBusy(false);
     }
@@ -300,7 +290,7 @@ export function PurchasesPage() {
       .filter(([, qty]) => Number(qty) > 0)
       .map(([purchaseItemId, qty]) => ({ purchaseItemId, quantity: Number(qty) }));
     if (items.length === 0) {
-      setDetailError('حدّد كمية إرجاع لصنف واحد على الأقل');
+      setDetailError(t('errors.returnQuantityRequired'));
       return;
     }
     setDetailError(null);
@@ -315,38 +305,38 @@ export function PurchasesPage() {
       setReturnQuantities({});
       setReturnReason('');
     } catch (err) {
-      setDetailError(err instanceof ApiError ? err.message : 'تعذّر تسجيل مرتجع المشتريات');
+      setDetailError(err instanceof ApiError ? err.message : t('errors.returnFailed'));
     } finally {
       setReturnBusy(false);
     }
   };
 
   if (!hasPermission('purchases.read')) {
-    return <ErrorBanner message="لا تملك صلاحية عرض المشتريات" />;
+    return <ErrorBanner message={t('noPermission')} />;
   }
 
   return (
     <div>
       <PageHeader
-        title="المشتريات"
-        action={hasPermission('purchases.create') && <Button onClick={openModal}>+ أمر شراء جديد</Button>}
+        title={t('title')}
+        action={hasPermission('purchases.create') && <Button onClick={openModal}>{t('newPurchaseButton')}</Button>}
       />
 
       <ErrorBanner message={actionError} />
       <ErrorBanner message={listError} />
-      {listLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {listLoading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
       {!listLoading && (
       <Card>
         <div className="overflow-x-auto">
-        <table className="w-full text-right text-sm">
+        <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b text-slate-500">
-              <th className="py-2">الرقم المرجعي</th>
-              <th className="py-2">المورد</th>
-              <th className="py-2">المستودع</th>
-              <th className="py-2">الإجمالي</th>
-              <th className="py-2">الحالة</th>
-              <th className="py-2">التاريخ</th>
+              <th className="py-2">{t('table.referenceNumber')}</th>
+              <th className="py-2">{t('table.supplier')}</th>
+              <th className="py-2">{t('table.warehouse')}</th>
+              <th className="py-2">{t('table.total')}</th>
+              <th className="py-2">{t('table.status')}</th>
+              <th className="py-2">{t('table.date')}</th>
               <th className="py-2"></th>
             </tr>
           </thead>
@@ -369,10 +359,10 @@ export function PurchasesPage() {
                           : 'text-amber-600'
                     }
                   >
-                    {STATUS_LABELS[p.status]}
+                    {t(`status.${p.status}`)}
                   </span>
                 </td>
-                <td className="py-2 text-slate-500">{new Date(p.orderedAt).toLocaleString('ar-SA')}</td>
+                <td className="py-2 text-slate-500">{formatDateTime(new Date(p.orderedAt))}</td>
                 <td className="py-2">
                   <div className="flex gap-2">
                     {p.status === 'ordered' && hasPermission('purchases.create') && (
@@ -382,7 +372,7 @@ export function PurchasesPage() {
                         onClick={() => receive(p.id)}
                         className="text-xs text-brand-600 hover:underline disabled:opacity-50"
                       >
-                        استلام
+                        {t('actions.receive')}
                       </button>
                     )}
                     {p.status === 'ordered' && hasPermission('purchases.cancel') && (
@@ -392,7 +382,7 @@ export function PurchasesPage() {
                         onClick={() => cancel(p.id)}
                         className="text-xs text-red-500 hover:underline disabled:opacity-50"
                       >
-                        إلغاء
+                        {t('actions.cancel')}
                       </button>
                     )}
                     {p.status === 'received' && (
@@ -401,7 +391,7 @@ export function PurchasesPage() {
                         onClick={() => openDetail(p.id)}
                         className="text-xs text-brand-600 hover:underline"
                       >
-                        تفاصيل / دفع / مرتجع
+                        {t('actions.detailsPaymentReturn')}
                       </button>
                     )}
                   </div>
@@ -411,7 +401,7 @@ export function PurchasesPage() {
             {data.length === 0 && (
               <tr>
                 <td colSpan={7} className="py-6 text-center text-slate-400">
-                  لا توجد أوامر شراء بعد
+                  {t('table.empty')}
                 </td>
               </tr>
             )}
@@ -422,13 +412,13 @@ export function PurchasesPage() {
       </Card>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="أمر شراء جديد">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t('modal.newPurchaseTitle')}>
         <form onSubmit={onSubmit} className="space-y-3">
           <ErrorBanner message={formError} />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="المورد">
+            <Field label={t('fields.supplier')}>
               <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} required>
-                <option value="">اختر موردًا</option>
+                <option value="">{t('fields.selectSupplier')}</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -436,7 +426,7 @@ export function PurchasesPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="المستودع">
+            <Field label={t('fields.warehouse')}>
               <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} required>
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
@@ -448,10 +438,10 @@ export function PurchasesPage() {
           </div>
 
           <div className="border-t border-slate-200 pt-3">
-            <div className="mb-2 text-sm font-medium text-slate-700">الأصناف</div>
+            <div className="mb-2 text-sm font-medium text-slate-700">{t('fields.items')}</div>
             <div className="flex gap-2">
               <Select value={pickProductId} onChange={(e) => setPickProductId(e.target.value)}>
-                <option value="">اختر منتجًا لإضافته</option>
+                <option value="">{t('fields.selectProduct')}</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} ({p.sku})
@@ -459,18 +449,18 @@ export function PurchasesPage() {
                 ))}
               </Select>
               <Button type="button" variant="secondary" onClick={addItem} disabled={!pickProductId}>
-                + إضافة
+                {t('actions.addItem')}
               </Button>
             </div>
 
             {items.length > 0 && (
               <div className="overflow-x-auto">
-              <table className="mt-3 w-full text-right text-sm">
+              <table className="mt-3 w-full text-start text-sm">
                 <thead>
                   <tr className="border-b text-slate-500">
-                    <th className="py-2">المنتج</th>
-                    <th className="py-2">الكمية</th>
-                    <th className="py-2">تكلفة الوحدة</th>
+                    <th className="py-2">{t('fields.product')}</th>
+                    <th className="py-2">{t('fields.quantity')}</th>
+                    <th className="py-2">{t('fields.unitCost')}</th>
                     <th className="py-2"></th>
                   </tr>
                 </thead>
@@ -503,7 +493,7 @@ export function PurchasesPage() {
                           type="button"
                           onClick={() => removeItem(i.productId)}
                           className="text-red-500 hover:text-red-700"
-                          aria-label="حذف"
+                          aria-label={t('actions.remove')}
                         >
                           ✕
                         </button>
@@ -517,7 +507,7 @@ export function PurchasesPage() {
           </div>
 
           <Button type="submit" className="w-full" disabled={submitting || items.length === 0}>
-            {submitting ? '...جارٍ الحفظ' : 'حفظ أمر الشراء'}
+            {submitting ? t('actions.saving') : t('actions.save')}
           </Button>
         </form>
       </Modal>
@@ -525,22 +515,22 @@ export function PurchasesPage() {
       <Modal
         open={!!detail}
         onClose={() => setDetail(null)}
-        title={`تفاصيل أمر الشراء ${detail?.referenceNumber ?? ''}`}
+        title={t('modal.detailTitle', { reference: detail?.referenceNumber ?? '' })}
       >
         {detail && (
           <div className="space-y-4">
             <ErrorBanner message={detailError} />
 
             <div>
-              <div className="mb-1 text-sm font-medium text-slate-700">الأصناف</div>
+              <div className="mb-1 text-sm font-medium text-slate-700">{t('fields.items')}</div>
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-sm">
+                <table className="w-full text-start text-sm">
                   <thead>
                     <tr className="border-b text-slate-500">
-                      <th className="py-1">المنتج</th>
-                      <th className="py-1">الكمية المستلمة</th>
-                      <th className="py-1">المرتجَع سابقًا</th>
-                      {hasPermission('purchases.return') && <th className="py-1">كمية الإرجاع</th>}
+                      <th className="py-1">{t('fields.product')}</th>
+                      <th className="py-1">{t('fields.receivedQuantity')}</th>
+                      <th className="py-1">{t('fields.previouslyReturned')}</th>
+                      {hasPermission('purchases.return') && <th className="py-1">{t('fields.returnQuantity')}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -578,7 +568,7 @@ export function PurchasesPage() {
 
             {hasPermission('purchases.return') && (
               <div className="border-t border-slate-200 pt-3">
-                <Field label="سبب الإرجاع (اختياري)">
+                <Field label={t('fields.returnReasonOptional')}>
                   <input
                     value={returnReason}
                     onChange={(e) => setReturnReason(e.target.value)}
@@ -592,54 +582,57 @@ export function PurchasesPage() {
                   disabled={returnBusy}
                   onClick={submitReturn}
                 >
-                  {returnBusy ? '...جارٍ التسجيل' : 'تسجيل مرتجع مشتريات'}
+                  {returnBusy ? t('actions.recording') : t('actions.recordReturn')}
                 </Button>
               </div>
             )}
 
             <div className="border-t border-slate-200 pt-3">
-              <div className="mb-1 text-sm font-medium text-slate-700">الدفعات للمورد</div>
+              <div className="mb-1 text-sm font-medium text-slate-700">{t('fields.supplierPayments')}</div>
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-sm">
+                <table className="w-full text-start text-sm">
                   <tbody>
                     {detail.supplierPayments.map((pay) => (
                       <tr key={pay.id} className="border-b last:border-0">
-                        <td className="py-1">{PAYMENT_METHOD_LABELS[pay.method] ?? pay.method}</td>
+                        <td className="py-1">{t(`paymentMethods.${pay.method}`, { defaultValue: pay.method })}</td>
                         <td className="py-1 font-medium">{Number(pay.amount).toFixed(2)}</td>
                         <td className="py-1 text-slate-500">{pay.reference ?? '—'}</td>
                         <td className="py-1 text-slate-500">
-                          {new Date(pay.createdAt).toLocaleDateString('ar-SA')}
+                          {formatDate(new Date(pay.createdAt))}
                         </td>
                       </tr>
                     ))}
                     {detail.supplierPayments.length === 0 && (
                       <tr>
                         <td colSpan={4} className="py-2 text-center text-slate-400">
-                          لا توجد دفعات بعد
+                          {t('fields.noPaymentsYet')}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
-              <div className="mt-2 text-left font-bold">
-                الرصيد المستحق: {outstandingBalance(detail).toFixed(2)} {detail.currency}
+              <div className="mt-2 text-end font-bold">
+                {t('fields.outstandingBalance', {
+                  amount: outstandingBalance(detail).toFixed(2),
+                  currency: detail.currency,
+                })}
               </div>
             </div>
 
             {hasPermission('purchases.payment.record') && outstandingBalance(detail) > 0 && (
               <div className="border-t border-slate-200 pt-3">
-                <div className="mb-2 text-sm font-medium text-slate-700">تسجيل دفعة جديدة</div>
+                <div className="mb-2 text-sm font-medium text-slate-700">{t('fields.recordNewPayment')}</div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label="الطريقة">
+                  <Field label={t('fields.method')}>
                     <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                      <option value="cash">نقدًا</option>
-                      <option value="card">بطاقة</option>
-                      <option value="transfer">تحويل بنكي</option>
-                      <option value="other">أخرى</option>
+                      <option value="cash">{t('paymentMethods.cash')}</option>
+                      <option value="card">{t('paymentMethods.card')}</option>
+                      <option value="transfer">{t('paymentMethods.transfer')}</option>
+                      <option value="other">{t('paymentMethods.other')}</option>
                     </Select>
                   </Field>
-                  <Field label="المبلغ">
+                  <Field label={t('fields.amount')}>
                     <input
                       type="number"
                       min={0}
@@ -651,7 +644,7 @@ export function PurchasesPage() {
                     />
                   </Field>
                 </div>
-                <Field label="مرجع الدفعة (اختياري)">
+                <Field label={t('fields.paymentReferenceOptional')}>
                   <input
                     value={paymentReference}
                     onChange={(e) => setPaymentReference(e.target.value)}
@@ -664,23 +657,23 @@ export function PurchasesPage() {
                   disabled={paymentBusy || !paymentAmount}
                   onClick={submitPayment}
                 >
-                  {paymentBusy ? '...جارٍ التسجيل' : 'تسجيل الدفعة'}
+                  {paymentBusy ? t('actions.recording') : t('actions.recordPayment')}
                 </Button>
               </div>
             )}
 
             {detailReturns.length > 0 && (
               <div className="border-t border-slate-200 pt-3">
-                <div className="mb-1 text-sm font-medium text-slate-700">مرتجعات سابقة</div>
+                <div className="mb-1 text-sm font-medium text-slate-700">{t('fields.previousReturns')}</div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-right text-sm">
+                  <table className="w-full text-start text-sm">
                     <tbody>
                       {detailReturns.map((r) => (
                         <tr key={r.id} className="border-b last:border-0">
                           <td className="py-1 font-medium">{Number(r.totalAmount).toFixed(2)}</td>
                           <td className="py-1 text-slate-500">{r.reason ?? '—'}</td>
                           <td className="py-1 text-slate-500">
-                            {new Date(r.createdAt).toLocaleDateString('ar-SA')}
+                            {formatDate(new Date(r.createdAt))}
                           </td>
                         </tr>
                       ))}

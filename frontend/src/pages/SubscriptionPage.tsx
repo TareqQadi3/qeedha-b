@@ -1,25 +1,16 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { Badge, Card, ErrorBanner, PageHeader } from '../components/ui';
 
 const money = (n: number | string | null) => (n === null ? null : Number(n).toFixed(2));
 
-const FEATURE_LABELS: Record<string, string> = {
-  pos: 'نقطة البيع',
-  inventory: 'إدارة المخزون',
-  accounting: 'الحسابات والقيود',
-  reports: 'التقارير المحاسبية',
-  excel_import: 'الاستيراد من Excel',
-  zatca: 'الفوترة الإلكترونية (زاتكا - المرحلة الأولى)',
-  ar_ap: 'الذمم المدينة والدائنة',
-};
-
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  trialing: { label: 'فترة تجريبية', className: 'bg-blue-50 text-blue-700' },
-  active: { label: 'نشط', className: 'bg-green-50 text-green-700' },
-  expired: { label: 'منتهي الصلاحية', className: 'bg-amber-50 text-amber-700' },
-  suspended: { label: 'موقوف', className: 'bg-red-50 text-red-700' },
-  cancelled: { label: 'ملغى', className: 'bg-red-50 text-red-700' },
+const STATUS_CLASSNAMES: Record<string, string> = {
+  trialing: 'bg-blue-50 text-blue-700',
+  active: 'bg-green-50 text-green-700',
+  expired: 'bg-amber-50 text-amber-700',
+  suspended: 'bg-red-50 text-red-700',
+  cancelled: 'bg-red-50 text-red-700',
 };
 
 interface UsageEntry {
@@ -62,13 +53,14 @@ interface PlanCatalogEntry {
 }
 
 function UsageRow({ label, usage }: { label: string; usage: UsageEntry }) {
+  const { t } = useTranslation('subscription');
   const pct = usage.limit ? Math.min(100, Math.round((usage.current / usage.limit) * 100)) : 0;
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-sm">
         <span className="text-slate-600">{label}</span>
         <span className="font-medium text-slate-800">
-          {usage.current} / {usage.limit === null ? 'غير محدود' : usage.limit}
+          {usage.current} / {usage.limit === null ? t('usage.unlimited') : usage.limit}
         </span>
       </div>
       {usage.limit !== null && (
@@ -84,10 +76,29 @@ function UsageRow({ label, usage }: { label: string; usage: UsageEntry }) {
 }
 
 export function SubscriptionPage() {
+  const { t } = useTranslation('subscription');
   const [data, setData] = useState<SubscriptionMe | null>(null);
   const [plans, setPlans] = useState<PlanCatalogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const FEATURE_LABELS: Record<string, string> = {
+    pos: t('features.pos'),
+    inventory: t('features.inventory'),
+    accounting: t('features.accounting'),
+    reports: t('features.reports'),
+    excel_import: t('features.excelImport'),
+    zatca: t('features.zatca'),
+    ar_ap: t('features.arAp'),
+  };
+
+  const STATUS_LABELS: Record<string, { label: string; className: string }> = {
+    trialing: { label: t('status.trialing'), className: STATUS_CLASSNAMES.trialing },
+    active: { label: t('status.active'), className: STATUS_CLASSNAMES.active },
+    expired: { label: t('status.expired'), className: STATUS_CLASSNAMES.expired },
+    suspended: { label: t('status.suspended'), className: STATUS_CLASSNAMES.suspended },
+    cancelled: { label: t('status.cancelled'), className: STATUS_CLASSNAMES.cancelled },
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -97,15 +108,16 @@ export function SubscriptionPage() {
         setData(me);
         setPlans(planList);
       })
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'تعذّر تحميل بيانات الاشتراك'))
+      .catch((err) => setError(err instanceof ApiError ? err.message : t('errors.loadFailed')))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
     return (
       <div>
-        <PageHeader title="الاشتراك والخطة" />
-        <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>
+        <PageHeader title={t('title')} />
+        <div className="py-6 text-center text-slate-400">{t('loading')}</div>
       </div>
     );
   }
@@ -113,27 +125,28 @@ export function SubscriptionPage() {
   if (error || !data) {
     return (
       <div>
-        <PageHeader title="الاشتراك والخطة" />
-        <ErrorBanner message={error ?? 'تعذّر تحميل بيانات الاشتراك'} />
+        <PageHeader title={t('title')} />
+        <ErrorBanner message={error ?? t('errors.loadFailed')} />
       </div>
     );
   }
 
   const statusInfo = STATUS_LABELS[data.status] ?? { label: data.status, className: 'bg-slate-100 text-slate-700' };
-  const priceLabel = data.plan.priceMonthlySar === null ? 'تواصل مع الدعم' : `${money(data.plan.priceMonthlySar)} ر.س / شهريًا`;
+  const priceLabel =
+    data.plan.priceMonthlySar === null
+      ? t('labels.contactSupport')
+      : t('labels.priceMonthly', { price: money(data.plan.priceMonthlySar) });
 
   return (
     <div className="space-y-4">
-      <PageHeader title="الاشتراك والخطة" />
+      <PageHeader title={t('title')} />
 
-      {data.isRestricted && (
-        <ErrorBanner message="انتهت صلاحية الاشتراك الحالي أو تم إيقافه. يمكنك الاطلاع على بياناتك الحالية، ولإجراء عمليات جديدة يرجى التواصل مع الدعم لتجديد الاشتراك." />
-      )}
+      {data.isRestricted && <ErrorBanner message={t('banners.restricted')} />}
 
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-sm text-slate-500">الخطة الحالية</div>
+            <div className="text-sm text-slate-500">{t('labels.currentPlan')}</div>
             <div className="text-lg font-bold text-slate-800">{data.plan.name}</div>
             {data.plan.description && <div className="mt-1 text-sm text-slate-500">{data.plan.description}</div>}
           </div>
@@ -143,13 +156,13 @@ export function SubscriptionPage() {
         </div>
 
         <div className="mt-3 text-sm text-slate-600">
-          السعر: <span className="font-medium text-slate-800">{priceLabel}</span>
-          <span className="mr-1 text-xs text-slate-400">(سعر تقديري مبدئي - غير نهائي)</span>
+          {t('labels.priceLabel')} <span className="font-medium text-slate-800">{priceLabel}</span>
+          <span className="ms-1 text-xs text-slate-400">{t('labels.priceEstimateNote')}</span>
         </div>
 
         {data.status === 'trialing' && data.trialDaysRemaining !== null && (
           <div className="mt-2 text-sm text-blue-700">
-            متبقٍ {data.trialDaysRemaining} {data.trialDaysRemaining === 1 ? 'يوم' : 'أيام'} على انتهاء الفترة التجريبية
+            {t('trial.daysRemaining', { count: data.trialDaysRemaining })}
           </div>
         )}
 
@@ -157,7 +170,7 @@ export function SubscriptionPage() {
       </Card>
 
       <Card>
-        <div className="mb-3 text-sm font-semibold text-slate-700">الميزات المتاحة في هذه الخطة</div>
+        <div className="mb-3 text-sm font-semibold text-slate-700">{t('features.title')}</div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {Object.entries(FEATURE_LABELS).map(([key, label]) => {
             const enabled = data.features[key] === true;
@@ -172,16 +185,16 @@ export function SubscriptionPage() {
       </Card>
 
       <Card>
-        <div className="mb-3 text-sm font-semibold text-slate-700">حدود الاستخدام</div>
+        <div className="mb-3 text-sm font-semibold text-slate-700">{t('usage.title')}</div>
         <div className="space-y-3">
-          <UsageRow label="المستخدمون" usage={data.usage.users} />
-          <UsageRow label="الفروع" usage={data.usage.branches} />
-          <UsageRow label="مبيعات هذا الشهر" usage={data.usage.monthlySales} />
+          <UsageRow label={t('usage.users')} usage={data.usage.users} />
+          <UsageRow label={t('usage.branches')} usage={data.usage.branches} />
+          <UsageRow label={t('usage.monthlySales')} usage={data.usage.monthlySales} />
         </div>
       </Card>
 
       <Card>
-        <div className="mb-3 text-sm font-semibold text-slate-700">الخطط المتاحة</div>
+        <div className="mb-3 text-sm font-semibold text-slate-700">{t('plans.title')}</div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {plans.map((plan) => (
             <div
@@ -190,22 +203,26 @@ export function SubscriptionPage() {
             >
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-800">{plan.name}</span>
-                {plan.code === data.plan.code && <Badge variant="brand">الخطة الحالية</Badge>}
+                {plan.code === data.plan.code && <Badge variant="brand">{t('labels.currentPlan')}</Badge>}
               </div>
               {plan.description && <div className="mt-1 text-xs text-slate-500">{plan.description}</div>}
               <div className="mt-2 text-sm text-slate-700">
-                {plan.priceMonthlySar === null ? 'تواصل مع الدعم' : `${money(plan.priceMonthlySar)} ر.س / شهريًا`}
+                {plan.priceMonthlySar === null
+                  ? t('labels.contactSupport')
+                  : t('labels.priceMonthly', { price: money(plan.priceMonthlySar) })}
               </div>
               <div className="mt-1 text-xs text-slate-400">
-                المستخدمون: {plan.maxUsers ?? 'غير محدود'} · الفروع: {plan.maxBranches ?? 'غير محدود'} · مبيعات شهرية:{' '}
-                {plan.maxMonthlySales ?? 'غير محدود'}
+                {t('plans.summary', {
+                  users: plan.maxUsers ?? t('usage.unlimited'),
+                  branches: plan.maxBranches ?? t('usage.unlimited'),
+                  sales: plan.maxMonthlySales ?? t('usage.unlimited'),
+                })}
               </div>
             </div>
           ))}
         </div>
         <div className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          إدارة الفوترة والترقية بين الخطط ستكون متاحة قريبًا عبر مركز التحكم في Qeedha. للترقية أو الاستفسار حول
-          الفوترة، يرجى التواصل مع الدعم.
+          {t('plans.footerNote')}
         </div>
       </Card>
     </div>

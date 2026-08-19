@@ -1,0 +1,45 @@
+{
+  "title": "Products",
+  "loading": "Loading...",
+  "actions": {
+    "new": "+ New Product",
+    "search": "Search",
+    "save": "Save Product",
+    "saving": "Saving..."
+  },
+  "search": {
+    "placeholder": "Search by name, SKU, or barcode"
+  },
+  "table": {
+    "sku": "SKU",
+    "name": "Name",
+    "category": "Category",
+    "brand": "Brand",
+    "sellingPrice": "Selling Price",
+    "status": "Status",
+    "currency": "SAR",
+    "empty": "No products yet"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "modal": {
+    "title": "New Product"
+  },
+  "fields": {
+    "sku": "SKU",
+    "barcode": "Barcode (optional)",
+    "name": "Product name",
+    "costPrice": "Cost price",
+    "sellingPrice": "Selling price",
+    "category": "Category",
+    "brand": "Brand",
+    "unit": "Unit",
+    "none": "None"
+  },
+  "errors": {
+    "loadFailed": "Failed to load products",
+    "createFailed": "Failed to create the product"
+  }
+}

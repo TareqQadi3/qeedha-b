@@ -1,0 +1,41 @@
+{
+  "title": "Qeedha Integration",
+  "loading": "Loading...",
+  "status": {
+    "connected": "Connected",
+    "disabled": "Disabled",
+    "notConnected": "Not Connected"
+  },
+  "labels": {
+    "connectionStatus": "Connection status",
+    "providerName": "Qeedha provider",
+    "publicReference": "Public reference (external merchant ID):",
+    "secretLastFour": "Last 4 characters of the secret key:",
+    "connectedAt": "Connected on:",
+    "lastVerifiedAt": "Last verified:",
+    "revokedAt": "Disabled on:",
+    "notConnectedHint": "This company hasn't been linked to the Qeedha platform yet. Linking lets the Qeedha platform send payment reconciliation transactions directly to this system.",
+    "secretOnceHeader": "Secret key - shown only once now and cannot be retrieved later",
+    "externalMerchantId": "External merchant ID (externalMerchantId)",
+    "secretLabel": "Secret key (Secret)",
+    "fullAccessToken": "The full access token used in the Authorization header at Qeedha is:",
+    "saveKeyNote": "Save this key now somewhere safe within the Qeedha platform. Relinking later issues a new key and immediately revokes this one."
+  },
+  "actions": {
+    "link": "Link Integration",
+    "relink": "Relink Integration",
+    "revoke": "Disconnect",
+    "confirmRevoke": "Confirm Disconnect",
+    "cancel": "Cancel"
+  },
+  "confirm": {
+    "revokeMessage": "Confirm disconnecting the Qeedha integration? The current key will stop working immediately."
+  },
+  "errors": {
+    "loadFailed": "Failed to load the Qeedha integration status",
+    "linkFailed": "Failed to link the Qeedha integration",
+    "revokeFailed": "Failed to disconnect the Qeedha integration",
+    "noViewPermission": "You don't have permission to view the Qeedha integration",
+    "noManagePermission": "You don't have permission to manage the Qeedha integration (link/disconnect)"
+  }
+}

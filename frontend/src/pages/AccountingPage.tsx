@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import {
   Button,
@@ -12,15 +13,10 @@ import {
   Select,
 } from '../components/ui';
 import { useAuth } from '../state/auth';
+import { formatDate, formatDateTime } from '../utils/formatDate';
 
 type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
-const TYPE_LABELS: Record<AccountType, string> = {
-  asset: 'أصول',
-  liability: 'التزامات',
-  equity: 'حقوق ملكية',
-  revenue: 'إيرادات',
-  expense: 'مصروفات',
-};
+const ACCOUNT_TYPES: AccountType[] = ['asset', 'liability', 'equity', 'revenue', 'expense'];
 
 interface Account {
   id: string;
@@ -88,7 +84,7 @@ interface BankReconciliation {
 }
 
 const emptyReconciliationForm = { accountCode: '1010', asOfDate: '', statementBalance: '', notes: '' };
-const RECONCILIATION_ACCOUNT_LABELS: Record<string, string> = { '1010': 'الصندوق (نقدًا)', '1020': 'البنك' };
+const RECONCILIATION_ACCOUNT_KEYS: Record<string, string> = { '1010': 'reconciliationAccounts.cash', '1020': 'reconciliationAccounts.bank' };
 
 /**
  * Chart of Accounts + Journal Entries (docs/CHART_OF_ACCOUNTS.md,
@@ -98,6 +94,7 @@ const RECONCILIATION_ACCOUNT_LABELS: Record<string, string> = { '1010': 'الص�
  * manual double entry").
  */
 export function AccountingPage() {
+  const { t } = useTranslation('accounting');
   const { hasPermission } = useAuth();
   const [tab, setTab] = useState<'accounts' | 'journal' | 'opening-balance' | 'periods' | 'reconciliation'>(
     'accounts',
@@ -147,7 +144,7 @@ export function AccountingPage() {
     try {
       setAccounts(await api.get('/accounting/accounts'));
     } catch (err) {
-      setAccountsError(err instanceof ApiError ? err.message : 'تعذّر تحميل دليل الحسابات');
+      setAccountsError(err instanceof ApiError ? err.message : t('errors.loadAccountsFailed'));
     } finally {
       setAccountsLoading(false);
     }
@@ -161,7 +158,7 @@ export function AccountingPage() {
       setEntries(res.data);
       setEntryMeta(res.meta);
     } catch (err) {
-      setEntriesError(err instanceof ApiError ? err.message : 'تعذّر تحميل القيود المحاسبية');
+      setEntriesError(err instanceof ApiError ? err.message : t('errors.loadEntriesFailed'));
     } finally {
       setEntriesLoading(false);
     }
@@ -174,7 +171,7 @@ export function AccountingPage() {
       const res = await api.get('/accounting/opening-balance');
       setOpeningBalance(res);
     } catch (err) {
-      setObError(err instanceof ApiError ? err.message : 'تعذّر تحميل الرصيد الافتتاحي');
+      setObError(err instanceof ApiError ? err.message : t('errors.loadOpeningBalanceFailed'));
     } finally {
       setObLoading(false);
     }
@@ -187,7 +184,7 @@ export function AccountingPage() {
       const res = await api.get('/accounting/fiscal-periods');
       setPeriods(res);
     } catch (err) {
-      setPeriodsError(err instanceof ApiError ? err.message : 'تعذّر تحميل الفترات المحاسبية');
+      setPeriodsError(err instanceof ApiError ? err.message : t('errors.loadPeriodsFailed'));
     } finally {
       setPeriodsLoading(false);
     }
@@ -207,7 +204,7 @@ export function AccountingPage() {
     try {
       setReconciliations(await api.get('/accounting/reconciliations'));
     } catch (err) {
-      setReconciliationsError(err instanceof ApiError ? err.message : 'تعذّر تحميل تسويات البنك/الصندوق');
+      setReconciliationsError(err instanceof ApiError ? err.message : t('errors.loadReconciliationsFailed'));
     } finally {
       setReconciliationsLoading(false);
     }
@@ -240,7 +237,7 @@ export function AccountingPage() {
       setReconciliationModalOpen(false);
       await loadReconciliations();
     } catch (err) {
-      setReconciliationFormError(err instanceof ApiError ? err.message : 'تعذّر تسجيل التسوية');
+      setReconciliationFormError(err instanceof ApiError ? err.message : t('errors.createReconciliationFailed'));
     } finally {
       setReconciliationSubmitting(false);
     }
@@ -275,7 +272,7 @@ export function AccountingPage() {
       setObModalOpen(false);
       await loadOpeningBalance();
     } catch (err) {
-      setObFormError(err instanceof ApiError ? err.message : 'تعذّر تسجيل الرصيد الافتتاحي');
+      setObFormError(err instanceof ApiError ? err.message : t('errors.createOpeningBalanceFailed'));
     } finally {
       setObSubmitting(false);
     }
@@ -287,7 +284,7 @@ export function AccountingPage() {
       await api.post('/accounting/opening-balance/reverse');
       await loadOpeningBalance();
     } catch (err) {
-      setObError(err instanceof ApiError ? err.message : 'تعذّر عكس الرصيد الافتتاحي');
+      setObError(err instanceof ApiError ? err.message : t('errors.reverseOpeningBalanceFailed'));
     }
   };
 
@@ -306,7 +303,7 @@ export function AccountingPage() {
       setPeriodModalOpen(false);
       await loadPeriods();
     } catch (err) {
-      setPeriodFormError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الفترة المحاسبية');
+      setPeriodFormError(err instanceof ApiError ? err.message : t('errors.createPeriodFailed'));
     } finally {
       setPeriodSubmitting(false);
     }
@@ -318,7 +315,7 @@ export function AccountingPage() {
       await api.post(`/accounting/fiscal-periods/${period.id}/${period.status === 'open' ? 'close' : 'reopen'}`);
       await loadPeriods();
     } catch (err) {
-      setPeriodsError(err instanceof ApiError ? err.message : 'تعذّر تحديث حالة الفترة');
+      setPeriodsError(err instanceof ApiError ? err.message : t('errors.togglePeriodFailed'));
     }
   };
 
@@ -344,7 +341,7 @@ export function AccountingPage() {
       setAccountModalOpen(false);
       await loadAccounts();
     } catch (err) {
-      setAccountFormError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الحساب');
+      setAccountFormError(err instanceof ApiError ? err.message : t('errors.createAccountFailed'));
     } finally {
       setAccountSubmitting(false);
     }
@@ -354,12 +351,12 @@ export function AccountingPage() {
     lines.reduce((s, l) => s + Number(l[side]), 0).toFixed(2);
 
   if (!hasPermission('accounting.read')) {
-    return <ErrorBanner message="لا تملك صلاحية عرض الحسابات" />;
+    return <ErrorBanner message={t('noReadPermission')} />;
   }
 
   return (
     <div>
-      <PageHeader title="الحسابات والقيود المحاسبية" />
+      <PageHeader title={t('pageTitle')} />
 
       <div className="mb-4 flex gap-2 border-b border-slate-200">
         <button
@@ -369,7 +366,7 @@ export function AccountingPage() {
             tab === 'accounts' ? 'border-b-2 border-brand-500 text-brand-600' : 'text-slate-500'
           }`}
         >
-          دليل الحسابات
+          {t('tabs.accounts')}
         </button>
         <button
           type="button"
@@ -378,7 +375,7 @@ export function AccountingPage() {
             tab === 'journal' ? 'border-b-2 border-brand-500 text-brand-600' : 'text-slate-500'
           }`}
         >
-          القيود المحاسبية
+          {t('tabs.journal')}
         </button>
         <button
           type="button"
@@ -387,7 +384,7 @@ export function AccountingPage() {
             tab === 'opening-balance' ? 'border-b-2 border-brand-500 text-brand-600' : 'text-slate-500'
           }`}
         >
-          الأرصدة الافتتاحية
+          {t('tabs.openingBalance')}
         </button>
         <button
           type="button"
@@ -396,7 +393,7 @@ export function AccountingPage() {
             tab === 'periods' ? 'border-b-2 border-brand-500 text-brand-600' : 'text-slate-500'
           }`}
         >
-          الفترات المحاسبية
+          {t('tabs.periods')}
         </button>
         <button
           type="button"
@@ -405,7 +402,7 @@ export function AccountingPage() {
             tab === 'reconciliation' ? 'border-b-2 border-brand-500 text-brand-600' : 'text-slate-500'
           }`}
         >
-          التسوية البنكية/النقدية
+          {t('tabs.reconciliation')}
         </button>
       </div>
 
@@ -413,22 +410,22 @@ export function AccountingPage() {
         <div>
           {hasPermission('accounting.manage') && (
             <div className="mb-4 flex justify-end">
-              <Button onClick={openAccountModal}>+ حساب جديد</Button>
+              <Button onClick={openAccountModal}>{t('actions.newAccount')}</Button>
             </div>
           )}
           <ErrorBanner message={accountsError} />
-          {accountsLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+          {accountsLoading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
           {!accountsLoading && (
           <Card>
             <div className="overflow-x-auto">
-            <table className="w-full text-right text-sm">
+            <table className="w-full text-start text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
-                  <th className="py-2">الرمز</th>
-                  <th className="py-2">الاسم</th>
-                  <th className="py-2">النوع</th>
-                  <th className="py-2">الحساب الأب</th>
-                  <th className="py-2">الحالة</th>
+                  <th className="py-2">{t('table.accounts.code')}</th>
+                  <th className="py-2">{t('table.accounts.name')}</th>
+                  <th className="py-2">{t('table.accounts.type')}</th>
+                  <th className="py-2">{t('table.accounts.parent')}</th>
+                  <th className="py-2">{t('table.accounts.status')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -436,11 +433,11 @@ export function AccountingPage() {
                   <tr key={a.id} className="border-b last:border-0">
                     <td className="py-2 font-mono text-xs">{a.code}</td>
                     <td className="py-2">{a.name}</td>
-                    <td className="py-2 text-slate-500">{TYPE_LABELS[a.type]}</td>
+                    <td className="py-2 text-slate-500">{t(`types.${a.type}`)}</td>
                     <td className="py-2 text-slate-500">{accountName(a.parentId)}</td>
                     <td className="py-2">
                       <span className={a.isActive ? 'text-emerald-600' : 'text-slate-400'}>
-                        {a.isActive ? 'نشط' : 'معطّل'}
+                        {a.isActive ? t('status.active') : t('status.inactive')}
                       </span>
                     </td>
                   </tr>
@@ -448,7 +445,7 @@ export function AccountingPage() {
                 {accounts.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-6 text-center text-slate-400">
-                      لا توجد حسابات
+                      {t('empty.accounts')}
                     </td>
                   </tr>
                 )}
@@ -463,33 +460,33 @@ export function AccountingPage() {
       {tab === 'journal' && (
         <div>
           <ErrorBanner message={entriesError} />
-          {entriesLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+          {entriesLoading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
           {!entriesLoading && (
           <Card>
             <div className="overflow-x-auto">
-            <table className="w-full text-right text-sm">
+            <table className="w-full text-start text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
-                  <th className="py-2">التاريخ</th>
-                  <th className="py-2">المصدر</th>
-                  <th className="py-2">الوصف</th>
-                  <th className="py-2">مدين</th>
-                  <th className="py-2">دائن</th>
-                  <th className="py-2">الحالة</th>
+                  <th className="py-2">{t('table.journal.date')}</th>
+                  <th className="py-2">{t('table.journal.source')}</th>
+                  <th className="py-2">{t('table.journal.description')}</th>
+                  <th className="py-2">{t('table.journal.debit')}</th>
+                  <th className="py-2">{t('table.journal.credit')}</th>
+                  <th className="py-2">{t('table.journal.status')}</th>
                   <th className="py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.id} className="border-b last:border-0">
-                    <td className="py-2 text-slate-500">{new Date(entry.postedAt).toLocaleString('ar-SA')}</td>
+                    <td className="py-2 text-slate-500">{formatDateTime(new Date(entry.postedAt))}</td>
                     <td className="py-2 text-slate-500">{entry.referenceType}</td>
                     <td className="py-2">{entry.description ?? '—'}</td>
                     <td className="py-2">{lineTotal(entry.lines, 'debit')}</td>
                     <td className="py-2">{lineTotal(entry.lines, 'credit')}</td>
                     <td className="py-2">
                       <span className={entry.status === 'posted' ? 'text-emerald-600' : 'text-slate-400'}>
-                        {entry.status === 'posted' ? 'مُرحَّل' : 'مُعكوس'}
+                        {entry.status === 'posted' ? t('status.posted') : t('status.reversed')}
                       </span>
                     </td>
                     <td className="py-2">
@@ -498,7 +495,7 @@ export function AccountingPage() {
                         onClick={() => setSelectedEntry(entry)}
                         className="text-xs text-brand-600 hover:underline"
                       >
-                        عرض التفاصيل
+                        {t('actions.viewDetails')}
                       </button>
                     </td>
                   </tr>
@@ -506,7 +503,7 @@ export function AccountingPage() {
                 {entries.length === 0 && (
                   <tr>
                     <td colSpan={7} className="py-6 text-center text-slate-400">
-                      لا توجد قيود محاسبية بعد
+                      {t('empty.journalEntries')}
                     </td>
                   </tr>
                 )}
@@ -527,15 +524,15 @@ export function AccountingPage() {
       {tab === 'opening-balance' && (
         <div>
           <ErrorBanner message={obError} />
-          {obLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+          {obLoading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
           {!obLoading && !openingBalance && (
             <Card>
               <div className="py-6 text-center text-slate-400">
-                لا يوجد رصيد افتتاحي مُرحَّل لهذه المنشأة بعد
+                {t('empty.openingBalance')}
               </div>
               {hasPermission('accounting.opening_balance.manage') && (
                 <div className="flex justify-center">
-                  <Button onClick={openObModal}>+ تسجيل رصيد افتتاحي</Button>
+                  <Button onClick={openObModal}>{t('actions.recordOpeningBalance')}</Button>
                 </div>
               )}
             </Card>
@@ -544,21 +541,21 @@ export function AccountingPage() {
             <Card>
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm text-slate-500">
-                  رُحِّل في {new Date(openingBalance.postedAt).toLocaleString('ar-SA')}
+                  {t('openingBalance.postedOn', { date: formatDateTime(new Date(openingBalance.postedAt)) })}
                 </span>
                 {hasPermission('accounting.opening_balance.manage') && (
                   <Button variant="danger" onClick={onReverseOpeningBalance}>
-                    عكس الرصيد الافتتاحي
+                    {t('actions.reverseOpeningBalance')}
                   </Button>
                 )}
               </div>
               <div className="overflow-x-auto">
-              <table className="w-full text-right text-sm">
+              <table className="w-full text-start text-sm">
                 <thead>
                   <tr className="border-b text-slate-500">
-                    <th className="py-2">الحساب</th>
-                    <th className="py-2">مدين</th>
-                    <th className="py-2">دائن</th>
+                    <th className="py-2">{t('table.openingBalance.account')}</th>
+                    <th className="py-2">{t('table.openingBalance.debit')}</th>
+                    <th className="py-2">{t('table.openingBalance.credit')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -584,20 +581,20 @@ export function AccountingPage() {
           <ErrorBanner message={periodsError} />
           {hasPermission('accounting.period.manage') && (
             <div className="mb-4 flex justify-end">
-              <Button onClick={openPeriodModal}>+ فترة محاسبية جديدة</Button>
+              <Button onClick={openPeriodModal}>{t('actions.newPeriod')}</Button>
             </div>
           )}
-          {periodsLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+          {periodsLoading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
           {!periodsLoading && (
             <Card>
               <div className="overflow-x-auto">
-              <table className="w-full text-right text-sm">
+              <table className="w-full text-start text-sm">
                 <thead>
                   <tr className="border-b text-slate-500">
-                    <th className="py-2">الاسم</th>
-                    <th className="py-2">من</th>
-                    <th className="py-2">إلى</th>
-                    <th className="py-2">الحالة</th>
+                    <th className="py-2">{t('table.periods.name')}</th>
+                    <th className="py-2">{t('table.periods.from')}</th>
+                    <th className="py-2">{t('table.periods.to')}</th>
+                    <th className="py-2">{t('table.periods.status')}</th>
                     <th className="py-2"></th>
                   </tr>
                 </thead>
@@ -605,11 +602,11 @@ export function AccountingPage() {
                   {periods.map((p) => (
                     <tr key={p.id} className="border-b last:border-0">
                       <td className="py-2">{p.name}</td>
-                      <td className="py-2 text-slate-500">{new Date(p.startDate).toLocaleDateString('ar-SA')}</td>
-                      <td className="py-2 text-slate-500">{new Date(p.endDate).toLocaleDateString('ar-SA')}</td>
+                      <td className="py-2 text-slate-500">{formatDate(new Date(p.startDate))}</td>
+                      <td className="py-2 text-slate-500">{formatDate(new Date(p.endDate))}</td>
                       <td className="py-2">
                         <span className={p.status === 'open' ? 'text-emerald-600' : 'text-slate-400'}>
-                          {p.status === 'open' ? 'مفتوحة' : 'مُقفلة'}
+                          {p.status === 'open' ? t('status.open') : t('status.closed')}
                         </span>
                       </td>
                       <td className="py-2">
@@ -619,7 +616,7 @@ export function AccountingPage() {
                             onClick={() => onTogglePeriod(p)}
                             className="text-xs text-brand-600 hover:underline"
                           >
-                            {p.status === 'open' ? 'إقفال' : 'إعادة فتح'}
+                            {p.status === 'open' ? t('actions.closePeriod') : t('actions.reopenPeriod')}
                           </button>
                         )}
                       </td>
@@ -628,7 +625,7 @@ export function AccountingPage() {
                   {periods.length === 0 && (
                     <tr>
                       <td colSpan={5} className="py-6 text-center text-slate-400">
-                        لا توجد فترات محاسبية بعد
+                        {t('empty.periods')}
                       </td>
                     </tr>
                   )}
@@ -645,31 +642,33 @@ export function AccountingPage() {
           <ErrorBanner message={reconciliationsError} />
           {hasPermission('accounting.reconciliation.manage') && (
             <div className="mb-4 flex justify-end">
-              <Button onClick={openReconciliationModal}>+ تسوية جديدة</Button>
+              <Button onClick={openReconciliationModal}>{t('actions.newReconciliation')}</Button>
             </div>
           )}
           {reconciliationsLoading && (
-            <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>
+            <div className="py-6 text-center text-slate-400">{t('loading')}</div>
           )}
           {!reconciliationsLoading && (
             <Card>
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-sm">
+                <table className="w-full text-start text-sm">
                   <thead>
                     <tr className="border-b text-slate-500">
-                      <th className="py-2">الحساب</th>
-                      <th className="py-2">حتى تاريخ</th>
-                      <th className="py-2">رصيد كشف الحساب</th>
-                      <th className="py-2">الرصيد الدفتري</th>
-                      <th className="py-2">الفرق</th>
-                      <th className="py-2">ملاحظات</th>
+                      <th className="py-2">{t('table.reconciliation.account')}</th>
+                      <th className="py-2">{t('table.reconciliation.asOfDate')}</th>
+                      <th className="py-2">{t('table.reconciliation.statementBalance')}</th>
+                      <th className="py-2">{t('table.reconciliation.bookBalance')}</th>
+                      <th className="py-2">{t('table.reconciliation.difference')}</th>
+                      <th className="py-2">{t('table.reconciliation.notes')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {reconciliations.map((r) => (
                       <tr key={r.id} className="border-b last:border-0">
-                        <td className="py-2">{RECONCILIATION_ACCOUNT_LABELS[r.accountCode] ?? r.accountCode}</td>
-                        <td className="py-2 text-slate-500">{new Date(r.asOfDate).toLocaleDateString('ar-SA')}</td>
+                        <td className="py-2">
+                          {RECONCILIATION_ACCOUNT_KEYS[r.accountCode] ? t(RECONCILIATION_ACCOUNT_KEYS[r.accountCode]) : r.accountCode}
+                        </td>
+                        <td className="py-2 text-slate-500">{formatDate(new Date(r.asOfDate))}</td>
                         <td className="py-2">{Number(r.statementBalance).toFixed(2)}</td>
                         <td className="py-2">{Number(r.bookBalance).toFixed(2)}</td>
                         <td
@@ -685,7 +684,7 @@ export function AccountingPage() {
                     {reconciliations.length === 0 && (
                       <tr>
                         <td colSpan={6} className="py-6 text-center text-slate-400">
-                          لا توجد تسويات بعد
+                          {t('empty.reconciliations')}
                         </td>
                       </tr>
                     )}
@@ -697,32 +696,32 @@ export function AccountingPage() {
         </div>
       )}
 
-      <Modal open={accountModalOpen} onClose={() => setAccountModalOpen(false)} title="حساب جديد">
+      <Modal open={accountModalOpen} onClose={() => setAccountModalOpen(false)} title={t('modals.newAccount.title')}>
         <form onSubmit={onCreateAccount} className="space-y-3">
           <ErrorBanner message={accountFormError} />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="الرمز">
+            <Field label={t('fields.code')}>
               <Input value={accountForm.code} onChange={(e) => setAccountForm({ ...accountForm, code: e.target.value })} required />
             </Field>
-            <Field label="النوع">
+            <Field label={t('fields.type')}>
               <Select
                 value={accountForm.type}
                 onChange={(e) => setAccountForm({ ...accountForm, type: e.target.value as AccountType })}
               >
-                {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                {ACCOUNT_TYPES.map((value) => (
                   <option key={value} value={value}>
-                    {label}
+                    {t(`types.${value}`)}
                   </option>
                 ))}
               </Select>
             </Field>
           </div>
-          <Field label="الاسم">
+          <Field label={t('fields.name')}>
             <Input value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} required />
           </Field>
-          <Field label="الحساب الأب (اختياري)">
+          <Field label={t('fields.parentAccount')}>
             <Select value={accountForm.parentId} onChange={(e) => setAccountForm({ ...accountForm, parentId: e.target.value })}>
-              <option value="">بدون</option>
+              <option value="">{t('fields.none')}</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.code} - {a.name}
@@ -731,22 +730,22 @@ export function AccountingPage() {
             </Select>
           </Field>
           <Button type="submit" className="w-full" disabled={accountSubmitting}>
-            {accountSubmitting ? '...جارٍ الحفظ' : 'حفظ الحساب'}
+            {accountSubmitting ? t('saving') : t('actions.saveAccount')}
           </Button>
         </form>
       </Modal>
 
-      <Modal open={selectedEntry !== null} onClose={() => setSelectedEntry(null)} title="تفاصيل القيد">
+      <Modal open={selectedEntry !== null} onClose={() => setSelectedEntry(null)} title={t('modals.entryDetails.title')}>
         {selectedEntry && (
           <div className="space-y-3">
             <div className="text-sm text-slate-500">{selectedEntry.description}</div>
             <div className="overflow-x-auto">
-            <table className="w-full text-right text-sm">
+            <table className="w-full text-start text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
-                  <th className="py-2">الحساب</th>
-                  <th className="py-2">مدين</th>
-                  <th className="py-2">دائن</th>
+                  <th className="py-2">{t('table.openingBalance.account')}</th>
+                  <th className="py-2">{t('table.openingBalance.debit')}</th>
+                  <th className="py-2">{t('table.openingBalance.credit')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -762,7 +761,7 @@ export function AccountingPage() {
               </tbody>
               <tfoot>
                 <tr className="border-t font-medium text-slate-800">
-                  <td className="py-2">الإجمالي</td>
+                  <td className="py-2">{t('table.total')}</td>
                   <td className="py-2">{lineTotal(selectedEntry.lines, 'debit')}</td>
                   <td className="py-2">{lineTotal(selectedEntry.lines, 'credit')}</td>
                 </tr>
@@ -773,14 +772,14 @@ export function AccountingPage() {
         )}
       </Modal>
 
-      <Modal open={obModalOpen} onClose={() => setObModalOpen(false)} title="تسجيل رصيد افتتاحي">
+      <Modal open={obModalOpen} onClose={() => setObModalOpen(false)} title={t('modals.recordOpeningBalance.title')}>
         <form onSubmit={onCreateOpeningBalance} className="space-y-3">
           <ErrorBanner message={obFormError} />
           {obLines.map((line, i) => (
             <div key={i} className="grid grid-cols-4 gap-2">
               <div className="col-span-2">
                 <Select value={line.accountId} onChange={(e) => updateObLine(i, { accountId: e.target.value })}>
-                  <option value="">اختر حسابًا</option>
+                  <option value="">{t('fields.selectAccount')}</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.code} - {a.name}
@@ -789,7 +788,7 @@ export function AccountingPage() {
                 </Select>
               </div>
               <Input
-                placeholder="مدين"
+                placeholder={t('fields.debit')}
                 type="number"
                 min="0"
                 step="0.01"
@@ -797,7 +796,7 @@ export function AccountingPage() {
                 onChange={(e) => updateObLine(i, { debit: e.target.value, credit: '' })}
               />
               <Input
-                placeholder="دائن"
+                placeholder={t('fields.credit')}
                 type="number"
                 min="0"
                 step="0.01"
@@ -808,30 +807,30 @@ export function AccountingPage() {
                 <button
                   type="button"
                   onClick={() => removeObLine(i)}
-                  className="col-span-4 text-right text-xs text-red-500 hover:underline"
+                  className="col-span-4 text-start text-xs text-red-500 hover:underline"
                 >
-                  حذف السطر
+                  {t('actions.deleteLine')}
                 </button>
               )}
             </div>
           ))}
           <button type="button" onClick={addObLine} className="text-xs text-brand-600 hover:underline">
-            + إضافة سطر
+            {t('actions.addLine')}
           </button>
           <Button type="submit" className="w-full" disabled={obSubmitting}>
-            {obSubmitting ? '...جارٍ الحفظ' : 'ترحيل الرصيد الافتتاحي'}
+            {obSubmitting ? t('saving') : t('actions.postOpeningBalance')}
           </Button>
         </form>
       </Modal>
 
-      <Modal open={periodModalOpen} onClose={() => setPeriodModalOpen(false)} title="فترة محاسبية جديدة">
+      <Modal open={periodModalOpen} onClose={() => setPeriodModalOpen(false)} title={t('modals.newPeriod.title')}>
         <form onSubmit={onCreatePeriod} className="space-y-3">
           <ErrorBanner message={periodFormError} />
-          <Field label="الاسم">
+          <Field label={t('fields.name')}>
             <Input value={periodForm.name} onChange={(e) => setPeriodForm({ ...periodForm, name: e.target.value })} required />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="من تاريخ">
+            <Field label={t('fields.startDate')}>
               <Input
                 type="date"
                 value={periodForm.startDate}
@@ -839,7 +838,7 @@ export function AccountingPage() {
                 required
               />
             </Field>
-            <Field label="إلى تاريخ">
+            <Field label={t('fields.endDate')}>
               <Input
                 type="date"
                 value={periodForm.endDate}
@@ -849,7 +848,7 @@ export function AccountingPage() {
             </Field>
           </div>
           <Button type="submit" className="w-full" disabled={periodSubmitting}>
-            {periodSubmitting ? '...جارٍ الحفظ' : 'إنشاء الفترة'}
+            {periodSubmitting ? t('saving') : t('actions.createPeriod')}
           </Button>
         </form>
       </Modal>
@@ -857,24 +856,21 @@ export function AccountingPage() {
       <Modal
         open={reconciliationModalOpen}
         onClose={() => setReconciliationModalOpen(false)}
-        title="تسوية بنكية/نقدية جديدة"
+        title={t('modals.newReconciliation.title')}
       >
         <form onSubmit={onCreateReconciliation} className="space-y-3">
           <ErrorBanner message={reconciliationFormError} />
-          <p className="text-xs text-slate-500">
-            الرصيد الدفتري يُحتسب تلقائيًا من القيود المُرحَّلة حتى التاريخ المحدد - أدخل فقط رصيد
-            كشف الحساب كما تقرأه من كشف البنك أو تعداد الصندوق الفعلي.
-          </p>
-          <Field label="الحساب">
+          <p className="text-xs text-slate-500">{t('modals.newReconciliation.helpText')}</p>
+          <Field label={t('fields.account')}>
             <Select
               value={reconciliationForm.accountCode}
               onChange={(e) => setReconciliationForm({ ...reconciliationForm, accountCode: e.target.value })}
             >
-              <option value="1010">الصندوق (نقدًا)</option>
-              <option value="1020">البنك</option>
+              <option value="1010">{t('reconciliationAccounts.cash')}</option>
+              <option value="1020">{t('reconciliationAccounts.bank')}</option>
             </Select>
           </Field>
-          <Field label="حتى تاريخ">
+          <Field label={t('fields.asOfDate')}>
             <Input
               type="date"
               value={reconciliationForm.asOfDate}
@@ -882,7 +878,7 @@ export function AccountingPage() {
               required
             />
           </Field>
-          <Field label="رصيد كشف الحساب">
+          <Field label={t('fields.statementBalance')}>
             <Input
               type="number"
               step="0.01"
@@ -893,14 +889,14 @@ export function AccountingPage() {
               required
             />
           </Field>
-          <Field label="ملاحظات (اختياري)">
+          <Field label={t('fields.notes')}>
             <Input
               value={reconciliationForm.notes}
               onChange={(e) => setReconciliationForm({ ...reconciliationForm, notes: e.target.value })}
             />
           </Field>
           <Button type="submit" className="w-full" disabled={reconciliationSubmitting}>
-            {reconciliationSubmitting ? '...جارٍ الحفظ' : 'تسجيل التسوية'}
+            {reconciliationSubmitting ? t('saving') : t('actions.recordReconciliation')}
           </Button>
         </form>
       </Modal>

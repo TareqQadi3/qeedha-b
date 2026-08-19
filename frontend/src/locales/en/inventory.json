@@ -1,0 +1,38 @@
+{
+  "title": "Inventory",
+  "loading": "Loading...",
+  "actions": {
+    "openingBalance": "Opening Balance",
+    "adjustStock": "Adjust Stock",
+    "save": "Save",
+    "saving": "Saving..."
+  },
+  "fields": {
+    "warehouse": "Warehouse",
+    "product": "Product",
+    "selectProduct": "Select a product",
+    "quantity": "Quantity",
+    "quantityDelta": "Adjustment (positive to increase, negative to decrease)",
+    "unitCost": "Unit cost (optional - defaults to the current average cost)",
+    "reason": "Reason"
+  },
+  "table": {
+    "sku": "SKU",
+    "product": "Product",
+    "quantityOnHand": "Stock Level",
+    "available": "Available",
+    "averageCost": "Average Cost",
+    "inventoryValue": "Inventory Value",
+    "status": "Status",
+    "empty": "No stock recorded in this warehouse yet"
+  },
+  "status": {
+    "low": "Low",
+    "good": "Good"
+  },
+  "errors": {
+    "loadFailed": "Failed to load inventory",
+    "warehouseLoadFailed": "Failed to load this warehouse's stock levels",
+    "actionFailed": "Failed to complete the action"
+  }
+}

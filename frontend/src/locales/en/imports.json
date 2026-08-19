@@ -1,0 +1,85 @@
+{
+  "title": "Excel Import",
+  "listSeparator": ", ",
+  "entityTypes": {
+    "products": "Products",
+    "barcodes": "Additional Barcodes for Existing Products",
+    "categories": "Categories",
+    "units": "Units",
+    "customers": "Customers",
+    "suppliers": "Suppliers",
+    "opening_stock": "Opening Stock Balance"
+  },
+  "status": {
+    "uploaded": "Uploaded",
+    "analyzing": "Analyzing...",
+    "ready": "Ready to Map",
+    "validating": "Validating...",
+    "validated": "Validated",
+    "importing": "Importing...",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "fields": {
+    "entityType": "Data Type to Import",
+    "targetWarehouse": "Target Warehouse",
+    "requiredFieldsPrefix": "Required fields: ",
+    "optionalFieldsPrefix": "| Optional fields: ",
+    "excelFile": "Excel File (.xlsx)"
+  },
+  "actions": {
+    "uploading": "Uploading...",
+    "uploadAndContinue": "Upload File and Continue",
+    "tryAnotherFile": "Try Another File",
+    "saving": "Saving...",
+    "saveMapping": "Save Mapping",
+    "preview": "Preview",
+    "validate": "Validate Data",
+    "confirmingImport": "Importing...",
+    "confirmImport": "Confirm Import ({{count}} rows)",
+    "newImport": "Import New File"
+  },
+  "mapping": {
+    "heading": "Map columns of \"{{filename}}\" to {{entityType}} fields",
+    "noMapping": "— No Mapping —",
+    "columnFallback": "Column {{index}}"
+  },
+  "preview": {
+    "summaryPrefix": "Total rows: {{count}} — valid: ",
+    "summaryMiddle": " — with errors: ",
+    "rowError": "Row {{rowNumber}}: {{errors}}"
+  },
+  "validate": {
+    "summary": "Validated: {{validRows}} valid rows out of {{totalRows}} — {{errorRows}} rows with errors."
+  },
+  "result": {
+    "completed": "Import completed: {{importedRows}} rows imported successfully.",
+    "completedWithErrors": "Import completed: {{importedRows}} rows imported successfully, {{errorRows}} rows failed."
+  },
+  "history": {
+    "heading": "Import History",
+    "empty": "No import operations yet",
+    "table": {
+      "type": "Type",
+      "file": "File",
+      "status": "Status",
+      "importedRows": "Rows Imported",
+      "date": "Date"
+    }
+  },
+  "errors": {
+    "loadHistoryFailed": "Failed to load import history",
+    "loadEntityTypesFailed": "Failed to load available import types",
+    "selectFileFirst": "Choose an Excel (.xlsx) file first",
+    "selectWarehouse": "Choose the target warehouse for the opening stock",
+    "analyzeFailed": "Failed to analyze the file",
+    "uploadFailed": "Failed to upload the file",
+    "saveMappingFailed": "Failed to save column mapping",
+    "previewFailed": "Failed to generate preview",
+    "validateFailed": "Failed to validate the data",
+    "confirmFailed": "Failed to confirm the import",
+    "cancelImportFailed": "Failed to cancel the import",
+    "noPermission": "You do not have permission to import data from Excel"
+  }
+}

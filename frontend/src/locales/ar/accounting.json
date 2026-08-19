@@ -1,0 +1,142 @@
+{
+  "pageTitle": "الحسابات والقيود المحاسبية",
+  "noReadPermission": "لا تملك صلاحية عرض الحسابات",
+  "loading": "...جارٍ التحميل",
+  "saving": "...جارٍ الحفظ",
+  "types": {
+    "asset": "أصول",
+    "liability": "التزامات",
+    "equity": "حقوق ملكية",
+    "revenue": "إيرادات",
+    "expense": "مصروفات"
+  },
+  "status": {
+    "active": "نشط",
+    "inactive": "معطّل",
+    "posted": "مُرحَّل",
+    "reversed": "مُعكوس",
+    "open": "مفتوحة",
+    "closed": "مُقفلة"
+  },
+  "tabs": {
+    "accounts": "دليل الحسابات",
+    "journal": "القيود المحاسبية",
+    "openingBalance": "الأرصدة الافتتاحية",
+    "periods": "الفترات المحاسبية",
+    "reconciliation": "التسوية البنكية/النقدية"
+  },
+  "reconciliationAccounts": {
+    "cash": "الصندوق (نقدًا)",
+    "bank": "البنك"
+  },
+  "fields": {
+    "code": "الرمز",
+    "name": "الاسم",
+    "type": "النوع",
+    "account": "الحساب",
+    "parentAccount": "الحساب الأب (اختياري)",
+    "none": "بدون",
+    "selectAccount": "اختر حسابًا",
+    "debit": "مدين",
+    "credit": "دائن",
+    "startDate": "من تاريخ",
+    "endDate": "إلى تاريخ",
+    "asOfDate": "حتى تاريخ",
+    "statementBalance": "رصيد كشف الحساب",
+    "notes": "ملاحظات (اختياري)"
+  },
+  "table": {
+    "accounts": {
+      "code": "الرمز",
+      "name": "الاسم",
+      "type": "النوع",
+      "parent": "الحساب الأب",
+      "status": "الحالة"
+    },
+    "journal": {
+      "date": "التاريخ",
+      "source": "المصدر",
+      "description": "الوصف",
+      "debit": "مدين",
+      "credit": "دائن",
+      "status": "الحالة"
+    },
+    "openingBalance": {
+      "account": "الحساب",
+      "debit": "مدين",
+      "credit": "دائن"
+    },
+    "periods": {
+      "name": "الاسم",
+      "from": "من",
+      "to": "إلى",
+      "status": "الحالة"
+    },
+    "reconciliation": {
+      "account": "الحساب",
+      "asOfDate": "حتى تاريخ",
+      "statementBalance": "رصيد كشف الحساب",
+      "bookBalance": "الرصيد الدفتري",
+      "difference": "الفرق",
+      "notes": "ملاحظات"
+    },
+    "total": "الإجمالي"
+  },
+  "actions": {
+    "newAccount": "+ حساب جديد",
+    "saveAccount": "حفظ الحساب",
+    "viewDetails": "عرض التفاصيل",
+    "recordOpeningBalance": "+ تسجيل رصيد افتتاحي",
+    "reverseOpeningBalance": "عكس الرصيد الافتتاحي",
+    "postOpeningBalance": "ترحيل الرصيد الافتتاحي",
+    "addLine": "+ إضافة سطر",
+    "deleteLine": "حذف السطر",
+    "newPeriod": "+ فترة محاسبية جديدة",
+    "createPeriod": "إنشاء الفترة",
+    "closePeriod": "إقفال",
+    "reopenPeriod": "إعادة فتح",
+    "newReconciliation": "+ تسوية جديدة",
+    "recordReconciliation": "تسجيل التسوية"
+  },
+  "empty": {
+    "accounts": "لا توجد حسابات",
+    "journalEntries": "لا توجد قيود محاسبية بعد",
+    "openingBalance": "لا يوجد رصيد افتتاحي مُرحَّل لهذه المنشأة بعد",
+    "periods": "لا توجد فترات محاسبية بعد",
+    "reconciliations": "لا توجد تسويات بعد"
+  },
+  "openingBalance": {
+    "postedOn": "رُحِّل في {{date}}"
+  },
+  "modals": {
+    "newAccount": {
+      "title": "حساب جديد"
+    },
+    "entryDetails": {
+      "title": "تفاصيل القيد"
+    },
+    "recordOpeningBalance": {
+      "title": "تسجيل رصيد افتتاحي"
+    },
+    "newPeriod": {
+      "title": "فترة محاسبية جديدة"
+    },
+    "newReconciliation": {
+      "title": "تسوية بنكية/نقدية جديدة",
+      "helpText": "الرصيد الدفتري يُحتسب تلقائيًا من القيود المُرحَّلة حتى التاريخ المحدد - أدخل فقط رصيد كشف الحساب كما تقرأه من كشف البنك أو تعداد الصندوق الفعلي."
+    }
+  },
+  "errors": {
+    "loadAccountsFailed": "تعذّر تحميل دليل الحسابات",
+    "loadEntriesFailed": "تعذّر تحميل القيود المحاسبية",
+    "loadOpeningBalanceFailed": "تعذّر تحميل الرصيد الافتتاحي",
+    "loadPeriodsFailed": "تعذّر تحميل الفترات المحاسبية",
+    "loadReconciliationsFailed": "تعذّر تحميل تسويات البنك/الصندوق",
+    "createReconciliationFailed": "تعذّر تسجيل التسوية",
+    "createOpeningBalanceFailed": "تعذّر تسجيل الرصيد الافتتاحي",
+    "reverseOpeningBalanceFailed": "تعذّر عكس الرصيد الافتتاحي",
+    "createPeriodFailed": "تعذّر إنشاء الفترة المحاسبية",
+    "togglePeriodFailed": "تعذّر تحديث حالة الفترة",
+    "createAccountFailed": "تعذّر إنشاء الحساب"
+  }
+}

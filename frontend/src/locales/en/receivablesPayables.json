@@ -1,0 +1,38 @@
+{
+  "title": "Receivables & Payables",
+  "loading": "Loading...",
+  "tabs": {
+    "ar": "Receivables (AR)",
+    "ap": "Payables (AP)"
+  },
+  "sections": {
+    "arTitle": "Receivables",
+    "apTitle": "Payables",
+    "arEmpty": "No outstanding customer balances right now",
+    "apEmpty": "No supplier balances yet"
+  },
+  "table": {
+    "name": "Name",
+    "balance": "Balance",
+    "date": "Date",
+    "description": "Description",
+    "debit": "Debit",
+    "credit": "Credit",
+    "runningBalance": "Running Balance",
+    "noTransactions": "No transactions"
+  },
+  "actions": {
+    "statement": "Statement"
+  },
+  "modal": {
+    "statementTitle": "Account Statement"
+  },
+  "labels": {
+    "balance": "Balance:"
+  },
+  "errors": {
+    "loadFailed": "Failed to load {{title}}",
+    "statementLoadFailed": "Failed to load the account statement",
+    "noViewPermission": "You don't have permission to view receivables or payables"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "title": "المنتجات",
+  "loading": "...جارٍ التحميل",
+  "actions": {
+    "new": "+ منتج جديد",
+    "search": "بحث",
+    "save": "حفظ المنتج",
+    "saving": "...جارٍ الحفظ"
+  },
+  "search": {
+    "placeholder": "ابحث بالاسم أو SKU أو الباركود"
+  },
+  "table": {
+    "sku": "SKU",
+    "name": "الاسم",
+    "category": "التصنيف",
+    "brand": "العلامة",
+    "sellingPrice": "سعر البيع",
+    "status": "الحالة",
+    "currency": "ر.س",
+    "empty": "لا توجد منتجات بعد"
+  },
+  "status": {
+    "active": "نشط",
+    "inactive": "معطّل"
+  },
+  "modal": {
+    "title": "منتج جديد"
+  },
+  "fields": {
+    "sku": "SKU",
+    "barcode": "الباركود (اختياري)",
+    "name": "اسم المنتج",
+    "costPrice": "سعر التكلفة",
+    "sellingPrice": "سعر البيع",
+    "category": "التصنيف",
+    "brand": "العلامة",
+    "unit": "الوحدة",
+    "none": "بدون"
+  },
+  "errors": {
+    "loadFailed": "تعذّر تحميل المنتجات",
+    "createFailed": "تعذّر إنشاء المنتج"
+  }
+}

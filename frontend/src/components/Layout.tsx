@@ -1,6 +1,8 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import { useAuth } from '../state/auth';
 
 function Icon({ children }: { children: ReactNode }) {
@@ -20,10 +22,10 @@ function Icon({ children }: { children: ReactNode }) {
   );
 }
 
-const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[] = [
+const NAV_ITEMS: { to: string; labelKey: string; end?: boolean; icon: ReactNode }[] = [
   {
     to: '/',
-    label: 'لوحة التحكم',
+    labelKey: 'items.dashboard',
     end: true,
     icon: (
       <Icon>
@@ -36,7 +38,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/pos',
-    label: 'نقطة البيع',
+    labelKey: 'items.pos',
     icon: (
       <Icon>
         <path d="M2.5 4.5h2l.5 2M4.5 6.5h13l-1.3 6.5a1.5 1.5 0 0 1-1.47 1.2H6.9a1.5 1.5 0 0 1-1.47-1.2L4.5 6.5Z" />
@@ -47,7 +49,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/sales',
-    label: 'المبيعات والفواتير',
+    labelKey: 'items.sales',
     icon: (
       <Icon>
         <path d="M5 2.5h10v15l-2.5-1.5-2.5 1.5-2.5-1.5-2.5 1.5v-15Z" />
@@ -57,7 +59,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/products',
-    label: 'المنتجات',
+    labelKey: 'items.products',
     icon: (
       <Icon>
         <path d="M10 2.5 2.5 6.5 10 10.5l7.5-4-7.5-4Z" />
@@ -68,7 +70,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/catalog',
-    label: 'التصنيفات والعلامات والوحدات',
+    labelKey: 'items.catalog',
     icon: (
       <Icon>
         <path d="M10.8 2.5h4.2a2.5 2.5 0 0 1 2.5 2.5v4.2a1.5 1.5 0 0 1-.44 1.06l-7.5 7.5a1.5 1.5 0 0 1-2.12 0l-5.66-5.66a1.5 1.5 0 0 1 0-2.12l7.5-7.5A1.5 1.5 0 0 1 10.8 2.5Z" />
@@ -78,7 +80,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/inventory',
-    label: 'المخزون',
+    labelKey: 'items.inventory',
     icon: (
       <Icon>
         <path d="M2.5 6 10 2.5 17.5 6v8L10 17.5 2.5 14V6Z" />
@@ -88,7 +90,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/customers',
-    label: 'العملاء',
+    labelKey: 'items.customers',
     icon: (
       <Icon>
         <circle cx="7.5" cy="6.5" r="3" />
@@ -100,7 +102,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/suppliers',
-    label: 'الموردون',
+    labelKey: 'items.suppliers',
     icon: (
       <Icon>
         <path d="M2.5 5.5h8v8h-8z" />
@@ -112,7 +114,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/purchases',
-    label: 'المشتريات',
+    labelKey: 'items.purchases',
     icon: (
       <Icon>
         <path d="M4 6h12l-1 9.5a1.5 1.5 0 0 1-1.49 1.35H6.5A1.5 1.5 0 0 1 5 15.5L4 6Z" />
@@ -122,7 +124,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/import',
-    label: 'استيراد من Excel',
+    labelKey: 'items.import',
     icon: (
       <Icon>
         <path d="M10 13V3" />
@@ -133,7 +135,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/expenses',
-    label: 'المصروفات',
+    labelKey: 'items.expenses',
     icon: (
       <Icon>
         <rect x="2.5" y="5" width="15" height="10.5" rx="2" />
@@ -144,7 +146,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/accounting',
-    label: 'الحسابات والقيود',
+    labelKey: 'items.accounting',
     icon: (
       <Icon>
         <rect x="3.5" y="2.5" width="13" height="15" rx="1.5" />
@@ -154,7 +156,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/reports',
-    label: 'التقارير المحاسبية',
+    labelKey: 'items.reports',
     icon: (
       <Icon>
         <path d="M3 17V7M9.5 17V3M16 17v-9" />
@@ -164,7 +166,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/receivables-payables',
-    label: 'الذمم (العملاء والموردون)',
+    labelKey: 'items.receivablesPayables',
     icon: (
       <Icon>
         <path d="M3 7h11l-2.5-2.5" />
@@ -174,7 +176,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/subscription',
-    label: 'الاشتراك والخطة',
+    labelKey: 'items.subscription',
     icon: (
       <Icon>
         <rect x="2.5" y="4.5" width="15" height="11" rx="2" />
@@ -185,7 +187,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean; icon: ReactNode }[]
   },
   {
     to: '/integration',
-    label: 'تكامل قيّدها',
+    labelKey: 'items.integration',
     icon: (
       <Icon>
         <path d="M8 12 12 8" />
@@ -212,6 +214,7 @@ interface SubscriptionBanner {
 }
 
 export function Layout() {
+  const { t } = useTranslation('nav');
   const { me, logout } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionBanner | null>(null);
@@ -246,8 +249,8 @@ export function Layout() {
           ق
         </div>
         <div>
-          <div className="text-base font-bold leading-tight">Qeedha Accounting</div>
-          <div className="text-xs text-white/60">النظام المحاسبي ونقاط البيع</div>
+          <div className="text-base font-bold leading-tight">{t('appName')}</div>
+          <div className="text-xs text-white/60">{t('appSubtitle')}</div>
         </div>
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
@@ -264,7 +267,7 @@ export function Layout() {
             }
           >
             {item.icon}
-            <span className="truncate">{item.label}</span>
+            <span className="truncate">{t(item.labelKey)}</span>
           </NavLink>
         ))}
       </nav>
@@ -275,14 +278,17 @@ export function Layout() {
           </div>
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{me?.fullName}</div>
-            <div className="truncate text-xs text-white/55">{me?.roles.map((r) => r.name).join('، ') || '—'}</div>
+            <div className="truncate text-xs text-white/55">
+              {me?.roles.map((r) => r.name).join(t('roleSeparator')) || '—'}
+            </div>
           </div>
         </div>
+        <LanguageSwitcher className="mb-2 w-full justify-center" />
         <button
           onClick={() => logout()}
           className="w-full rounded-lg px-3 py-1.5 text-start text-xs text-white/75 transition-colors hover:bg-white/10 hover:text-white"
         >
-          تسجيل الخروج
+          {t('logout')}
         </button>
       </div>
     </>
@@ -295,15 +301,15 @@ export function Layout() {
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-sm font-extrabold">
             ق
           </div>
-          <span className="text-base font-bold">Qeedha Accounting</span>
+          <span className="text-base font-bold">{t('appName')}</span>
         </div>
         <button
           type="button"
           onClick={() => setMobileNavOpen(true)}
           className="rounded-lg border border-white/20 px-3 py-1.5 text-sm transition-colors hover:bg-white/10"
-          aria-label="فتح القائمة"
+          aria-label={t('openMenu')}
         >
-          ☰ القائمة
+          ☰ {t('openMenu')}
         </button>
       </div>
 
@@ -326,8 +332,7 @@ export function Layout() {
             to="/subscription"
             className="mb-4 block rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 transition-colors hover:bg-red-100"
           >
-            انتهت صلاحية الاشتراك أو تم إيقافه - يمكنك الاطلاع على بياناتك الحالية، ولإجراء عمليات جديدة يرجى
-            التواصل مع الدعم لتجديد الاشتراك. عرض تفاصيل الاشتراك ←
+            {t('subscriptionRestrictedBanner')}
           </NavLink>
         )}
         {showTrialNotice && (
@@ -335,8 +340,7 @@ export function Layout() {
             to="/subscription"
             className="mb-4 block rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 transition-colors hover:bg-amber-100"
           >
-            متبقٍ {subscription!.trialDaysRemaining} {subscription!.trialDaysRemaining === 1 ? 'يوم' : 'أيام'} على
-            انتهاء الفترة التجريبية. عرض تفاصيل الاشتراك ←
+            {t('trialNotice', { count: subscription!.trialDaysRemaining! })}
           </NavLink>
         )}
         <Outlet />

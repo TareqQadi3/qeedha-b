@@ -1,0 +1,85 @@
+{
+  "title": "استيراد من Excel",
+  "listSeparator": "، ",
+  "entityTypes": {
+    "products": "منتجات",
+    "barcodes": "باركود إضافي لمنتجات موجودة",
+    "categories": "تصنيفات",
+    "units": "وحدات",
+    "customers": "عملاء",
+    "suppliers": "موردون",
+    "opening_stock": "رصيد افتتاحي للمخزون"
+  },
+  "status": {
+    "uploaded": "تم الرفع",
+    "analyzing": "...جارٍ التحليل",
+    "ready": "جاهز للربط",
+    "validating": "...جارٍ التحقق",
+    "validated": "تم التحقق",
+    "importing": "...جارٍ الاستيراد",
+    "completed": "مكتمل",
+    "failed": "فشل",
+    "cancelled": "ملغى"
+  },
+  "fields": {
+    "entityType": "نوع البيانات المستوردة",
+    "targetWarehouse": "المستودع المستهدف",
+    "requiredFieldsPrefix": "الحقول المطلوبة: ",
+    "optionalFieldsPrefix": "| الحقول الاختيارية: ",
+    "excelFile": "ملف Excel (.xlsx)"
+  },
+  "actions": {
+    "uploading": "...جارٍ الرفع",
+    "uploadAndContinue": "رفع الملف ومتابعة",
+    "tryAnotherFile": "محاولة برفع ملف آخر",
+    "saving": "...جارٍ الحفظ",
+    "saveMapping": "حفظ الربط",
+    "preview": "معاينة",
+    "validate": "التحقق من صحة البيانات",
+    "confirmingImport": "...جارٍ الاستيراد",
+    "confirmImport": "تأكيد الاستيراد ({{count}} صف)",
+    "newImport": "استيراد ملف جديد"
+  },
+  "mapping": {
+    "heading": "ربط أعمدة الملف \"{{filename}}\" بحقول {{entityType}}",
+    "noMapping": "— بلا ربط —",
+    "columnFallback": "عمود {{index}}"
+  },
+  "preview": {
+    "summaryPrefix": "إجمالي الصفوف: {{count}} — صالحة: ",
+    "summaryMiddle": " — بها أخطاء: ",
+    "rowError": "الصف {{rowNumber}}: {{errors}}"
+  },
+  "validate": {
+    "summary": "تم التحقق: {{validRows}} صف صالح من {{totalRows}} — {{errorRows}} صف به أخطاء."
+  },
+  "result": {
+    "completed": "اكتمل الاستيراد: {{importedRows}} صف تم استيراده بنجاح.",
+    "completedWithErrors": "اكتمل الاستيراد: {{importedRows}} صف تم استيراده بنجاح، {{errorRows}} صف فشل."
+  },
+  "history": {
+    "heading": "سجل عمليات الاستيراد",
+    "empty": "لا توجد عمليات استيراد بعد",
+    "table": {
+      "type": "النوع",
+      "file": "الملف",
+      "status": "الحالة",
+      "importedRows": "الصفوف المستوردة",
+      "date": "التاريخ"
+    }
+  },
+  "errors": {
+    "loadHistoryFailed": "تعذّر تحميل سجل عمليات الاستيراد",
+    "loadEntityTypesFailed": "تعذّر تحميل أنواع الاستيراد المتاحة",
+    "selectFileFirst": "اختر ملف Excel (.xlsx) أولًا",
+    "selectWarehouse": "اختر المستودع المستهدف للرصيد الافتتاحي",
+    "analyzeFailed": "تعذّر تحليل الملف",
+    "uploadFailed": "تعذّر رفع الملف",
+    "saveMappingFailed": "تعذّر حفظ ربط الأعمدة",
+    "previewFailed": "تعذّرت المعاينة",
+    "validateFailed": "تعذّر التحقق من صحة البيانات",
+    "confirmFailed": "تعذّر تأكيد الاستيراد",
+    "cancelImportFailed": "تعذّر إلغاء عملية الاستيراد",
+    "noPermission": "لا تملك صلاحية استيراد البيانات من Excel"
+  }
+}

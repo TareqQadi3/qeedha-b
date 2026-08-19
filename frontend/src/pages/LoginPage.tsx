@@ -1,10 +1,13 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ApiError } from '../api/client';
 import { Button, Card, ErrorBanner, Field, Input } from '../components/ui';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useAuth } from '../state/auth';
 
 export function LoginPage() {
+  const { t } = useTranslation(['auth', 'nav']);
   const { login, selectTenant } = useAuth();
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
@@ -28,7 +31,7 @@ export function LoginPage() {
         navigate('/');
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر الاتصال بالخادم');
+      setError(err instanceof ApiError ? err.message : t('genericConnectionError'));
     } finally {
       setLoading(false);
     }
@@ -42,7 +45,7 @@ export function LoginPage() {
       await selectTenant(tenantChoice.tenantSelectionToken, companyId);
       navigate('/');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر الاختيار');
+      setError(err instanceof ApiError ? err.message : t('tenantSelectionError'));
     } finally {
       setLoading(false);
     }
@@ -55,41 +58,42 @@ export function LoginPage() {
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-xl font-extrabold">
             ق
           </div>
-          <div className="text-lg font-bold">Qeedha Accounting</div>
+          <div className="text-lg font-bold">{t('nav:appName')}</div>
+          <LanguageSwitcher />
         </div>
         <Card className="w-full">
-          <h1 className="mb-1 text-xl font-bold text-slate-900">تسجيل الدخول</h1>
-          <p className="mb-5 text-sm text-slate-500">إلى مساحة عملك المحاسبية</p>
+          <h1 className="mb-1 text-xl font-bold text-slate-900">{t('login.title')}</h1>
+          <p className="mb-5 text-sm text-slate-500">{t('login.subtitle')}</p>
 
           {!tenantChoice ? (
             <form onSubmit={onSubmit} className="space-y-4">
               <ErrorBanner message={error} />
-              <Field label="البريد الإلكتروني أو رقم الجوال">
+              <Field label={t('fields.identifier')}>
                 <Input value={identifier} onChange={(e) => setIdentifier(e.target.value)} required autoFocus />
               </Field>
-              <Field label="كلمة المرور">
+              <Field label={t('fields.password')}>
                 <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </Field>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? '...جارٍ الدخول' : 'تسجيل الدخول'}
+                {loading ? t('login.submitting') : t('login.submit')}
               </Button>
               <p className="text-center text-sm text-slate-500">
-                منشأة جديدة؟{' '}
+                {t('login.noAccountPrompt')}{' '}
                 <Link to="/register" className="font-medium text-brand-600 hover:underline">
-                  سجّل الآن
+                  {t('login.registerLink')}
                 </Link>
               </p>
             </form>
           ) : (
             <div className="space-y-3">
               <ErrorBanner message={error} />
-              <p className="text-sm text-slate-600">لديك عضوية في أكثر من منشأة - اختر المنشأة للمتابعة:</p>
+              <p className="text-sm text-slate-600">{t('login.chooseTenantPrompt')}</p>
               {tenantChoice.availableCompanies.map((c) => (
                 <button
                   key={c.companyId}
                   onClick={() => onSelectTenant(c.companyId)}
                   disabled={loading}
-                  className="block w-full rounded-lg border border-slate-200 px-3 py-2.5 text-right text-sm transition-colors hover:border-brand-500 hover:bg-brand-50"
+                  className="block w-full rounded-lg border border-slate-200 px-3 py-2.5 text-start text-sm transition-colors hover:border-brand-500 hover:bg-brand-50"
                 >
                   <div className="font-medium">{c.legalName}</div>
                   {c.tradeName && <div className="text-xs text-slate-500">{c.tradeName}</div>}

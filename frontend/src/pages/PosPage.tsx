@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { Button, Card, ErrorBanner, Field, Input, Select } from '../components/ui';
 import { useAuth } from '../state/auth';
@@ -33,12 +34,7 @@ interface CartLine {
 }
 
 type PaymentMethod = 'cash' | 'card' | 'transfer' | 'other';
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash: 'نقدًا',
-  card: 'بطاقة',
-  transfer: 'تحويل',
-  other: 'أخرى',
-};
+const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'card', 'transfer', 'other'];
 
 interface PaymentLine {
   method: PaymentMethod;
@@ -66,6 +62,7 @@ function newClientReferenceId() {
  * independently on submit.
  */
 export function PosPage() {
+  const { t } = useTranslation('pos');
   const { hasPermission } = useAuth();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState('');
@@ -100,7 +97,7 @@ export function PosPage() {
           setCustomers(cust.data);
         }
       } catch (err) {
-        setPageError(err instanceof ApiError ? err.message : 'تعذّر تحميل بيانات نقطة البيع');
+        setPageError(err instanceof ApiError ? err.message : t('loadError'));
       } finally {
         setPageLoading(false);
       }
@@ -136,7 +133,7 @@ export function PosPage() {
       const res = await api.get('/products', { search: term, pageSize: 8 });
       setSearchResults(res.data.filter((p: ProductResult) => p.isActive));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر البحث عن المنتجات');
+      setError(err instanceof ApiError ? err.message : t('searchError'));
     } finally {
       setSearching(false);
     }
@@ -178,7 +175,7 @@ export function PosPage() {
       const active = res.data.filter((p: ProductResult) => p.isActive);
       if (active.length >= 1) addToCart(active[0]);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر البحث عن المنتجات');
+      setError(err instanceof ApiError ? err.message : t('searchError'));
     }
   };
 
@@ -211,15 +208,15 @@ export function PosPage() {
     e.preventDefault();
     setError(null);
     if (cart.length === 0) {
-      setError('السلة فارغة');
+      setError(t('errors.emptyCart'));
       return;
     }
     if (paymentsSum > totalAmount + 0.005) {
-      setError('مجموع الدفعات لا يمكن أن يتجاوز الإجمالي');
+      setError(t('errors.paymentsExceedTotal'));
       return;
     }
     if (!paymentsBalanced) {
-      setError('البيع الآجل (غير مسدد بالكامل) يتطلب اختيار عميل');
+      setError(t('errors.creditRequiresCustomer'));
       return;
     }
     setSubmitting(true);
@@ -244,18 +241,18 @@ export function PosPage() {
       });
       setCompletedSale(sale);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إتمام البيع');
+      setError(err instanceof ApiError ? err.message : t('errors.completeSaleFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   if (!hasPermission('sales.create')) {
-    return <ErrorBanner message="لا تملك صلاحية إتمام عمليات البيع" />;
+    return <ErrorBanner message={t('noPermission')} />;
   }
 
   if (pageLoading) {
-    return <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>;
+    return <div className="py-6 text-center text-slate-400">{t('loading')}</div>;
   }
 
   if (pageError) {
@@ -268,7 +265,7 @@ export function PosPage() {
         <Card>
           <div className="mb-4 text-center">
             <div className="mb-2 text-3xl">✅</div>
-            <h2 className="text-lg font-bold text-slate-800">تم إتمام البيع بنجاح</h2>
+            <h2 className="text-lg font-bold text-slate-800">{t('receipt.successTitle')}</h2>
             <div className="mt-1 font-mono text-sm text-slate-500">
               {completedSale.invoice?.invoiceNumber}
             </div>
@@ -279,30 +276,30 @@ export function PosPage() {
                 <span>
                   {it.productName} × {it.quantity}
                 </span>
-                <span>{it.lineTotal} ر.س</span>
+                <span>{it.lineTotal} {t('currency')}</span>
               </div>
             ))}
           </div>
           <div className="mt-3 space-y-1 border-t border-slate-200 pt-3 text-sm">
             <div className="flex justify-between text-slate-600">
-              <span>الإجمالي الفرعي</span>
-              <span>{completedSale.subtotal} ر.س</span>
+              <span>{t('summary.subtotal')}</span>
+              <span>{completedSale.subtotal} {t('currency')}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>الخصم</span>
-              <span>{completedSale.discountAmount} ر.س</span>
+              <span>{t('summary.discount')}</span>
+              <span>{completedSale.discountAmount} {t('currency')}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>الضريبة</span>
-              <span>{completedSale.taxAmount} ر.س</span>
+              <span>{t('summary.tax')}</span>
+              <span>{completedSale.taxAmount} {t('currency')}</span>
             </div>
             <div className="flex justify-between text-base font-bold text-slate-800">
-              <span>الإجمالي</span>
-              <span>{completedSale.totalAmount} ر.س</span>
+              <span>{t('summary.total')}</span>
+              <span>{completedSale.totalAmount} {t('currency')}</span>
             </div>
           </div>
           <Button className="mt-5 w-full" onClick={resetForNewSale}>
-            بيع جديد
+            {t('actions.newSale')}
           </Button>
         </Card>
       </div>
@@ -313,7 +310,7 @@ export function PosPage() {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="lg:col-span-2">
         <div className="mb-4 flex items-center gap-3">
-          <h1 className="text-xl font-bold text-slate-800">نقطة البيع</h1>
+          <h1 className="text-xl font-bold text-slate-800">{t('title')}</h1>
           <div className="w-48">
             <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
               {warehouses.map((w) => (
@@ -329,7 +326,7 @@ export function PosPage() {
           <input
             ref={searchInputRef}
             autoFocus
-            placeholder="ابحث بالاسم أو SKU أو امسح الباركود..."
+            placeholder={t('searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
@@ -340,22 +337,22 @@ export function PosPage() {
           />
           {searchTerm && (
             <div className="mt-2 max-h-72 overflow-y-auto rounded-md border border-slate-200">
-              {searching && <div className="p-3 text-sm text-slate-400">...جارٍ البحث</div>}
+              {searching && <div className="p-3 text-sm text-slate-400">{t('searching')}</div>}
               {!searching && searchResults.length === 0 && (
-                <div className="p-3 text-sm text-slate-400">لا نتائج</div>
+                <div className="p-3 text-sm text-slate-400">{t('noResults')}</div>
               )}
               {searchResults.map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => addToCart(p)}
-                  className="flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-right text-sm last:border-0 hover:bg-slate-50"
+                  className="flex w-full items-center justify-between border-b border-slate-100 px-3 py-2 text-start text-sm last:border-0 hover:bg-slate-50"
                 >
                   <span>
                     <span className="font-medium text-slate-800">{p.name}</span>
-                    <span className="mr-2 font-mono text-xs text-slate-400">{p.sku}</span>
+                    <span className="ms-2 font-mono text-xs text-slate-400">{p.sku}</span>
                   </span>
-                  <span className="text-slate-600">{p.sellingPrice} ر.س</span>
+                  <span className="text-slate-600">{p.sellingPrice} {t('currency')}</span>
                 </button>
               ))}
             </div>
@@ -364,17 +361,17 @@ export function PosPage() {
 
         <Card className="mt-4">
           {cart.length === 0 ? (
-            <div className="py-10 text-center text-slate-400">السلة فارغة - ابحث عن منتج لإضافته</div>
+            <div className="py-10 text-center text-slate-400">{t('emptyCartHint')}</div>
           ) : (
             <div className="overflow-x-auto">
-            <table className="w-full text-right text-sm">
+            <table className="w-full text-start text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
-                  <th className="py-2">المنتج</th>
-                  <th className="py-2">الكمية</th>
-                  <th className="py-2">السعر</th>
-                  <th className="py-2">الخصم</th>
-                  <th className="py-2">الإجمالي</th>
+                  <th className="py-2">{t('table.product')}</th>
+                  <th className="py-2">{t('table.quantity')}</th>
+                  <th className="py-2">{t('table.price')}</th>
+                  <th className="py-2">{t('table.discount')}</th>
+                  <th className="py-2">{t('table.total')}</th>
                   <th className="py-2"></th>
                 </tr>
               </thead>
@@ -400,7 +397,7 @@ export function PosPage() {
                           className="w-20 rounded-md border border-slate-300 px-2 py-1 text-center"
                         />
                       </td>
-                      <td className="py-2 text-slate-600">{line.unitPrice} ر.س</td>
+                      <td className="py-2 text-slate-600">{line.unitPrice} {t('currency')}</td>
                       <td className="py-2">
                         <input
                           type="number"
@@ -414,13 +411,13 @@ export function PosPage() {
                           className="w-20 rounded-md border border-slate-300 px-2 py-1 text-center"
                         />
                       </td>
-                      <td className="py-2 font-medium text-slate-800">{lineTotal} ر.س</td>
+                      <td className="py-2 font-medium text-slate-800">{lineTotal} {t('currency')}</td>
                       <td className="py-2">
                         <button
                           type="button"
                           onClick={() => removeLine(line.productId)}
                           className="text-red-500 hover:text-red-700"
-                          aria-label="حذف"
+                          aria-label={t('actions.removeLine')}
                         >
                           ✕
                         </button>
@@ -440,9 +437,9 @@ export function PosPage() {
           <ErrorBanner message={error} />
 
           {hasPermission('customers.read') && (
-            <Field label="العميل (اختياري)">
+            <Field label={t('fields.customerOptional')}>
               <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                <option value="">عميل نقدي</option>
+                <option value="">{t('fields.cashCustomer')}</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -454,26 +451,26 @@ export function PosPage() {
 
           <div className="mt-4 space-y-1 border-t border-slate-200 pt-3 text-sm">
             <div className="flex justify-between text-slate-600">
-              <span>الإجمالي الفرعي</span>
-              <span>{subtotal} ر.س</span>
+              <span>{t('summary.subtotal')}</span>
+              <span>{subtotal} {t('currency')}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>الخصم</span>
-              <span>{discountTotal} ر.س</span>
+              <span>{t('summary.discount')}</span>
+              <span>{discountTotal} {t('currency')}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>الضريبة</span>
-              <span>{taxTotal} ر.س</span>
+              <span>{t('summary.tax')}</span>
+              <span>{taxTotal} {t('currency')}</span>
             </div>
             <div className="flex justify-between text-lg font-bold text-slate-800">
-              <span>الإجمالي</span>
-              <span>{totalAmount} ر.س</span>
+              <span>{t('summary.total')}</span>
+              <span>{totalAmount} {t('currency')}</span>
             </div>
           </div>
 
           <form onSubmit={onCompleteSale}>
             <div className="mt-4 space-y-2 border-t border-slate-200 pt-3">
-              <div className="text-sm font-medium text-slate-700">الدفع</div>
+              <div className="text-sm font-medium text-slate-700">{t('summary.payment')}</div>
               {payments.map((p, i) => (
                 <div key={i} className="flex gap-2">
                   <Select
@@ -487,16 +484,16 @@ export function PosPage() {
                     }
                     className="w-28"
                   >
-                    {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
+                    {PAYMENT_METHODS.map((method) => (
+                      <option key={method} value={method}>
+                        {t(`paymentMethods.${method}`)}
                       </option>
                     ))}
                   </Select>
                   <Input
                     type="number"
                     step="0.01"
-                    placeholder="المبلغ"
+                    placeholder={t('fields.amount')}
                     value={p.amount}
                     onChange={(e) =>
                       setPayments((prev) =>
@@ -509,7 +506,7 @@ export function PosPage() {
                       type="button"
                       onClick={() => removePaymentLine(i)}
                       className="px-2 text-red-500 hover:text-red-700"
-                      aria-label="حذف طريقة دفع"
+                      aria-label={t('actions.removePaymentLine')}
                     >
                       ✕
                     </button>
@@ -522,7 +519,7 @@ export function PosPage() {
                   onClick={addPaymentLine}
                   className="text-xs text-brand-600 hover:underline"
                 >
-                  + تقسيم الدفع
+                  {t('actions.splitPayment')}
                 </button>
                 <button
                   type="button"
@@ -531,25 +528,25 @@ export function PosPage() {
                   }
                   className="text-xs text-slate-400 hover:underline"
                 >
-                  ملء المبلغ كاملًا
+                  {t('actions.fillFullAmount')}
                 </button>
               </div>
               {cart.length > 0 && paymentsSum > totalAmount + 0.005 && (
                 <div className="text-xs text-amber-600">
-                  مجموع الدفعات ({paymentsSum} ر.س) أكبر من الإجمالي ({totalAmount} ر.س)
+                  {t('warnings.paymentsExceedTotal', { paymentsSum, totalAmount, currency: t('currency') })}
                 </div>
               )}
               {cart.length > 0 && paymentsSum <= totalAmount + 0.005 && arRemainder > 0.005 && (
                 <div className={`text-xs ${customerId ? 'text-slate-500' : 'text-amber-600'}`}>
                   {customerId
-                    ? `المتبقي (${arRemainder} ر.س) يُرحَّل كذمم مدينة على العميل`
-                    : `المتبقي (${arRemainder} ر.س) بيع آجل - اختر عميلًا لإتمامه`}
+                    ? t('warnings.arRemainderWithCustomer', { amount: arRemainder, currency: t('currency') })
+                    : t('warnings.arRemainderNoCustomer', { amount: arRemainder, currency: t('currency') })}
                 </div>
               )}
             </div>
 
             <Button type="submit" className="mt-4 w-full" disabled={submitting || cart.length === 0}>
-              {submitting ? '...جارٍ إتمام البيع' : 'إتمام البيع'}
+              {submitting ? t('actions.completingSale') : t('actions.completeSale')}
             </Button>
           </form>
         </Card>

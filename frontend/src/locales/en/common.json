@@ -1,0 +1,14 @@
+{
+  "close": "Close",
+  "loading": "Loading...",
+  "save": "Save",
+  "cancel": "Cancel",
+  "edit": "Edit",
+  "delete": "Delete",
+  "confirm": "Confirm",
+  "pagination": {
+    "summary": "{{total}} results - page {{page}} of {{totalPages}}",
+    "previous": "Previous",
+    "next": "Next"
+  }
+}

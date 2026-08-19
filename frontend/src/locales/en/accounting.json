@@ -1,0 +1,142 @@
+{
+  "pageTitle": "Accounts & Journal Entries",
+  "noReadPermission": "You do not have permission to view accounts",
+  "loading": "Loading...",
+  "saving": "Saving...",
+  "types": {
+    "asset": "Asset",
+    "liability": "Liability",
+    "equity": "Equity",
+    "revenue": "Revenue",
+    "expense": "Expense"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "posted": "Posted",
+    "reversed": "Reversed",
+    "open": "Open",
+    "closed": "Closed"
+  },
+  "tabs": {
+    "accounts": "Chart of Accounts",
+    "journal": "Journal Entries",
+    "openingBalance": "Opening Balances",
+    "periods": "Fiscal Periods",
+    "reconciliation": "Bank/Cash Reconciliation"
+  },
+  "reconciliationAccounts": {
+    "cash": "Cash",
+    "bank": "Bank"
+  },
+  "fields": {
+    "code": "Code",
+    "name": "Name",
+    "type": "Type",
+    "account": "Account",
+    "parentAccount": "Parent Account (optional)",
+    "none": "None",
+    "selectAccount": "Select an account",
+    "debit": "Debit",
+    "credit": "Credit",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "asOfDate": "As of Date",
+    "statementBalance": "Statement Balance",
+    "notes": "Notes (optional)"
+  },
+  "table": {
+    "accounts": {
+      "code": "Code",
+      "name": "Name",
+      "type": "Type",
+      "parent": "Parent Account",
+      "status": "Status"
+    },
+    "journal": {
+      "date": "Date",
+      "source": "Source",
+      "description": "Description",
+      "debit": "Debit",
+      "credit": "Credit",
+      "status": "Status"
+    },
+    "openingBalance": {
+      "account": "Account",
+      "debit": "Debit",
+      "credit": "Credit"
+    },
+    "periods": {
+      "name": "Name",
+      "from": "From",
+      "to": "To",
+      "status": "Status"
+    },
+    "reconciliation": {
+      "account": "Account",
+      "asOfDate": "As of Date",
+      "statementBalance": "Statement Balance",
+      "bookBalance": "Book Balance",
+      "difference": "Difference",
+      "notes": "Notes"
+    },
+    "total": "Total"
+  },
+  "actions": {
+    "newAccount": "+ New Account",
+    "saveAccount": "Save Account",
+    "viewDetails": "View Details",
+    "recordOpeningBalance": "+ Record Opening Balance",
+    "reverseOpeningBalance": "Reverse Opening Balance",
+    "postOpeningBalance": "Post Opening Balance",
+    "addLine": "+ Add Line",
+    "deleteLine": "Delete Line",
+    "newPeriod": "+ New Fiscal Period",
+    "createPeriod": "Create Period",
+    "closePeriod": "Close",
+    "reopenPeriod": "Reopen",
+    "newReconciliation": "+ New Reconciliation",
+    "recordReconciliation": "Record Reconciliation"
+  },
+  "empty": {
+    "accounts": "No accounts",
+    "journalEntries": "No journal entries yet",
+    "openingBalance": "No opening balance has been posted for this company yet",
+    "periods": "No fiscal periods yet",
+    "reconciliations": "No reconciliations yet"
+  },
+  "openingBalance": {
+    "postedOn": "Posted on {{date}}"
+  },
+  "modals": {
+    "newAccount": {
+      "title": "New Account"
+    },
+    "entryDetails": {
+      "title": "Entry Details"
+    },
+    "recordOpeningBalance": {
+      "title": "Record Opening Balance"
+    },
+    "newPeriod": {
+      "title": "New Fiscal Period"
+    },
+    "newReconciliation": {
+      "title": "New Bank/Cash Reconciliation",
+      "helpText": "The book balance is calculated automatically from entries posted through the selected date - just enter the statement balance as it reads on your bank statement or actual cash count."
+    }
+  },
+  "errors": {
+    "loadAccountsFailed": "Failed to load the chart of accounts",
+    "loadEntriesFailed": "Failed to load journal entries",
+    "loadOpeningBalanceFailed": "Failed to load the opening balance",
+    "loadPeriodsFailed": "Failed to load fiscal periods",
+    "loadReconciliationsFailed": "Failed to load bank/cash reconciliations",
+    "createReconciliationFailed": "Failed to record the reconciliation",
+    "createOpeningBalanceFailed": "Failed to record the opening balance",
+    "reverseOpeningBalanceFailed": "Failed to reverse the opening balance",
+    "createPeriodFailed": "Failed to create the fiscal period",
+    "togglePeriodFailed": "Failed to update the period status",
+    "createAccountFailed": "Failed to create the account"
+  }
+}

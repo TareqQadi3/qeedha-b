@@ -1,0 +1,69 @@
+{
+  "title": "Sales & Invoices",
+  "cashCustomer": "Cash Customer",
+  "fullyDeferred": "Fully on Credit",
+  "listSeparator": ", ",
+  "paymentMethods": {
+    "cash": "Cash",
+    "card": "Card",
+    "transfer": "Bank Transfer",
+    "other": "Other"
+  },
+  "status": {
+    "issued": "Issued",
+    "cancelled": "Cancelled"
+  },
+  "table": {
+    "invoiceNumber": "Invoice #",
+    "date": "Date",
+    "customer": "Customer",
+    "paymentMethod": "Payment Method",
+    "total": "Total",
+    "status": "Status",
+    "qr": "QR",
+    "product": "Product",
+    "quantitySold": "Quantity Sold",
+    "previouslyReturned": "Previously Returned",
+    "returnQuantity": "Return Quantity"
+  },
+  "actions": {
+    "viewQr": "View QR",
+    "detailsPaymentReturn": "Details / Payment / Return",
+    "recordingReturn": "Recording...",
+    "recordSalesReturn": "Record Sales Return",
+    "recordingPayment": "Recording...",
+    "recordPayment": "Record Payment"
+  },
+  "fields": {
+    "returnReason": "Return Reason (optional)",
+    "method": "Method",
+    "amount": "Amount"
+  },
+  "emptyState": {
+    "noSales": "No sales yet",
+    "noPayments": "No payments yet (fully deferred sale)"
+  },
+  "qrModal": {
+    "title": "QR Code - Invoice {{invoiceNumber}}",
+    "imageAlt": "Invoice QR code",
+    "disclaimer": "Per ZATCA Phase 1 specification - generated locally, not yet submitted to any external API.",
+    "preparing": "Preparing..."
+  },
+  "detailModal": {
+    "title": "Sale Details {{invoiceNumber}}",
+    "itemsHeading": "Items",
+    "paymentsHeading": "Payments",
+    "outstandingBalance": "Outstanding Balance: {{balance}} {{currency}}",
+    "newPaymentHeading": "Record New Payment",
+    "previousReturnsHeading": "Previous Returns"
+  },
+  "errors": {
+    "loadFailed": "Failed to load invoices",
+    "loadDetailFailed": "Failed to load sale details",
+    "recordPaymentFailed": "Failed to record payment",
+    "selectReturnQuantity": "Enter a return quantity for at least one item",
+    "recordReturnFailed": "Failed to record sales return",
+    "qrRenderFailed": "Failed to render QR code",
+    "noPermission": "You do not have permission to view sales and invoices"
+  }
+}

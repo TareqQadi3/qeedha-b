@@ -1,0 +1,69 @@
+{
+  "pageTitle": "التقارير المحاسبية",
+  "loading": "...جارٍ التحميل",
+  "noPermission": "لا تملك صلاحية عرض التقارير المحاسبية",
+  "tabs": {
+    "trialBalance": "ميزان المراجعة",
+    "generalLedger": "دفتر الأستاذ",
+    "pl": "الأرباح والخسائر",
+    "balanceSheet": "الميزانية العمومية"
+  },
+  "fields": {
+    "dateFrom": "من تاريخ",
+    "dateTo": "إلى تاريخ",
+    "asOfDate": "كما في تاريخ",
+    "account": "الحساب"
+  },
+  "actions": {
+    "apply": "تطبيق"
+  },
+  "table": {
+    "code": "الرمز",
+    "account": "الحساب",
+    "debit": "مدين",
+    "credit": "دائن",
+    "netBalance": "الرصيد الصافي",
+    "total": "الإجمالي",
+    "date": "التاريخ",
+    "source": "المصدر",
+    "description": "الوصف",
+    "runningBalance": "الرصيد الجاري"
+  },
+  "trialBalance": {
+    "loadError": "تعذّر تحميل ميزان المراجعة",
+    "empty": "لا توجد حركات محاسبية في هذا المدى",
+    "balanced": "متوازن",
+    "notBalanced": "غير متوازن"
+  },
+  "generalLedger": {
+    "accountsLoadError": "تعذّر تحميل دليل الحسابات",
+    "loadError": "تعذّر تحميل دفتر الأستاذ",
+    "empty": "لا توجد حركات لهذا الحساب في هذا المدى",
+    "openingBalance": "الرصيد الافتتاحي: {{value}}",
+    "closingBalance": "الرصيد الختامي: {{value}}"
+  },
+  "pl": {
+    "loadError": "تعذّر تحميل تقرير الأرباح والخسائر",
+    "revenue": "الإيرادات",
+    "expenses": "المصروفات",
+    "emptyRevenue": "لا توجد إيرادات في هذا المدى",
+    "emptyExpenses": "لا توجد مصروفات في هذا المدى",
+    "totalRevenue": "إجمالي الإيرادات",
+    "totalExpense": "إجمالي المصروفات",
+    "cogs": "تكلفة البضاعة المباعة (COGS)",
+    "grossProfit": "إجمالي الربح (Gross Profit)",
+    "netProfit": "صافي الربح / الخسارة"
+  },
+  "balanceSheet": {
+    "loadError": "تعذّر تحميل الميزانية العمومية",
+    "assets": "الأصول",
+    "liabilities": "الخصوم",
+    "equity": "حقوق الملكية",
+    "computedNote": "(محسوب، غير مُرحَّل بقيد)",
+    "emptyItems": "لا توجد بنود",
+    "totalAssets": "إجمالي الأصول:",
+    "liabilitiesPlusEquity": "الخصوم + حقوق الملكية:",
+    "balanced": "الميزانية متوازنة",
+    "notBalanced": "الميزانية غير متوازنة"
+  }
+}

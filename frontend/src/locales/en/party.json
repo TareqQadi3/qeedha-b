@@ -1,0 +1,40 @@
+{
+  "customers": {
+    "title": "Customers",
+    "addButton": "+ New Customer"
+  },
+  "suppliers": {
+    "title": "Suppliers",
+    "addButton": "+ New Supplier"
+  },
+  "shared": {
+    "loadFailed": "Failed to load",
+    "saveFailed": "Failed to save",
+    "searchPlaceholder": "Search by name, phone, or reference",
+    "searchButton": "Search",
+    "loading": "Loading...",
+    "table": {
+      "name": "Name",
+      "phone": "Phone",
+      "email": "Email",
+      "reference": "Reference",
+      "status": "Status",
+      "empty": "No data yet"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "fields": {
+      "name": "Name",
+      "contactPerson": "Contact Person",
+      "phone": "Phone Number",
+      "email": "Email",
+      "referenceOptional": "Reference Number (optional)"
+    },
+    "actions": {
+      "save": "Save",
+      "saving": "Saving..."
+    }
+  }
+}

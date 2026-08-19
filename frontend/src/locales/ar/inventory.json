@@ -1,0 +1,38 @@
+{
+  "title": "المخزون",
+  "loading": "...جارٍ التحميل",
+  "actions": {
+    "openingBalance": "رصيد افتتاحي",
+    "adjustStock": "تسوية مخزون",
+    "save": "حفظ",
+    "saving": "...جارٍ الحفظ"
+  },
+  "fields": {
+    "warehouse": "المستودع",
+    "product": "المنتج",
+    "selectProduct": "اختر منتجًا",
+    "quantity": "الكمية",
+    "quantityDelta": "الفرق (موجب للزيادة، سالب للنقصان)",
+    "unitCost": "تكلفة الوحدة (اختياري - يُستخدم متوسط التكلفة الحالي افتراضيًا)",
+    "reason": "السبب"
+  },
+  "table": {
+    "sku": "SKU",
+    "product": "المنتج",
+    "quantityOnHand": "الرصيد الحالي",
+    "available": "المتاح",
+    "averageCost": "متوسط التكلفة",
+    "inventoryValue": "قيمة المخزون",
+    "status": "الحالة",
+    "empty": "لا يوجد رصيد مسجَّل في هذا المستودع بعد"
+  },
+  "status": {
+    "low": "منخفض",
+    "good": "جيد"
+  },
+  "errors": {
+    "loadFailed": "تعذّر تحميل المخزون",
+    "warehouseLoadFailed": "تعذّر تحميل أرصدة هذا المستودع",
+    "actionFailed": "تعذّر التنفيذ"
+  }
+}

@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { Button, Card, ErrorBanner, Field, Input, PageHeader, Select } from '../components/ui';
 import { useAuth } from '../state/auth';
+import { formatDate } from '../utils/formatDate';
 
 type Tab = 'trial-balance' | 'general-ledger' | 'pl' | 'balance-sheet';
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'trial-balance', label: 'ميزان المراجعة' },
-  { key: 'general-ledger', label: 'دفتر الأستاذ' },
-  { key: 'pl', label: 'الأرباح والخسائر' },
-  { key: 'balance-sheet', label: 'الميزانية العمومية' },
+const TABS: { key: Tab; labelKey: string }[] = [
+  { key: 'trial-balance', labelKey: 'tabs.trialBalance' },
+  { key: 'general-ledger', labelKey: 'tabs.generalLedger' },
+  { key: 'pl', labelKey: 'tabs.pl' },
+  { key: 'balance-sheet', labelKey: 'tabs.balanceSheet' },
 ];
 
 // Western digits, matching every other page's money display (raw decimal strings from the API) - ar-SA locale formatting would render Eastern Arabic-Indic numerals, inconsistent with the rest of the app.
@@ -33,22 +35,24 @@ function DateRangeFields({
   onChange: (dateFrom: string, dateTo: string) => void;
   onApply: () => void;
 }) {
+  const { t } = useTranslation('reports');
   return (
     <div className="mb-4 flex flex-wrap items-end gap-3">
-      <Field label="من تاريخ">
+      <Field label={t('fields.dateFrom')}>
         <Input type="date" value={dateFrom} onChange={(e) => onChange(e.target.value, dateTo)} />
       </Field>
-      <Field label="إلى تاريخ">
+      <Field label={t('fields.dateTo')}>
         <Input type="date" value={dateTo} onChange={(e) => onChange(dateFrom, e.target.value)} />
       </Field>
       <Button variant="secondary" onClick={onApply}>
-        تطبيق
+        {t('actions.apply')}
       </Button>
     </div>
   );
 }
 
 function TrialBalanceTab() {
+  const { t } = useTranslation('reports');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [data, setData] = useState<any | null>(null);
@@ -65,7 +69,7 @@ function TrialBalanceTab() {
       });
       setData(res);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر تحميل ميزان المراجعة');
+      setError(err instanceof ApiError ? err.message : t('trialBalance.loadError'));
     } finally {
       setLoading(false);
     }
@@ -78,20 +82,20 @@ function TrialBalanceTab() {
 
   return (
     <div>
-      <DateRangeFields dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} onApply={load} />
+      <DateRangeFields dateFrom={dateFrom} dateTo={dateTo} onChange={(f, to) => { setDateFrom(f); setDateTo(to); }} onApply={load} />
       <ErrorBanner message={error} />
-      {loading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {loading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
       {!loading && data && (
         <Card>
           <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+          <table className="w-full text-start text-sm">
             <thead>
               <tr className="border-b text-slate-500">
-                <th className="py-2">الرمز</th>
-                <th className="py-2">الحساب</th>
-                <th className="py-2">مدين</th>
-                <th className="py-2">دائن</th>
-                <th className="py-2">الرصيد الصافي</th>
+                <th className="py-2">{t('table.code')}</th>
+                <th className="py-2">{t('table.account')}</th>
+                <th className="py-2">{t('table.debit')}</th>
+                <th className="py-2">{t('table.credit')}</th>
+                <th className="py-2">{t('table.netBalance')}</th>
               </tr>
             </thead>
             <tbody>
@@ -107,19 +111,19 @@ function TrialBalanceTab() {
               {data.rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="py-6 text-center text-slate-400">
-                    لا توجد حركات محاسبية في هذا المدى
+                    {t('trialBalance.empty')}
                   </td>
                 </tr>
               )}
             </tbody>
             <tfoot>
               <tr className="border-t font-medium text-slate-800">
-                <td colSpan={2} className="py-2">الإجمالي</td>
+                <td colSpan={2} className="py-2">{t('table.total')}</td>
                 <td className="py-2">{money(data.totals.totalDebit)}</td>
                 <td className="py-2">{money(data.totals.totalCredit)}</td>
                 <td className="py-2">
                   <span className={data.totals.isBalanced ? 'text-emerald-600' : 'text-red-600'}>
-                    {data.totals.isBalanced ? 'متوازن' : 'غير متوازن'}
+                    {data.totals.isBalanced ? t('trialBalance.balanced') : t('trialBalance.notBalanced')}
                   </span>
                 </td>
               </tr>
@@ -133,6 +137,7 @@ function TrialBalanceTab() {
 }
 
 function GeneralLedgerTab() {
+  const { t } = useTranslation('reports');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -148,7 +153,8 @@ function GeneralLedgerTab() {
         setAccounts(res);
         if (res.length > 0) setAccountId(res[0].id);
       })
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'تعذّر تحميل دليل الحسابات'));
+      .catch((err) => setError(err instanceof ApiError ? err.message : t('generalLedger.accountsLoadError')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = async (id = accountId) => {
@@ -163,7 +169,7 @@ function GeneralLedgerTab() {
       });
       setData(res);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر تحميل دفتر الأستاذ');
+      setError(err instanceof ApiError ? err.message : t('generalLedger.loadError'));
     } finally {
       setLoading(false);
     }
@@ -177,7 +183,7 @@ function GeneralLedgerTab() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="الحساب">
+        <Field label={t('fields.account')}>
           <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -186,40 +192,40 @@ function GeneralLedgerTab() {
             ))}
           </Select>
         </Field>
-        <Field label="من تاريخ">
+        <Field label={t('fields.dateFrom')}>
           <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
         </Field>
-        <Field label="إلى تاريخ">
+        <Field label={t('fields.dateTo')}>
           <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </Field>
         <Button variant="secondary" onClick={() => load()}>
-          تطبيق
+          {t('actions.apply')}
         </Button>
       </div>
       <ErrorBanner message={error} />
-      {loading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {loading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
       {!loading && data && (
         <Card>
           <div className="mb-3 flex justify-between text-sm text-slate-600">
-            <span>الرصيد الافتتاحي: {money(data.openingBalance)}</span>
-            <span>الرصيد الختامي: {money(data.closingBalance)}</span>
+            <span>{t('generalLedger.openingBalance', { value: money(data.openingBalance) })}</span>
+            <span>{t('generalLedger.closingBalance', { value: money(data.closingBalance) })}</span>
           </div>
           <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+          <table className="w-full text-start text-sm">
             <thead>
               <tr className="border-b text-slate-500">
-                <th className="py-2">التاريخ</th>
-                <th className="py-2">المصدر</th>
-                <th className="py-2">الوصف</th>
-                <th className="py-2">مدين</th>
-                <th className="py-2">دائن</th>
-                <th className="py-2">الرصيد الجاري</th>
+                <th className="py-2">{t('table.date')}</th>
+                <th className="py-2">{t('table.source')}</th>
+                <th className="py-2">{t('table.description')}</th>
+                <th className="py-2">{t('table.debit')}</th>
+                <th className="py-2">{t('table.credit')}</th>
+                <th className="py-2">{t('table.runningBalance')}</th>
               </tr>
             </thead>
             <tbody>
               {data.lines.map((l: any, i: number) => (
                 <tr key={i} className="border-b last:border-0">
-                  <td className="py-2 text-slate-500">{new Date(l.date).toLocaleDateString('ar-SA')}</td>
+                  <td className="py-2 text-slate-500">{formatDate(new Date(l.date))}</td>
                   <td className="py-2 text-slate-500">{l.referenceType}</td>
                   <td className="py-2">{l.description ?? '—'}</td>
                   <td className="py-2">{Number(l.debit) > 0 ? money(l.debit) : '—'}</td>
@@ -230,7 +236,7 @@ function GeneralLedgerTab() {
               {data.lines.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-6 text-center text-slate-400">
-                    لا توجد حركات لهذا الحساب في هذا المدى
+                    {t('generalLedger.empty')}
                   </td>
                 </tr>
               )}
@@ -244,6 +250,7 @@ function GeneralLedgerTab() {
 }
 
 function ProfitAndLossTab() {
+  const { t } = useTranslation('reports');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [data, setData] = useState<any | null>(null);
@@ -260,7 +267,7 @@ function ProfitAndLossTab() {
       });
       setData(res);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر تحميل تقرير الأرباح والخسائر');
+      setError(err instanceof ApiError ? err.message : t('pl.loadError'));
     } finally {
       setLoading(false);
     }
@@ -273,15 +280,15 @@ function ProfitAndLossTab() {
 
   return (
     <div>
-      <DateRangeFields dateFrom={dateFrom} dateTo={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} onApply={load} />
+      <DateRangeFields dateFrom={dateFrom} dateTo={dateTo} onChange={(f, to) => { setDateFrom(f); setDateTo(to); }} onApply={load} />
       <ErrorBanner message={error} />
-      {loading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {loading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
       {!loading && data && (
         <div className="space-y-4">
           <Card>
-            <h3 className="mb-2 font-bold text-slate-700">الإيرادات</h3>
+            <h3 className="mb-2 font-bold text-slate-700">{t('pl.revenue')}</h3>
             <div className="overflow-x-auto">
-            <table className="w-full text-right text-sm">
+            <table className="w-full text-start text-sm">
               <tbody>
                 {data.revenue.map((r: any) => (
                   <tr key={r.accountId} className="border-b last:border-0">
@@ -291,13 +298,13 @@ function ProfitAndLossTab() {
                 ))}
                 {data.revenue.length === 0 && (
                   <tr>
-                    <td colSpan={2} className="py-4 text-center text-slate-400">لا توجد إيرادات في هذا المدى</td>
+                    <td colSpan={2} className="py-4 text-center text-slate-400">{t('pl.emptyRevenue')}</td>
                   </tr>
                 )}
               </tbody>
               <tfoot>
                 <tr className="border-t font-medium">
-                  <td className="py-2">إجمالي الإيرادات</td>
+                  <td className="py-2">{t('pl.totalRevenue')}</td>
                   <td className="py-2">{money(data.totalRevenue)}</td>
                 </tr>
               </tfoot>
@@ -305,9 +312,9 @@ function ProfitAndLossTab() {
             </div>
           </Card>
           <Card>
-            <h3 className="mb-2 font-bold text-slate-700">المصروفات</h3>
+            <h3 className="mb-2 font-bold text-slate-700">{t('pl.expenses')}</h3>
             <div className="overflow-x-auto">
-            <table className="w-full text-right text-sm">
+            <table className="w-full text-start text-sm">
               <tbody>
                 {data.expenses.map((r: any) => (
                   <tr key={r.accountId} className="border-b last:border-0">
@@ -317,13 +324,13 @@ function ProfitAndLossTab() {
                 ))}
                 {data.expenses.length === 0 && (
                   <tr>
-                    <td colSpan={2} className="py-4 text-center text-slate-400">لا توجد مصروفات في هذا المدى</td>
+                    <td colSpan={2} className="py-4 text-center text-slate-400">{t('pl.emptyExpenses')}</td>
                   </tr>
                 )}
               </tbody>
               <tfoot>
                 <tr className="border-t font-medium">
-                  <td className="py-2">إجمالي المصروفات</td>
+                  <td className="py-2">{t('pl.totalExpense')}</td>
                   <td className="py-2">{money(data.totalExpense)}</td>
                 </tr>
               </tfoot>
@@ -332,17 +339,17 @@ function ProfitAndLossTab() {
           </Card>
           <Card>
             <div className="flex justify-between text-sm text-slate-600">
-              <span>تكلفة البضاعة المباعة (COGS)</span>
+              <span>{t('pl.cogs')}</span>
               <span>{money(data.costOfGoodsSold ?? 0)}</span>
             </div>
             <div className="mt-2 flex justify-between border-t pt-2 text-sm font-medium text-slate-700">
-              <span>إجمالي الربح (Gross Profit)</span>
+              <span>{t('pl.grossProfit')}</span>
               <span>{money(data.grossProfit ?? data.totalRevenue)}</span>
             </div>
           </Card>
           <Card className="bg-brand-50">
             <div className="flex justify-between text-base font-bold">
-              <span>صافي الربح / الخسارة</span>
+              <span>{t('pl.netProfit')}</span>
               <span className={data.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}>{money(data.netProfit)}</span>
             </div>
           </Card>
@@ -353,6 +360,7 @@ function ProfitAndLossTab() {
 }
 
 function BalanceSheetTab() {
+  const { t } = useTranslation('reports');
   const [asOfDate, setAsOfDate] = useState('');
   const [data, setData] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
@@ -365,7 +373,7 @@ function BalanceSheetTab() {
       const res = await api.get('/accounting/reports/balance-sheet', { asOfDate: asOfDate || undefined });
       setData(res);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر تحميل الميزانية العمومية');
+      setError(err instanceof ApiError ? err.message : t('balanceSheet.loadError'));
     } finally {
       setLoading(false);
     }
@@ -380,20 +388,20 @@ function BalanceSheetTab() {
     <Card>
       <h3 className="mb-2 font-bold text-slate-700">{title}</h3>
       <div className="overflow-x-auto">
-      <table className="w-full text-right text-sm">
+      <table className="w-full text-start text-sm">
         <tbody>
           {rows.map((r: any, i: number) => (
             <tr key={r.accountId ?? i} className="border-b last:border-0">
               <td className="py-2">
                 {r.accountName}
-                {r.computed && <span className="mr-2 text-xs text-slate-400">(محسوب، غير مُرحَّل بقيد)</span>}
+                {r.computed && <span className="ms-2 text-xs text-slate-400">{t('balanceSheet.computedNote')}</span>}
               </td>
               <td className="py-2">{money(r.balance)}</td>
             </tr>
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={2} className="py-4 text-center text-slate-400">لا توجد بنود</td>
+              <td colSpan={2} className="py-4 text-center text-slate-400">{t('balanceSheet.emptyItems')}</td>
             </tr>
           )}
         </tbody>
@@ -405,26 +413,26 @@ function BalanceSheetTab() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="كما في تاريخ">
+        <Field label={t('fields.asOfDate')}>
           <Input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} />
         </Field>
         <Button variant="secondary" onClick={load}>
-          تطبيق
+          {t('actions.apply')}
         </Button>
       </div>
       <ErrorBanner message={error} />
-      {loading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {loading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
       {!loading && data && (
         <div className="space-y-4">
-          {section('الأصول', data.assets)}
-          {section('الخصوم', data.liabilities)}
-          {section('حقوق الملكية', data.equity)}
+          {section(t('balanceSheet.assets'), data.assets)}
+          {section(t('balanceSheet.liabilities'), data.liabilities)}
+          {section(t('balanceSheet.equity'), data.equity)}
           <Card className={data.totals.isBalanced ? 'bg-emerald-50' : 'bg-red-50'}>
             <div className="grid grid-cols-3 gap-3 text-sm">
-              <div>إجمالي الأصول: <span className="font-bold">{money(data.totals.totalAssets)}</span></div>
-              <div>الخصوم + حقوق الملكية: <span className="font-bold">{money(data.totals.totalLiabilities + data.totals.totalEquity)}</span></div>
+              <div>{t('balanceSheet.totalAssets')} <span className="font-bold">{money(data.totals.totalAssets)}</span></div>
+              <div>{t('balanceSheet.liabilitiesPlusEquity')} <span className="font-bold">{money(data.totals.totalLiabilities + data.totals.totalEquity)}</span></div>
               <div className={data.totals.isBalanced ? 'font-bold text-emerald-700' : 'font-bold text-red-700'}>
-                {data.totals.isBalanced ? 'الميزانية متوازنة' : 'الميزانية غير متوازنة'}
+                {data.totals.isBalanced ? t('balanceSheet.balanced') : t('balanceSheet.notBalanced')}
               </div>
             </div>
           </Card>
@@ -436,27 +444,28 @@ function BalanceSheetTab() {
 
 /** Trial Balance / General Ledger / P&L / Balance Sheet - all read live from the posted ledger (docs/ACCOUNTING.md "Reporting foundation"), no mock data. */
 export function ReportsPage() {
+  const { t } = useTranslation('reports');
   const { hasPermission } = useAuth();
   const [tab, setTab] = useState<Tab>('trial-balance');
 
   if (!hasPermission('accounting.reports.view')) {
-    return <ErrorBanner message="لا تملك صلاحية عرض التقارير المحاسبية" />;
+    return <ErrorBanner message={t('noPermission')} />;
   }
 
   return (
     <div>
-      <PageHeader title="التقارير المحاسبية" />
+      <PageHeader title={t('pageTitle')} />
       <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-200">
-        {TABS.map((t) => (
+        {TABS.map((tabDef) => (
           <button
-            key={t.key}
+            key={tabDef.key}
             type="button"
-            onClick={() => setTab(t.key)}
+            onClick={() => setTab(tabDef.key)}
             className={`px-3 py-2 text-sm font-medium ${
-              tab === t.key ? 'border-b-2 border-brand-500 text-brand-600' : 'text-slate-500'
+              tab === tabDef.key ? 'border-b-2 border-brand-500 text-brand-600' : 'text-slate-500'
             }`}
           >
-            {t.label}
+            {t(tabDef.labelKey)}
           </button>
         ))}
       </div>

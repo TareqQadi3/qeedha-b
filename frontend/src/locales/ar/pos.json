@@ -1,0 +1,61 @@
+{
+  "title": "نقطة البيع",
+  "currency": "ر.س",
+  "loading": "...جارٍ التحميل",
+  "loadError": "تعذّر تحميل بيانات نقطة البيع",
+  "searchError": "تعذّر البحث عن المنتجات",
+  "noResults": "لا نتائج",
+  "searching": "...جارٍ البحث",
+  "searchPlaceholder": "ابحث بالاسم أو SKU أو امسح الباركود...",
+  "emptyCart": "السلة فارغة",
+  "emptyCartHint": "السلة فارغة - ابحث عن منتج لإضافته",
+  "errors": {
+    "emptyCart": "السلة فارغة",
+    "paymentsExceedTotal": "مجموع الدفعات لا يمكن أن يتجاوز الإجمالي",
+    "creditRequiresCustomer": "البيع الآجل (غير مسدد بالكامل) يتطلب اختيار عميل",
+    "completeSaleFailed": "تعذّر إتمام البيع"
+  },
+  "paymentMethods": {
+    "cash": "نقدًا",
+    "card": "بطاقة",
+    "transfer": "تحويل",
+    "other": "أخرى"
+  },
+  "fields": {
+    "customerOptional": "العميل (اختياري)",
+    "cashCustomer": "عميل نقدي",
+    "amount": "المبلغ"
+  },
+  "table": {
+    "product": "المنتج",
+    "quantity": "الكمية",
+    "price": "السعر",
+    "discount": "الخصم",
+    "total": "الإجمالي"
+  },
+  "actions": {
+    "removeLine": "حذف",
+    "removePaymentLine": "حذف طريقة دفع",
+    "splitPayment": "+ تقسيم الدفع",
+    "fillFullAmount": "ملء المبلغ كاملًا",
+    "completeSale": "إتمام البيع",
+    "completingSale": "...جارٍ إتمام البيع",
+    "newSale": "بيع جديد"
+  },
+  "summary": {
+    "subtotal": "الإجمالي الفرعي",
+    "discount": "الخصم",
+    "tax": "الضريبة",
+    "total": "الإجمالي",
+    "payment": "الدفع"
+  },
+  "warnings": {
+    "paymentsExceedTotal": "مجموع الدفعات ({{paymentsSum}} {{currency}}) أكبر من الإجمالي ({{totalAmount}} {{currency}})",
+    "arRemainderWithCustomer": "المتبقي ({{amount}} {{currency}}) يُرحَّل كذمم مدينة على العميل",
+    "arRemainderNoCustomer": "المتبقي ({{amount}} {{currency}}) بيع آجل - اختر عميلًا لإتمامه"
+  },
+  "receipt": {
+    "successTitle": "تم إتمام البيع بنجاح"
+  },
+  "noPermission": "لا تملك صلاحية إتمام عمليات البيع"
+}

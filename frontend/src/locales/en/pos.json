@@ -1,0 +1,61 @@
+{
+  "title": "Point of Sale",
+  "currency": "SAR",
+  "loading": "Loading...",
+  "loadError": "Failed to load point-of-sale data",
+  "searchError": "Failed to search products",
+  "noResults": "No results",
+  "searching": "Searching...",
+  "searchPlaceholder": "Search by name or SKU, or scan a barcode...",
+  "emptyCart": "Cart is empty",
+  "emptyCartHint": "Cart is empty - search for a product to add it",
+  "errors": {
+    "emptyCart": "Cart is empty",
+    "paymentsExceedTotal": "Total payments cannot exceed the total amount",
+    "creditRequiresCustomer": "A credit sale (not fully paid) requires selecting a customer",
+    "completeSaleFailed": "Failed to complete the sale"
+  },
+  "paymentMethods": {
+    "cash": "Cash",
+    "card": "Card",
+    "transfer": "Transfer",
+    "other": "Other"
+  },
+  "fields": {
+    "customerOptional": "Customer (optional)",
+    "cashCustomer": "Cash Customer",
+    "amount": "Amount"
+  },
+  "table": {
+    "product": "Product",
+    "quantity": "Qty",
+    "price": "Price",
+    "discount": "Discount",
+    "total": "Total"
+  },
+  "actions": {
+    "removeLine": "Remove",
+    "removePaymentLine": "Remove payment method",
+    "splitPayment": "+ Split Payment",
+    "fillFullAmount": "Fill full amount",
+    "completeSale": "Complete Sale",
+    "completingSale": "Completing sale...",
+    "newSale": "New Sale"
+  },
+  "summary": {
+    "subtotal": "Subtotal",
+    "discount": "Discount",
+    "tax": "Tax",
+    "total": "Total",
+    "payment": "Payment"
+  },
+  "warnings": {
+    "paymentsExceedTotal": "Total payments ({{paymentsSum}} {{currency}}) exceed the total ({{totalAmount}} {{currency}})",
+    "arRemainderWithCustomer": "The remainder ({{amount}} {{currency}}) will be carried as accounts receivable for this customer",
+    "arRemainderNoCustomer": "The remainder ({{amount}} {{currency}}) is a credit sale - select a customer to complete it"
+  },
+  "receipt": {
+    "successTitle": "Sale completed successfully"
+  },
+  "noPermission": "You do not have permission to complete sales"
+}

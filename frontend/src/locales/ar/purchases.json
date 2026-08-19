@@ -1,0 +1,75 @@
+{
+  "title": "المشتريات",
+  "newPurchaseButton": "+ أمر شراء جديد",
+  "loading": "...جارٍ التحميل",
+  "noPermission": "لا تملك صلاحية عرض المشتريات",
+  "errors": {
+    "loadFailed": "تعذّر تحميل أوامر الشراء",
+    "createFailed": "تعذّر إنشاء أمر الشراء",
+    "receiveFailed": "تعذّر استلام أمر الشراء",
+    "cancelFailed": "تعذّر إلغاء أمر الشراء",
+    "detailLoadFailed": "تعذّر تحميل تفاصيل أمر الشراء",
+    "paymentFailed": "تعذّر تسجيل الدفعة",
+    "returnFailed": "تعذّر تسجيل مرتجع المشتريات",
+    "itemRequired": "أضف منتجًا واحدًا على الأقل",
+    "returnQuantityRequired": "حدّد كمية إرجاع لصنف واحد على الأقل"
+  },
+  "table": {
+    "referenceNumber": "الرقم المرجعي",
+    "supplier": "المورد",
+    "warehouse": "المستودع",
+    "total": "الإجمالي",
+    "status": "الحالة",
+    "date": "التاريخ",
+    "empty": "لا توجد أوامر شراء بعد"
+  },
+  "status": {
+    "ordered": "قيد الطلب",
+    "received": "مُستلَم",
+    "cancelled": "ملغى"
+  },
+  "paymentMethods": {
+    "cash": "نقدًا",
+    "card": "بطاقة",
+    "transfer": "تحويل بنكي",
+    "other": "أخرى"
+  },
+  "actions": {
+    "receive": "استلام",
+    "cancel": "إلغاء",
+    "detailsPaymentReturn": "تفاصيل / دفع / مرتجع",
+    "remove": "حذف",
+    "addItem": "+ إضافة",
+    "save": "حفظ أمر الشراء",
+    "saving": "...جارٍ الحفظ",
+    "recording": "...جارٍ التسجيل",
+    "recordReturn": "تسجيل مرتجع مشتريات",
+    "recordPayment": "تسجيل الدفعة"
+  },
+  "modal": {
+    "newPurchaseTitle": "أمر شراء جديد",
+    "detailTitle": "تفاصيل أمر الشراء {{reference}}"
+  },
+  "fields": {
+    "supplier": "المورد",
+    "selectSupplier": "اختر موردًا",
+    "warehouse": "المستودع",
+    "items": "الأصناف",
+    "selectProduct": "اختر منتجًا لإضافته",
+    "product": "المنتج",
+    "quantity": "الكمية",
+    "unitCost": "تكلفة الوحدة",
+    "receivedQuantity": "الكمية المستلمة",
+    "previouslyReturned": "المرتجَع سابقًا",
+    "returnQuantity": "كمية الإرجاع",
+    "returnReasonOptional": "سبب الإرجاع (اختياري)",
+    "supplierPayments": "الدفعات للمورد",
+    "noPaymentsYet": "لا توجد دفعات بعد",
+    "outstandingBalance": "الرصيد المستحق: {{amount}} {{currency}}",
+    "recordNewPayment": "تسجيل دفعة جديدة",
+    "method": "الطريقة",
+    "amount": "المبلغ",
+    "paymentReferenceOptional": "مرجع الدفعة (اختياري)",
+    "previousReturns": "مرتجعات سابقة"
+  }
+}

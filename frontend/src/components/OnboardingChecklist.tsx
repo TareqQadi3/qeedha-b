@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { Card } from './ui';
 import { useAuth } from '../state/auth';
@@ -8,7 +9,6 @@ const DISMISSED_KEY = 'qeedha_onboarding_dismissed';
 
 interface Step {
   key: string;
-  label: string;
   to: string;
   permission: string;
   /** Undefined = always done (created automatically at registration). */
@@ -16,40 +16,35 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { key: 'company', label: 'إعداد المنشأة', to: '/', permission: 'products.read' },
-  { key: 'branch', label: 'الفرع الرئيسي', to: '/', permission: 'products.read' },
-  { key: 'warehouse', label: 'المستودع الرئيسي', to: '/', permission: 'products.read' },
+  { key: 'company', to: '/', permission: 'products.read' },
+  { key: 'branch', to: '/', permission: 'products.read' },
+  { key: 'warehouse', to: '/', permission: 'products.read' },
   {
     key: 'product',
-    label: 'إضافة أول منتج',
     to: '/products',
     permission: 'products.read',
     check: async () => (await api.get('/products', { page: 1, pageSize: 1 })).meta.total > 0,
   },
   {
     key: 'inventory',
-    label: 'تسجيل رصيد مخزون',
     to: '/inventory',
     permission: 'inventory.read',
     check: async () => (await api.get('/inventory/stock-levels', { page: 1, pageSize: 1 })).meta.total > 0,
   },
   {
     key: 'customer',
-    label: 'إضافة أول عميل',
     to: '/customers',
     permission: 'customers.read',
     check: async () => (await api.get('/customers', { page: 1, pageSize: 1 })).meta.total > 0,
   },
   {
     key: 'supplier',
-    label: 'إضافة أول مورد',
     to: '/suppliers',
     permission: 'suppliers.read',
     check: async () => (await api.get('/suppliers', { page: 1, pageSize: 1 })).meta.total > 0,
   },
   {
     key: 'sale',
-    label: 'إتمام أول عملية بيع',
     to: '/pos',
     permission: 'sales.read',
     check: async () => (await api.get('/invoices', { page: 1, pageSize: 1 })).meta.total > 0,
@@ -67,6 +62,7 @@ const STEPS: Step[] = [
  * auto-hides once every visible step is complete.
  */
 export function OnboardingChecklist() {
+  const { t } = useTranslation('onboarding');
   const { hasPermission } = useAuth();
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISSED_KEY) === '1');
   const [done, setDone] = useState<Record<string, boolean>>({});
@@ -101,9 +97,9 @@ export function OnboardingChecklist() {
   return (
     <Card className="mb-6 bg-brand-50">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-bold text-slate-800">ابدأ رحلتك في Qeedha Accounting</h2>
+        <h2 className="font-bold text-slate-800">{t('heading')}</h2>
         <button onClick={dismiss} className="text-xs text-slate-500 hover:underline">
-          إخفاء
+          {t('dismiss')}
         </button>
       </div>
       <ul className="space-y-2">
@@ -113,10 +109,10 @@ export function OnboardingChecklist() {
               {done[step.key] ? '✓' : '○'}
             </span>
             {done[step.key] ? (
-              <span className="text-slate-500 line-through">{step.label}</span>
+              <span className="text-slate-500 line-through">{t(`steps.${step.key}`)}</span>
             ) : (
               <Link to={step.to} className="text-brand-700 hover:underline">
-                {step.label}
+                {t(`steps.${step.key}`)}
               </Link>
             )}
           </li>

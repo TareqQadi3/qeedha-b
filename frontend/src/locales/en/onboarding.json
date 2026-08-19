@@ -1,0 +1,14 @@
+{
+  "heading": "Start Your Journey in Qeedha Accounting",
+  "dismiss": "Hide",
+  "steps": {
+    "company": "Set Up Your Company",
+    "branch": "Main Branch",
+    "warehouse": "Main Warehouse",
+    "product": "Add Your First Product",
+    "inventory": "Record Stock Levels",
+    "customer": "Add Your First Customer",
+    "supplier": "Add Your First Supplier",
+    "sale": "Complete Your First Sale"
+  }
+}

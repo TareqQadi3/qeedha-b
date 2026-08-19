@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import { Card, ErrorBanner, PageHeader } from '../components/ui';
@@ -6,7 +7,7 @@ import { useAuth } from '../state/auth';
 
 interface Tile {
   key: 'products' | 'lowStock' | 'customers' | 'suppliers';
-  label: string;
+  labelKey: string;
   permission: string;
   request: () => Promise<any>;
   extract: (res: any) => number;
@@ -16,14 +17,14 @@ interface Tile {
 const TILES: Tile[] = [
   {
     key: 'products',
-    label: 'عدد المنتجات',
+    labelKey: 'tiles.products',
     permission: 'products.read',
     request: () => api.get('/products', { page: 1, pageSize: 1 }),
     extract: (res) => res.meta.total,
   },
   {
     key: 'lowStock',
-    label: 'أصناف منخفضة المخزون',
+    labelKey: 'tiles.lowStock',
     permission: 'inventory.read',
     request: () => api.get('/inventory/stock-levels', { page: 1, pageSize: 1, lowStockOnly: true }),
     extract: (res) => res.meta.total,
@@ -31,14 +32,14 @@ const TILES: Tile[] = [
   },
   {
     key: 'customers',
-    label: 'عدد العملاء',
+    labelKey: 'tiles.customers',
     permission: 'customers.read',
     request: () => api.get('/customers', { page: 1, pageSize: 1 }),
     extract: (res) => res.meta.total,
   },
   {
     key: 'suppliers',
-    label: 'عدد الموردين',
+    labelKey: 'tiles.suppliers',
     permission: 'suppliers.read',
     request: () => api.get('/suppliers', { page: 1, pageSize: 1 }),
     extract: (res) => res.meta.total,
@@ -57,6 +58,7 @@ const TILES: Tile[] = [
  * access instead of the whole dashboard silently failing.
  */
 export function DashboardPage() {
+  const { t } = useTranslation('dashboard');
   const { me, hasPermission } = useAuth();
   const [values, setValues] = useState<Partial<Record<Tile['key'], number>>>({});
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export function DashboardPage() {
         }
       });
       setValues(next);
-      setError(anyFailed ? 'تعذّر تحميل بعض المؤشرات' : null);
+      setError(anyFailed ? t('errors.someFailed') : null);
       setLoading(false);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,16 +92,16 @@ export function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title={`مرحبًا، ${me?.fullName ?? ''}`} />
+      <PageHeader title={t('greeting', { name: me?.fullName ?? '' })} />
       <OnboardingChecklist />
       <ErrorBanner message={error} />
       {visibleTiles.length === 0 ? (
-        <div className="py-6 text-center text-slate-400">لا توجد مؤشرات متاحة لصلاحياتك الحالية</div>
+        <div className="py-6 text-center text-slate-400">{t('emptyState')}</div>
       ) : (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {visibleTiles.map((tile) => (
             <Card key={tile.key}>
-              <div className="text-sm text-slate-500">{tile.label}</div>
+              <div className="text-sm text-slate-500">{t(tile.labelKey)}</div>
               <div
                 className={`mt-2 text-3xl font-bold ${
                   tile.warn && (values[tile.key] ?? 0) > 0 ? 'text-amber-600' : 'text-slate-800'
@@ -111,9 +113,7 @@ export function DashboardPage() {
           ))}
         </div>
       )}
-      <p className="mt-6 text-sm text-slate-400">
-        مؤشرات المبيعات والمشتريات والمصروفات والأرباح تُضاف مع المراحل القادمة عندما تتوفر بياناتها الفعلية.
-      </p>
+      <p className="mt-6 text-sm text-slate-400">{t('comingSoon')}</p>
     </div>
   );
 }

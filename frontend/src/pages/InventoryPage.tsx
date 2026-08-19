@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { Button, Card, ErrorBanner, Field, Input, Modal, PageHeader, Select } from '../components/ui';
 import { useAuth } from '../state/auth';
@@ -30,6 +31,7 @@ interface StockRow {
 const money = (n: number | string) => Number(n).toFixed(2);
 
 export function InventoryPage() {
+  const { t } = useTranslation('inventory');
   const { hasPermission } = useAuth();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState('');
@@ -60,7 +62,7 @@ export function InventoryPage() {
         const prod = await api.get('/products', { pageSize: 100 });
         setProducts(prod.data);
       } catch (err) {
-        setPageError(err instanceof ApiError ? err.message : 'تعذّر تحميل المخزون');
+        setPageError(err instanceof ApiError ? err.message : t('errors.loadFailed'));
       } finally {
         setPageLoading(false);
       }
@@ -74,7 +76,7 @@ export function InventoryPage() {
     try {
       await loadLevels(id);
     } catch (err) {
-      setPageError(err instanceof ApiError ? err.message : 'تعذّر تحميل أرصدة هذا المستودع');
+      setPageError(err instanceof ApiError ? err.message : t('errors.warehouseLoadFailed'));
     }
   };
 
@@ -109,7 +111,7 @@ export function InventoryPage() {
       setModalMode(null);
       await loadLevels(warehouseId);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر التنفيذ');
+      setError(err instanceof ApiError ? err.message : t('errors.actionFailed'));
     } finally {
       setLoading(false);
     }
@@ -118,21 +120,21 @@ export function InventoryPage() {
   return (
     <div>
       <PageHeader
-        title="المخزون"
+        title={t('title')}
         action={
           hasPermission('inventory.adjust') && (
             <div className="flex gap-2">
               <Button variant="secondary" onClick={() => openModal('opening')}>
-                رصيد افتتاحي
+                {t('actions.openingBalance')}
               </Button>
-              <Button onClick={() => openModal('adjust')}>تسوية مخزون</Button>
+              <Button onClick={() => openModal('adjust')}>{t('actions.adjustStock')}</Button>
             </div>
           )
         }
       />
 
       <div className="mb-4 max-w-xs">
-        <Field label="المستودع">
+        <Field label={t('fields.warehouse')}>
           <Select value={warehouseId} onChange={(e) => onWarehouseChange(e.target.value)}>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
@@ -144,20 +146,20 @@ export function InventoryPage() {
       </div>
 
       <ErrorBanner message={pageError} />
-      {pageLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {pageLoading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
       {!pageLoading && (
         <Card>
           <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+          <table className="w-full text-start text-sm">
             <thead>
               <tr className="border-b text-slate-500">
-                <th className="py-2">SKU</th>
-                <th className="py-2">المنتج</th>
-                <th className="py-2">الرصيد الحالي</th>
-                <th className="py-2">المتاح</th>
-                <th className="py-2">متوسط التكلفة</th>
-                <th className="py-2">قيمة المخزون</th>
-                <th className="py-2">الحالة</th>
+                <th className="py-2">{t('table.sku')}</th>
+                <th className="py-2">{t('table.product')}</th>
+                <th className="py-2">{t('table.quantityOnHand')}</th>
+                <th className="py-2">{t('table.available')}</th>
+                <th className="py-2">{t('table.averageCost')}</th>
+                <th className="py-2">{t('table.inventoryValue')}</th>
+                <th className="py-2">{t('table.status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -171,9 +173,9 @@ export function InventoryPage() {
                   <td className="py-2 font-medium">{money(r.inventoryValue)}</td>
                   <td className="py-2">
                     {r.isLowStock ? (
-                      <span className="text-amber-600">منخفض</span>
+                      <span className="text-amber-600">{t('status.low')}</span>
                     ) : (
-                      <span className="text-emerald-600">جيد</span>
+                      <span className="text-emerald-600">{t('status.good')}</span>
                     )}
                   </td>
                 </tr>
@@ -181,7 +183,7 @@ export function InventoryPage() {
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-6 text-center text-slate-400">
-                    لا يوجد رصيد مسجَّل في هذا المستودع بعد
+                    {t('table.empty')}
                   </td>
                 </tr>
               )}
@@ -194,13 +196,13 @@ export function InventoryPage() {
       <Modal
         open={modalMode !== null}
         onClose={() => setModalMode(null)}
-        title={modalMode === 'opening' ? 'رصيد افتتاحي' : 'تسوية مخزون'}
+        title={modalMode === 'opening' ? t('actions.openingBalance') : t('actions.adjustStock')}
       >
         <form onSubmit={onSubmit} className="space-y-3">
           <ErrorBanner message={error} />
-          <Field label="المنتج">
+          <Field label={t('fields.product')}>
             <Select value={form.productId} onChange={(e) => setForm({ ...form, productId: e.target.value })} required>
-              <option value="">اختر منتجًا</option>
+              <option value="">{t('fields.selectProduct')}</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.sku})
@@ -208,7 +210,7 @@ export function InventoryPage() {
               ))}
             </Select>
           </Field>
-          <Field label={modalMode === 'opening' ? 'الكمية' : 'الفرق (موجب للزيادة، سالب للنقصان)'}>
+          <Field label={modalMode === 'opening' ? t('fields.quantity') : t('fields.quantityDelta')}>
             <Input
               type="number"
               step="0.001"
@@ -218,7 +220,7 @@ export function InventoryPage() {
             />
           </Field>
           {(modalMode === 'opening' || (modalMode === 'adjust' && Number(form.quantity) > 0)) && (
-            <Field label="تكلفة الوحدة (اختياري - يُستخدم متوسط التكلفة الحالي افتراضيًا)">
+            <Field label={t('fields.unitCost')}>
               <Input
                 type="number"
                 step="0.01"
@@ -229,12 +231,12 @@ export function InventoryPage() {
             </Field>
           )}
           {modalMode === 'adjust' && (
-            <Field label="السبب">
+            <Field label={t('fields.reason')}>
               <Input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} required />
             </Field>
           )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? '...جارٍ الحفظ' : 'حفظ'}
+            {loading ? t('actions.saving') : t('actions.save')}
           </Button>
         </form>
       </Modal>

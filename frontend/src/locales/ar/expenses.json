@@ -1,0 +1,50 @@
+{
+  "title": "المصروفات",
+  "loading": "...جارٍ التحميل",
+  "actions": {
+    "new": "+ مصروف جديد",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "save": "حفظ",
+    "saving": "...جارٍ الحفظ"
+  },
+  "paymentMethods": {
+    "cash": "نقدًا",
+    "card": "بطاقة",
+    "transfer": "تحويل",
+    "other": "أخرى"
+  },
+  "table": {
+    "category": "الفئة",
+    "branch": "الفرع",
+    "amount": "المبلغ",
+    "paymentMethod": "طريقة الدفع",
+    "description": "الوصف",
+    "status": "الحالة",
+    "empty": "لا توجد مصروفات بعد",
+    "companyNoBranch": "الشركة (بدون فرع)"
+  },
+  "status": {
+    "recorded": "مسجَّل",
+    "cancelled": "محذوف"
+  },
+  "modal": {
+    "newTitle": "مصروف جديد",
+    "editTitle": "تعديل مصروف"
+  },
+  "fields": {
+    "category": "الفئة",
+    "selectCategory": "اختر فئة",
+    "branch": "الفرع (اختياري - اتركه فارغًا لمصروف على مستوى الشركة)",
+    "noBranch": "بدون فرع",
+    "amount": "المبلغ",
+    "paymentMethod": "طريقة الدفع",
+    "description": "الوصف (اختياري)"
+  },
+  "errors": {
+    "loadFailed": "تعذّر تحميل المصروفات",
+    "saveFailed": "تعذّر حفظ المصروف",
+    "deleteFailed": "تعذّر حذف المصروف",
+    "noViewPermission": "لا تملك صلاحية عرض المصروفات"
+  }
+}

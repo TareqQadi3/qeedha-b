@@ -1,0 +1,75 @@
+{
+  "title": "Purchases",
+  "newPurchaseButton": "+ New Purchase Order",
+  "loading": "Loading...",
+  "noPermission": "You do not have permission to view purchases",
+  "errors": {
+    "loadFailed": "Failed to load purchase orders",
+    "createFailed": "Failed to create purchase order",
+    "receiveFailed": "Failed to receive purchase order",
+    "cancelFailed": "Failed to cancel purchase order",
+    "detailLoadFailed": "Failed to load purchase order details",
+    "paymentFailed": "Failed to record payment",
+    "returnFailed": "Failed to record purchase return",
+    "itemRequired": "Add at least one product",
+    "returnQuantityRequired": "Specify a return quantity for at least one item"
+  },
+  "table": {
+    "referenceNumber": "Reference No.",
+    "supplier": "Supplier",
+    "warehouse": "Warehouse",
+    "total": "Total",
+    "status": "Status",
+    "date": "Date",
+    "empty": "No purchase orders yet"
+  },
+  "status": {
+    "ordered": "Ordered",
+    "received": "Received",
+    "cancelled": "Cancelled"
+  },
+  "paymentMethods": {
+    "cash": "Cash",
+    "card": "Card",
+    "transfer": "Bank Transfer",
+    "other": "Other"
+  },
+  "actions": {
+    "receive": "Receive",
+    "cancel": "Cancel",
+    "detailsPaymentReturn": "Details / Payment / Return",
+    "remove": "Remove",
+    "addItem": "+ Add",
+    "save": "Save Purchase Order",
+    "saving": "Saving...",
+    "recording": "Recording...",
+    "recordReturn": "Record Purchase Return",
+    "recordPayment": "Record Payment"
+  },
+  "modal": {
+    "newPurchaseTitle": "New Purchase Order",
+    "detailTitle": "Purchase Order Details {{reference}}"
+  },
+  "fields": {
+    "supplier": "Supplier",
+    "selectSupplier": "Select a supplier",
+    "warehouse": "Warehouse",
+    "items": "Items",
+    "selectProduct": "Select a product to add",
+    "product": "Product",
+    "quantity": "Quantity",
+    "unitCost": "Unit Cost",
+    "receivedQuantity": "Received Quantity",
+    "previouslyReturned": "Previously Returned",
+    "returnQuantity": "Return Quantity",
+    "returnReasonOptional": "Return Reason (optional)",
+    "supplierPayments": "Supplier Payments",
+    "noPaymentsYet": "No payments yet",
+    "outstandingBalance": "Outstanding Balance: {{amount}} {{currency}}",
+    "recordNewPayment": "Record New Payment",
+    "method": "Method",
+    "amount": "Amount",
+    "paymentReferenceOptional": "Payment Reference (optional)",
+    "previousReturns": "Previous Returns"
+  }
+}

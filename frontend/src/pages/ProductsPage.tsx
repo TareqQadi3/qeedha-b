@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { Button, Card, ErrorBanner, Field, Input, Modal, PageHeader, Pagination, Select } from '../components/ui';
 import { useAuth } from '../state/auth';
@@ -22,6 +23,7 @@ interface Option {
 const emptyForm = { sku: '', name: '', costPrice: '', sellingPrice: '', categoryId: '', brandId: '', unitId: '', barcode: '' };
 
 export function ProductsPage() {
+  const { t } = useTranslation('products');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<Product[]>([]);
   const [meta, setMeta] = useState({ page: 1, pageSize: 20, total: 0 });
@@ -44,7 +46,7 @@ export function ProductsPage() {
       setData(res.data);
       setMeta(res.meta);
     } catch (err) {
-      setListError(err instanceof ApiError ? err.message : 'تعذّر تحميل المنتجات');
+      setListError(err instanceof ApiError ? err.message : t('errors.loadFailed'));
     } finally {
       setListLoading(false);
     }
@@ -82,7 +84,7 @@ export function ProductsPage() {
       setForm(emptyForm);
       await load(1);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء المنتج');
+      setError(err instanceof ApiError ? err.message : t('errors.createFailed'));
     } finally {
       setLoading(false);
     }
@@ -91,37 +93,37 @@ export function ProductsPage() {
   return (
     <div>
       <PageHeader
-        title="المنتجات"
+        title={t('title')}
         action={
           hasPermission('products.create') && (
-            <Button onClick={() => setModalOpen(true)}>+ منتج جديد</Button>
+            <Button onClick={() => setModalOpen(true)}>{t('actions.new')}</Button>
           )
         }
       />
 
       <form onSubmit={onSearchSubmit} className="mb-4 flex gap-2">
         <Input
-          placeholder="ابحث بالاسم أو SKU أو الباركود"
+          placeholder={t('search.placeholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Button type="submit" variant="secondary">بحث</Button>
+        <Button type="submit" variant="secondary">{t('actions.search')}</Button>
       </form>
 
       <ErrorBanner message={listError} />
-      {listLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {listLoading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
       {!listLoading && (
         <Card>
           <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+          <table className="w-full text-start text-sm">
             <thead>
               <tr className="border-b text-slate-500">
-                <th className="py-2">SKU</th>
-                <th className="py-2">الاسم</th>
-                <th className="py-2">التصنيف</th>
-                <th className="py-2">العلامة</th>
-                <th className="py-2">سعر البيع</th>
-                <th className="py-2">الحالة</th>
+                <th className="py-2">{t('table.sku')}</th>
+                <th className="py-2">{t('table.name')}</th>
+                <th className="py-2">{t('table.category')}</th>
+                <th className="py-2">{t('table.brand')}</th>
+                <th className="py-2">{t('table.sellingPrice')}</th>
+                <th className="py-2">{t('table.status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -131,10 +133,10 @@ export function ProductsPage() {
                   <td className="py-2">{p.name}</td>
                   <td className="py-2 text-slate-500">{p.category?.name ?? '—'}</td>
                   <td className="py-2 text-slate-500">{p.brand?.name ?? '—'}</td>
-                  <td className="py-2">{p.sellingPrice} ر.س</td>
+                  <td className="py-2">{p.sellingPrice} {t('table.currency')}</td>
                   <td className="py-2">
                     <span className={p.isActive ? 'text-emerald-600' : 'text-slate-400'}>
-                      {p.isActive ? 'نشط' : 'معطّل'}
+                      {p.isActive ? t('status.active') : t('status.inactive')}
                     </span>
                   </td>
                 </tr>
@@ -142,7 +144,7 @@ export function ProductsPage() {
               {data.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-6 text-center text-slate-400">
-                    لا توجد منتجات بعد
+                    {t('table.empty')}
                   </td>
                 </tr>
               )}
@@ -153,22 +155,22 @@ export function ProductsPage() {
         </Card>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="منتج جديد">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t('modal.title')}>
         <form onSubmit={onCreate} className="space-y-3">
           <ErrorBanner message={error} />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="SKU">
+            <Field label={t('fields.sku')}>
               <Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} required />
             </Field>
-            <Field label="الباركود (اختياري)">
+            <Field label={t('fields.barcode')}>
               <Input value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} />
             </Field>
           </div>
-          <Field label="اسم المنتج">
+          <Field label={t('fields.name')}>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="سعر التكلفة">
+            <Field label={t('fields.costPrice')}>
               <Input
                 type="number"
                 step="0.01"
@@ -177,7 +179,7 @@ export function ProductsPage() {
                 required
               />
             </Field>
-            <Field label="سعر البيع">
+            <Field label={t('fields.sellingPrice')}>
               <Input
                 type="number"
                 step="0.01"
@@ -188,9 +190,9 @@ export function ProductsPage() {
             </Field>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Field label="التصنيف">
+            <Field label={t('fields.category')}>
               <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-                <option value="">بدون</option>
+                <option value="">{t('fields.none')}</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -198,9 +200,9 @@ export function ProductsPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="العلامة">
+            <Field label={t('fields.brand')}>
               <Select value={form.brandId} onChange={(e) => setForm({ ...form, brandId: e.target.value })}>
-                <option value="">بدون</option>
+                <option value="">{t('fields.none')}</option>
                 {brands.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -208,9 +210,9 @@ export function ProductsPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="الوحدة">
+            <Field label={t('fields.unit')}>
               <Select value={form.unitId} onChange={(e) => setForm({ ...form, unitId: e.target.value })}>
-                <option value="">بدون</option>
+                <option value="">{t('fields.none')}</option>
                 {units.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name}
@@ -220,7 +222,7 @@ export function ProductsPage() {
             </Field>
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? '...جارٍ الحفظ' : 'حفظ المنتج'}
+            {loading ? t('actions.saving') : t('actions.save')}
           </Button>
         </form>
       </Modal>

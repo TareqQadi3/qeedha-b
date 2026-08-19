@@ -1,12 +1,14 @@
+import { useTranslation } from 'react-i18next';
 import { PartyPage } from './PartyPage';
 
 export function SuppliersPage() {
+  const { t } = useTranslation('party');
   return (
     <PartyPage
-      title="الموردون"
+      title={t('suppliers.title')}
       endpoint="/suppliers"
       permissionPrefix="suppliers"
-      addButtonLabel="+ مورد جديد"
+      addButtonLabel={t('suppliers.addButton')}
       showContactPerson
     />
   );

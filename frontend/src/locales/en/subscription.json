@@ -1,0 +1,50 @@
+{
+  "title": "Subscription & Plan",
+  "loading": "Loading...",
+  "features": {
+    "title": "Features included in this plan",
+    "pos": "Point of Sale",
+    "inventory": "Inventory Management",
+    "accounting": "Accounting & Journal Entries",
+    "reports": "Financial Reports",
+    "excelImport": "Excel Import",
+    "zatca": "E-Invoicing (ZATCA - Phase One)",
+    "arAp": "Receivables & Payables"
+  },
+  "status": {
+    "trialing": "Trial Period",
+    "active": "Active",
+    "expired": "Expired",
+    "suspended": "Suspended",
+    "cancelled": "Cancelled"
+  },
+  "banners": {
+    "restricted": "Your current subscription has expired or been suspended. You can still view your existing data, but to perform new operations please contact support to renew your subscription."
+  },
+  "labels": {
+    "currentPlan": "Current Plan",
+    "priceLabel": "Price:",
+    "priceMonthly": "SAR {{price}} / month",
+    "priceEstimateNote": "(preliminary estimated price - not final)",
+    "contactSupport": "Contact support"
+  },
+  "trial": {
+    "daysRemaining_one": "{{count}} day left in your trial period",
+    "daysRemaining_other": "{{count}} days left in your trial period"
+  },
+  "usage": {
+    "title": "Usage Limits",
+    "users": "Users",
+    "branches": "Branches",
+    "monthlySales": "This month's sales",
+    "unlimited": "Unlimited"
+  },
+  "plans": {
+    "title": "Available Plans",
+    "summary": "Users: {{users}} · Branches: {{branches}} · Monthly sales: {{sales}}",
+    "footerNote": "Billing management and plan upgrades will be available soon through the Qeedha control center. To upgrade or ask about billing, please contact support."
+  },
+  "errors": {
+    "loadFailed": "Failed to load subscription data"
+  }
+}

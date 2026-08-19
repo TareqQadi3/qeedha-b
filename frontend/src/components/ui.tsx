@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export function Button({
   variant = 'primary',
@@ -108,6 +109,7 @@ export function Modal({
   title: string;
   children: ReactNode;
 }) {
+  const { t } = useTranslation('common');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   // Latest onClose in a ref so the keydown listener always calls the
   // current handler without re-subscribing (and re-focusing) on every
@@ -147,7 +149,7 @@ export function Modal({
             ref={closeButtonRef}
             onClick={onClose}
             className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-            aria-label="إغلاق"
+            aria-label={t('close')}
           >
             ✕
           </button>
@@ -169,18 +171,17 @@ export function Pagination({
   total: number;
   onChange: (page: number) => void;
 }) {
+  const { t } = useTranslation('common');
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   return (
     <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
-      <span className="tabular-nums">
-        {total} نتيجة - صفحة {page} من {totalPages}
-      </span>
+      <span className="tabular-nums">{t('pagination.summary', { total, page, totalPages })}</span>
       <div className="flex gap-2">
         <Button variant="secondary" disabled={page <= 1} onClick={() => onChange(page - 1)}>
-          السابق
+          {t('pagination.previous')}
         </Button>
         <Button variant="secondary" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>
-          التالي
+          {t('pagination.next')}
         </Button>
       </div>
     </div>

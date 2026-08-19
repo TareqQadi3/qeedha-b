@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import {
   Button,
@@ -36,12 +37,6 @@ interface ExpenseRow {
 }
 
 type PaymentMethod = 'cash' | 'card' | 'transfer' | 'other';
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash: 'نقدًا',
-  card: 'بطاقة',
-  transfer: 'تحويل',
-  other: 'أخرى',
-};
 
 function newClientReferenceId() {
   return typeof crypto.randomUUID === 'function'
@@ -59,7 +54,14 @@ const emptyForm = {
 
 /** Expenses screen (docs/EXPENSES.md). Editing amount/category/payment method reverses the old journal entry and posts a fresh one - see docs/ACCOUNTING.md. */
 export function ExpensesPage() {
+  const { t } = useTranslation('expenses');
   const { hasPermission } = useAuth();
+  const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+    cash: t('paymentMethods.cash'),
+    card: t('paymentMethods.card'),
+    transfer: t('paymentMethods.transfer'),
+    other: t('paymentMethods.other'),
+  };
   const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
@@ -84,7 +86,7 @@ export function ExpensesPage() {
       setData(res.data);
       setMeta(res.meta);
     } catch (err) {
-      setListError(err instanceof ApiError ? err.message : 'تعذّر تحميل المصروفات');
+      setListError(err instanceof ApiError ? err.message : t('errors.loadFailed'));
     } finally {
       setListLoading(false);
     }
@@ -97,7 +99,8 @@ export function ExpensesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const branchName = (id: string | null) => (id ? (branches.find((b) => b.id === id)?.name ?? '—') : 'الشركة (بدون فرع)');
+  const branchName = (id: string | null) =>
+    id ? (branches.find((b) => b.id === id)?.name ?? '—') : t('table.companyNoBranch');
 
   const openCreateModal = () => {
     setEditingId(null);
@@ -144,7 +147,7 @@ export function ExpensesPage() {
       setModalOpen(false);
       await load(editingId ? meta.page : 1);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'تعذّر حفظ المصروف');
+      setFormError(err instanceof ApiError ? err.message : t('errors.saveFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -157,38 +160,38 @@ export function ExpensesPage() {
       await api.delete(`/expenses/${id}`);
       await load();
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : 'تعذّر حذف المصروف');
+      setActionError(err instanceof ApiError ? err.message : t('errors.deleteFailed'));
     } finally {
       setBusyId(null);
     }
   };
 
   if (!hasPermission('expenses.read')) {
-    return <ErrorBanner message="لا تملك صلاحية عرض المصروفات" />;
+    return <ErrorBanner message={t('errors.noViewPermission')} />;
   }
 
   return (
     <div>
       <PageHeader
-        title="المصروفات"
-        action={hasPermission('expenses.create') && <Button onClick={openCreateModal}>+ مصروف جديد</Button>}
+        title={t('title')}
+        action={hasPermission('expenses.create') && <Button onClick={openCreateModal}>{t('actions.new')}</Button>}
       />
 
       <ErrorBanner message={actionError} />
       <ErrorBanner message={listError} />
-      {listLoading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {listLoading && <div className="py-6 text-center text-slate-400">{t('loading')}</div>}
       {!listLoading && (
       <Card>
         <div className="overflow-x-auto">
-        <table className="w-full text-right text-sm">
+        <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b text-slate-500">
-              <th className="py-2">الفئة</th>
-              <th className="py-2">الفرع</th>
-              <th className="py-2">المبلغ</th>
-              <th className="py-2">طريقة الدفع</th>
-              <th className="py-2">الوصف</th>
-              <th className="py-2">الحالة</th>
+              <th className="py-2">{t('table.category')}</th>
+              <th className="py-2">{t('table.branch')}</th>
+              <th className="py-2">{t('table.amount')}</th>
+              <th className="py-2">{t('table.paymentMethod')}</th>
+              <th className="py-2">{t('table.description')}</th>
+              <th className="py-2">{t('table.status')}</th>
               <th className="py-2"></th>
             </tr>
           </thead>
@@ -206,7 +209,7 @@ export function ExpensesPage() {
                 <td className="py-2 text-slate-500">{row.description ?? '—'}</td>
                 <td className="py-2">
                   <span className={row.status === 'recorded' ? 'text-emerald-600' : 'text-red-500'}>
-                    {row.status === 'recorded' ? 'مسجَّل' : 'محذوف'}
+                    {row.status === 'recorded' ? t('status.recorded') : t('status.cancelled')}
                   </span>
                 </td>
                 <td className="py-2">
@@ -218,7 +221,7 @@ export function ExpensesPage() {
                           onClick={() => openEditModal(row)}
                           className="text-xs text-brand-600 hover:underline"
                         >
-                          تعديل
+                          {t('actions.edit')}
                         </button>
                       )}
                       {hasPermission('expenses.delete') && (
@@ -228,7 +231,7 @@ export function ExpensesPage() {
                           onClick={() => deleteExpense(row.id)}
                           className="text-xs text-red-500 hover:underline disabled:opacity-50"
                         >
-                          حذف
+                          {t('actions.delete')}
                         </button>
                       )}
                     </div>
@@ -239,7 +242,7 @@ export function ExpensesPage() {
             {data.length === 0 && (
               <tr>
                 <td colSpan={7} className="py-6 text-center text-slate-400">
-                  لا توجد مصروفات بعد
+                  {t('table.empty')}
                 </td>
               </tr>
             )}
@@ -250,13 +253,13 @@ export function ExpensesPage() {
       </Card>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'تعديل مصروف' : 'مصروف جديد'}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? t('modal.editTitle') : t('modal.newTitle')}>
         <form onSubmit={onSubmit} className="space-y-3">
           <ErrorBanner message={formError} />
           {!editingId && (
-            <Field label="الفئة">
+            <Field label={t('fields.category')}>
               <Select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} required>
-                <option value="">اختر فئة</option>
+                <option value="">{t('fields.selectCategory')}</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -265,9 +268,9 @@ export function ExpensesPage() {
               </Select>
             </Field>
           )}
-          <Field label="الفرع (اختياري - اتركه فارغًا لمصروف على مستوى الشركة)">
+          <Field label={t('fields.branch')}>
             <Select value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>
-              <option value="">بدون فرع</option>
+              <option value="">{t('fields.noBranch')}</option>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -276,7 +279,7 @@ export function ExpensesPage() {
             </Select>
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="المبلغ">
+            <Field label={t('fields.amount')}>
               <Input
                 type="number"
                 step="0.01"
@@ -285,7 +288,7 @@ export function ExpensesPage() {
                 required
               />
             </Field>
-            <Field label="طريقة الدفع">
+            <Field label={t('fields.paymentMethod')}>
               <Select
                 value={form.paymentMethod}
                 onChange={(e) => setForm({ ...form, paymentMethod: e.target.value as PaymentMethod })}
@@ -298,11 +301,11 @@ export function ExpensesPage() {
               </Select>
             </Field>
           </div>
-          <Field label="الوصف (اختياري)">
+          <Field label={t('fields.description')}>
             <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </Field>
           <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? '...جارٍ الحفظ' : 'حفظ'}
+            {submitting ? t('actions.saving') : t('actions.save')}
           </Button>
         </form>
       </Modal>

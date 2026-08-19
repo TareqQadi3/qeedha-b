@@ -1,0 +1,21 @@
+{
+  "pageTitle": "Categories, Brands & Units",
+  "sections": {
+    "categories": "Categories",
+    "brands": "Brands",
+    "units": "Units"
+  },
+  "fields": {
+    "name": "Name",
+    "symbol": "Symbol (optional)"
+  },
+  "actions": {
+    "add": "Add"
+  },
+  "loading": "Loading...",
+  "empty": "No items yet",
+  "errors": {
+    "loadFailed": "Failed to load the list",
+    "saveFailed": "Failed to save"
+  }
+}

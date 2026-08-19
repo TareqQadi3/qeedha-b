@@ -1,0 +1,14 @@
+{
+  "close": "إغلاق",
+  "loading": "...جارٍ التحميل",
+  "save": "حفظ",
+  "cancel": "إلغاء",
+  "edit": "تعديل",
+  "delete": "حذف",
+  "confirm": "تأكيد",
+  "pagination": {
+    "summary": "{{total}} نتيجة - صفحة {{page}} من {{totalPages}}",
+    "previous": "السابق",
+    "next": "التالي"
+  }
+}

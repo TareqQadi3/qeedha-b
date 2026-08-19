@@ -1,0 +1,14 @@
+{
+  "heading": "ابدأ رحلتك في Qeedha Accounting",
+  "dismiss": "إخفاء",
+  "steps": {
+    "company": "إعداد المنشأة",
+    "branch": "الفرع الرئيسي",
+    "warehouse": "المستودع الرئيسي",
+    "product": "إضافة أول منتج",
+    "inventory": "تسجيل رصيد مخزون",
+    "customer": "إضافة أول عميل",
+    "supplier": "إضافة أول مورد",
+    "sale": "إتمام أول عملية بيع"
+  }
+}

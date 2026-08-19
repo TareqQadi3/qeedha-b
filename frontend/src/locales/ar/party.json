@@ -1,0 +1,40 @@
+{
+  "customers": {
+    "title": "العملاء",
+    "addButton": "+ عميل جديد"
+  },
+  "suppliers": {
+    "title": "الموردون",
+    "addButton": "+ مورد جديد"
+  },
+  "shared": {
+    "loadFailed": "تعذّر التحميل",
+    "saveFailed": "تعذّر الحفظ",
+    "searchPlaceholder": "ابحث بالاسم أو الجوال أو المرجع",
+    "searchButton": "بحث",
+    "loading": "...جارٍ التحميل",
+    "table": {
+      "name": "الاسم",
+      "phone": "الجوال",
+      "email": "البريد الإلكتروني",
+      "reference": "المرجع",
+      "status": "الحالة",
+      "empty": "لا يوجد بيانات بعد"
+    },
+    "status": {
+      "active": "نشط",
+      "inactive": "معطّل"
+    },
+    "fields": {
+      "name": "الاسم",
+      "contactPerson": "جهة الاتصال",
+      "phone": "رقم الجوال",
+      "email": "البريد الإلكتروني",
+      "referenceOptional": "رقم المرجع (اختياري)"
+    },
+    "actions": {
+      "save": "حفظ",
+      "saving": "...جارٍ الحفظ"
+    }
+  }
+}

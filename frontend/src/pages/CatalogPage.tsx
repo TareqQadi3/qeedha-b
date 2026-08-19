@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { Button, Card, ErrorBanner, Input, PageHeader } from '../components/ui';
 import { useAuth } from '../state/auth';
@@ -20,6 +21,7 @@ function EntitySection({
   canCreate: boolean;
   extraField?: { key: string; label: string };
 }) {
+  const { t } = useTranslation('catalog');
   const [items, setItems] = useState<Item[]>([]);
   const [name, setName] = useState('');
   const [extra, setExtra] = useState('');
@@ -33,7 +35,7 @@ function EntitySection({
     try {
       setItems(await api.get(endpoint));
     } catch (err) {
-      setListError(err instanceof ApiError ? err.message : 'تعذّر تحميل القائمة');
+      setListError(err instanceof ApiError ? err.message : t('errors.loadFailed'));
     } finally {
       setListLoading(false);
     }
@@ -53,7 +55,7 @@ function EntitySection({
       setExtra('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر الحفظ');
+      setError(err instanceof ApiError ? err.message : t('errors.saveFailed'));
     }
   };
 
@@ -63,7 +65,7 @@ function EntitySection({
       <ErrorBanner message={error} />
       <ErrorBanner message={listError} />
       {listLoading ? (
-        <div className="mb-3 text-sm text-slate-400">...جارٍ التحميل</div>
+        <div className="mb-3 text-sm text-slate-400">{t('loading')}</div>
       ) : (
         <ul className="mb-3 max-h-48 space-y-1 overflow-y-auto text-sm">
           {items.map((item) => (
@@ -72,17 +74,17 @@ function EntitySection({
               {item.symbol ? ` (${item.symbol})` : ''}
             </li>
           ))}
-          {items.length === 0 && <li className="text-slate-400">لا يوجد عناصر بعد</li>}
+          {items.length === 0 && <li className="text-slate-400">{t('empty')}</li>}
         </ul>
       )}
       {canCreate && (
         <form onSubmit={onSubmit} className="flex gap-2">
-          <Input placeholder="الاسم" value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input placeholder={t('fields.name')} value={name} onChange={(e) => setName(e.target.value)} required />
           {extraField && (
             <Input placeholder={extraField.label} value={extra} onChange={(e) => setExtra(e.target.value)} />
           )}
           <Button type="submit" variant="secondary">
-            إضافة
+            {t('actions.add')}
           </Button>
         </form>
       )}
@@ -91,20 +93,21 @@ function EntitySection({
 }
 
 export function CatalogPage() {
+  const { t } = useTranslation('catalog');
   const { hasPermission } = useAuth();
   const canCreate = hasPermission('products.create');
 
   return (
     <div>
-      <PageHeader title="التصنيفات والعلامات التجارية والوحدات" />
+      <PageHeader title={t('pageTitle')} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <EntitySection title="التصنيفات" endpoint="/catalog/categories" canCreate={canCreate} />
-        <EntitySection title="العلامات التجارية" endpoint="/catalog/brands" canCreate={canCreate} />
+        <EntitySection title={t('sections.categories')} endpoint="/catalog/categories" canCreate={canCreate} />
+        <EntitySection title={t('sections.brands')} endpoint="/catalog/brands" canCreate={canCreate} />
         <EntitySection
-          title="الوحدات"
+          title={t('sections.units')}
           endpoint="/catalog/units"
           canCreate={canCreate}
-          extraField={{ key: 'symbol', label: 'الرمز (اختياري)' }}
+          extraField={{ key: 'symbol', label: t('fields.symbol') }}
         />
       </div>
     </div>

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { Button, Card, ErrorBanner, Field, Modal, PageHeader, Pagination, Select } from '../components/ui';
 import { useAuth } from '../state/auth';
+import { formatDate, formatDateTime } from '../utils/formatDate';
 
 interface InvoiceCompliance {
   status: 'not_submitted' | 'pending' | 'reported' | 'cleared' | 'rejected';
@@ -48,11 +50,11 @@ interface SaleReturnRow {
   items: { saleItemId: string; quantity: string }[];
 }
 
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  cash: 'نقدًا',
-  card: 'بطاقة',
-  transfer: 'تحويل بنكي',
-  other: 'أخرى',
+const PAYMENT_METHOD_KEYS: Record<string, string> = {
+  cash: 'paymentMethods.cash',
+  card: 'paymentMethods.card',
+  transfer: 'paymentMethods.transfer',
+  other: 'paymentMethods.other',
 };
 
 function newClientReferenceId() {
@@ -68,6 +70,7 @@ function newClientReferenceId() {
  * "Customer Credit Sales / AR" / "Sales Returns".
  */
 export function InvoicesPage() {
+  const { t } = useTranslation('sales');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<InvoiceRow[]>([]);
   const [meta, setMeta] = useState({ page: 1, pageSize: 20, total: 0 });
@@ -95,7 +98,7 @@ export function InvoicesPage() {
       setData(res.data);
       setMeta(res.meta);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر تحميل الفواتير');
+      setError(err instanceof ApiError ? err.message : t('errors.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -116,7 +119,7 @@ export function InvoicesPage() {
       setDetailReturns(returns);
       setDetail(invoice);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر تحميل تفاصيل عملية البيع');
+      setError(err instanceof ApiError ? err.message : t('errors.loadDetailFailed'));
     }
   };
 
@@ -158,7 +161,7 @@ export function InvoicesPage() {
       await refreshDetail();
       setPaymentAmount('');
     } catch (err) {
-      setDetailError(err instanceof ApiError ? err.message : 'تعذّر تسجيل الدفعة');
+      setDetailError(err instanceof ApiError ? err.message : t('errors.recordPaymentFailed'));
     } finally {
       setPaymentBusy(false);
     }
@@ -170,7 +173,7 @@ export function InvoicesPage() {
       .filter(([, qty]) => Number(qty) > 0)
       .map(([saleItemId, qty]) => ({ saleItemId, quantity: Number(qty) }));
     if (items.length === 0) {
-      setDetailError('حدّد كمية إرجاع لصنف واحد على الأقل');
+      setDetailError(t('errors.selectReturnQuantity'));
       return;
     }
     setDetailError(null);
@@ -185,7 +188,7 @@ export function InvoicesPage() {
       setReturnQuantities({});
       setReturnReason('');
     } catch (err) {
-      setDetailError(err instanceof ApiError ? err.message : 'تعذّر تسجيل مرتجع المبيعات');
+      setDetailError(err instanceof ApiError ? err.message : t('errors.recordReturnFailed'));
     } finally {
       setReturnBusy(false);
     }
@@ -200,32 +203,32 @@ export function InvoicesPage() {
       const dataUrl = await QRCode.toDataURL(invoice.compliance.qrCode);
       setQrImage(dataUrl);
     } catch {
-      setQrError('تعذّر رسم رمز QR');
+      setQrError(t('errors.qrRenderFailed'));
     }
   };
 
   if (!hasPermission('invoices.read')) {
-    return <ErrorBanner message="لا تملك صلاحية عرض المبيعات والفواتير" />;
+    return <ErrorBanner message={t('errors.noPermission')} />;
   }
 
   return (
     <div>
-      <PageHeader title="المبيعات والفواتير" />
+      <PageHeader title={t('title')} />
       <ErrorBanner message={error} />
-      {loading && <div className="py-6 text-center text-slate-400">...جارٍ التحميل</div>}
+      {loading && <div className="py-6 text-center text-slate-400">{t('common:loading')}</div>}
       {!loading && (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full text-right text-sm">
+            <table className="w-full text-start text-sm">
               <thead>
                 <tr className="border-b text-slate-500">
-                  <th className="py-2">رقم الفاتورة</th>
-                  <th className="py-2">التاريخ</th>
-                  <th className="py-2">العميل</th>
-                  <th className="py-2">طريقة الدفع</th>
-                  <th className="py-2">الإجمالي</th>
-                  <th className="py-2">الحالة</th>
-                  <th className="py-2">QR</th>
+                  <th className="py-2">{t('table.invoiceNumber')}</th>
+                  <th className="py-2">{t('table.date')}</th>
+                  <th className="py-2">{t('table.customer')}</th>
+                  <th className="py-2">{t('table.paymentMethod')}</th>
+                  <th className="py-2">{t('table.total')}</th>
+                  <th className="py-2">{t('table.status')}</th>
+                  <th className="py-2">{t('table.qr')}</th>
                   <th className="py-2"></th>
                 </tr>
               </thead>
@@ -234,18 +237,18 @@ export function InvoicesPage() {
                   <tr key={inv.id} className="border-b last:border-0">
                     <td className="py-2 font-mono text-xs">{inv.invoiceNumber}</td>
                     <td className="py-2 text-slate-500">
-                      {new Date(inv.issuedAt).toLocaleString('ar-SA')}
+                      {formatDateTime(new Date(inv.issuedAt))}
                     </td>
-                    <td className="py-2">{inv.customer?.name ?? 'عميل نقدي'}</td>
+                    <td className="py-2">{inv.customer?.name ?? t('cashCustomer')}</td>
                     <td className="py-2 text-slate-500">
-                      {inv.sale.payments.map((p) => p.method).join('، ') || 'آجل بالكامل'}
+                      {inv.sale.payments.map((p) => p.method).join(t('listSeparator')) || t('fullyDeferred')}
                     </td>
                     <td className="py-2 font-medium">
                       {inv.totalAmount} {inv.currency}
                     </td>
                     <td className="py-2">
                       <span className={inv.status === 'issued' ? 'text-emerald-600' : 'text-red-500'}>
-                        {inv.status === 'issued' ? 'سارية' : 'ملغاة'}
+                        {inv.status === 'issued' ? t('status.issued') : t('status.cancelled')}
                       </span>
                     </td>
                     <td className="py-2">
@@ -255,7 +258,7 @@ export function InvoicesPage() {
                           onClick={() => openQr(inv)}
                           className="text-xs text-brand-600 hover:underline"
                         >
-                          عرض QR
+                          {t('actions.viewQr')}
                         </button>
                       ) : (
                         <span className="text-xs text-slate-400">—</span>
@@ -268,7 +271,7 @@ export function InvoicesPage() {
                           onClick={() => openDetail(inv)}
                           className="text-xs text-brand-600 hover:underline"
                         >
-                          تفاصيل / دفع / مرتجع
+                          {t('actions.detailsPaymentReturn')}
                         </button>
                       )}
                     </td>
@@ -277,7 +280,7 @@ export function InvoicesPage() {
                 {data.length === 0 && (
                   <tr>
                     <td colSpan={8} className="py-6 text-center text-slate-400">
-                      لا توجد مبيعات بعد
+                      {t('emptyState.noSales')}
                     </td>
                   </tr>
                 )}
@@ -291,42 +294,39 @@ export function InvoicesPage() {
       <Modal
         open={!!qrInvoice}
         onClose={() => setQrInvoice(null)}
-        title={`رمز QR - فاتورة ${qrInvoice?.invoiceNumber ?? ''}`}
+        title={t('qrModal.title', { invoiceNumber: qrInvoice?.invoiceNumber ?? '' })}
       >
         <ErrorBanner message={qrError} />
         {qrImage && (
           <div className="flex flex-col items-center gap-3">
-            <img src={qrImage} alt="رمز QR للفاتورة" className="h-48 w-48" />
-            <p className="text-center text-xs text-slate-500">
-              وفق مواصفة المرحلة الأولى (Phase 1) لهيئة الزكاة والضريبة والجمارك -
-              مُولَّد محليًا، لم يُرسَل بعد لأي واجهة برمجية خارجية.
-            </p>
+            <img src={qrImage} alt={t('qrModal.imageAlt')} className="h-48 w-48" />
+            <p className="text-center text-xs text-slate-500">{t('qrModal.disclaimer')}</p>
           </div>
         )}
         {!qrImage && !qrError && (
-          <div className="py-6 text-center text-slate-400">...جارٍ التحضير</div>
+          <div className="py-6 text-center text-slate-400">{t('qrModal.preparing')}</div>
         )}
       </Modal>
 
       <Modal
         open={!!detail}
         onClose={() => setDetail(null)}
-        title={`تفاصيل عملية البيع ${detail?.invoiceNumber ?? ''}`}
+        title={t('detailModal.title', { invoiceNumber: detail?.invoiceNumber ?? '' })}
       >
         {detail && (
           <div className="space-y-4">
             <ErrorBanner message={detailError} />
 
             <div>
-              <div className="mb-1 text-sm font-medium text-slate-700">الأصناف</div>
+              <div className="mb-1 text-sm font-medium text-slate-700">{t('detailModal.itemsHeading')}</div>
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-sm">
+                <table className="w-full text-start text-sm">
                   <thead>
                     <tr className="border-b text-slate-500">
-                      <th className="py-1">المنتج</th>
-                      <th className="py-1">الكمية المباعة</th>
-                      <th className="py-1">المرتجَع سابقًا</th>
-                      {hasPermission('sales.return') && <th className="py-1">كمية الإرجاع</th>}
+                      <th className="py-1">{t('table.product')}</th>
+                      <th className="py-1">{t('table.quantitySold')}</th>
+                      <th className="py-1">{t('table.previouslyReturned')}</th>
+                      {hasPermission('sales.return') && <th className="py-1">{t('table.returnQuantity')}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -364,7 +364,7 @@ export function InvoicesPage() {
 
             {hasPermission('sales.return') && (
               <div className="border-t border-slate-200 pt-3">
-                <Field label="سبب الإرجاع (اختياري)">
+                <Field label={t('fields.returnReason')}>
                   <input
                     value={returnReason}
                     onChange={(e) => setReturnReason(e.target.value)}
@@ -378,53 +378,58 @@ export function InvoicesPage() {
                   disabled={returnBusy}
                   onClick={submitReturn}
                 >
-                  {returnBusy ? '...جارٍ التسجيل' : 'تسجيل مرتجع مبيعات'}
+                  {returnBusy ? t('actions.recordingReturn') : t('actions.recordSalesReturn')}
                 </Button>
               </div>
             )}
 
             <div className="border-t border-slate-200 pt-3">
-              <div className="mb-1 text-sm font-medium text-slate-700">الدفعات</div>
+              <div className="mb-1 text-sm font-medium text-slate-700">{t('detailModal.paymentsHeading')}</div>
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-sm">
+                <table className="w-full text-start text-sm">
                   <tbody>
                     {detail.sale.payments.map((pay) => (
                       <tr key={pay.id} className="border-b last:border-0">
-                        <td className="py-1">{PAYMENT_METHOD_LABELS[pay.method] ?? pay.method}</td>
+                        <td className="py-1">
+                          {PAYMENT_METHOD_KEYS[pay.method] ? t(PAYMENT_METHOD_KEYS[pay.method]) : pay.method}
+                        </td>
                         <td className="py-1 font-medium">{Number(pay.amount).toFixed(2)}</td>
                         <td className="py-1 text-slate-500">
-                          {new Date(pay.createdAt).toLocaleDateString('ar-SA')}
+                          {formatDate(new Date(pay.createdAt))}
                         </td>
                       </tr>
                     ))}
                     {detail.sale.payments.length === 0 && (
                       <tr>
                         <td colSpan={3} className="py-2 text-center text-slate-400">
-                          لا توجد دفعات بعد (بيع آجل بالكامل)
+                          {t('emptyState.noPayments')}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
-              <div className="mt-2 text-left font-bold">
-                الرصيد المستحق: {outstandingBalance(detail).toFixed(2)} {detail.currency}
+              <div className="mt-2 text-end font-bold">
+                {t('detailModal.outstandingBalance', {
+                  balance: outstandingBalance(detail).toFixed(2),
+                  currency: detail.currency,
+                })}
               </div>
             </div>
 
             {hasPermission('sales.payment.record') && outstandingBalance(detail) > 0 && (
               <div className="border-t border-slate-200 pt-3">
-                <div className="mb-2 text-sm font-medium text-slate-700">تسجيل دفعة جديدة</div>
+                <div className="mb-2 text-sm font-medium text-slate-700">{t('detailModal.newPaymentHeading')}</div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label="الطريقة">
+                  <Field label={t('fields.method')}>
                     <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                      <option value="cash">نقدًا</option>
-                      <option value="card">بطاقة</option>
-                      <option value="transfer">تحويل بنكي</option>
-                      <option value="other">أخرى</option>
+                      <option value="cash">{t('paymentMethods.cash')}</option>
+                      <option value="card">{t('paymentMethods.card')}</option>
+                      <option value="transfer">{t('paymentMethods.transfer')}</option>
+                      <option value="other">{t('paymentMethods.other')}</option>
                     </Select>
                   </Field>
-                  <Field label="المبلغ">
+                  <Field label={t('fields.amount')}>
                     <input
                       type="number"
                       min={0}
@@ -442,23 +447,23 @@ export function InvoicesPage() {
                   disabled={paymentBusy || !paymentAmount}
                   onClick={submitPayment}
                 >
-                  {paymentBusy ? '...جارٍ التسجيل' : 'تسجيل الدفعة'}
+                  {paymentBusy ? t('actions.recordingPayment') : t('actions.recordPayment')}
                 </Button>
               </div>
             )}
 
             {detailReturns.length > 0 && (
               <div className="border-t border-slate-200 pt-3">
-                <div className="mb-1 text-sm font-medium text-slate-700">مرتجعات سابقة</div>
+                <div className="mb-1 text-sm font-medium text-slate-700">{t('detailModal.previousReturnsHeading')}</div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-right text-sm">
+                  <table className="w-full text-start text-sm">
                     <tbody>
                       {detailReturns.map((r) => (
                         <tr key={r.id} className="border-b last:border-0">
                           <td className="py-1 font-medium">{Number(r.totalAmount).toFixed(2)}</td>
                           <td className="py-1 text-slate-500">{r.reason ?? '—'}</td>
                           <td className="py-1 text-slate-500">
-                            {new Date(r.createdAt).toLocaleDateString('ar-SA')}
+                            {formatDate(new Date(r.createdAt))}
                           </td>
                         </tr>
                       ))}

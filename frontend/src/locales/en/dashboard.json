@@ -1,0 +1,14 @@
+{
+  "greeting": "Welcome, {{name}}",
+  "tiles": {
+    "products": "Products",
+    "lowStock": "Low Stock Items",
+    "customers": "Customers",
+    "suppliers": "Suppliers"
+  },
+  "emptyState": "No metrics are available for your current permissions",
+  "errors": {
+    "someFailed": "Some metrics failed to load"
+  },
+  "comingSoon": "Sales, purchases, expenses, and profit metrics will be added in upcoming phases once real data is available."
+}

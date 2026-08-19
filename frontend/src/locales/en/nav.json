@@ -1,0 +1,31 @@
+{
+  "appName": "Qeedha Accounting",
+  "appSubtitle": "Accounting & Point of Sale System",
+  "openMenu": "Open menu",
+  "logout": "Log out",
+  "items": {
+    "dashboard": "Dashboard",
+    "pos": "Point of Sale",
+    "sales": "Sales & Invoices",
+    "products": "Products",
+    "catalog": "Categories, Brands & Units",
+    "inventory": "Inventory",
+    "customers": "Customers",
+    "suppliers": "Suppliers",
+    "purchases": "Purchases",
+    "import": "Import from Excel",
+    "expenses": "Expenses",
+    "accounting": "Accounts & Journal Entries",
+    "reports": "Financial Reports",
+    "receivablesPayables": "Receivables & Payables",
+    "subscription": "Subscription & Plan",
+    "integration": "Qeedha Integration"
+  },
+  "subscriptionRestrictedBanner": "Your subscription has expired or been suspended - you can still view your existing data, but to perform new operations please contact support to renew. View subscription details →",
+  "trialNotice_one": "1 day left in your trial period. View subscription details →",
+  "trialNotice_other": "{{count}} days left in your trial period. View subscription details →",
+  "roleSeparator": ", ",
+  "language": "Language",
+  "languageArabic": "العربية",
+  "languageEnglish": "English"
+}

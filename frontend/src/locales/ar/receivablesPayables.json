@@ -1,0 +1,38 @@
+{
+  "title": "الذمم (العملاء والموردون)",
+  "loading": "...جارٍ التحميل",
+  "tabs": {
+    "ar": "ذمم العملاء (AR)",
+    "ap": "ذمم الموردين (AP)"
+  },
+  "sections": {
+    "arTitle": "ذمم العملاء",
+    "apTitle": "ذمم الموردين",
+    "arEmpty": "لا توجد أرصدة عملاء آجلة حاليًا",
+    "apEmpty": "لا توجد أرصدة موردين بعد"
+  },
+  "table": {
+    "name": "الاسم",
+    "balance": "الرصيد",
+    "date": "التاريخ",
+    "description": "الوصف",
+    "debit": "مدين",
+    "credit": "دائن",
+    "runningBalance": "الرصيد الجاري",
+    "noTransactions": "لا توجد حركات"
+  },
+  "actions": {
+    "statement": "كشف الحساب"
+  },
+  "modal": {
+    "statementTitle": "كشف الحساب"
+  },
+  "labels": {
+    "balance": "الرصيد:"
+  },
+  "errors": {
+    "loadFailed": "تعذّر تحميل {{title}}",
+    "statementLoadFailed": "تعذّر تحميل كشف الحساب",
+    "noViewPermission": "لا تملك صلاحية عرض ذمم العملاء أو الموردين"
+  }
+}

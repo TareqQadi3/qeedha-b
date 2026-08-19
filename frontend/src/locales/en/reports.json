@@ -1,0 +1,69 @@
+{
+  "pageTitle": "Accounting Reports",
+  "loading": "Loading...",
+  "noPermission": "You do not have permission to view accounting reports",
+  "tabs": {
+    "trialBalance": "Trial Balance",
+    "generalLedger": "General Ledger",
+    "pl": "Profit & Loss",
+    "balanceSheet": "Balance Sheet"
+  },
+  "fields": {
+    "dateFrom": "From date",
+    "dateTo": "To date",
+    "asOfDate": "As of date",
+    "account": "Account"
+  },
+  "actions": {
+    "apply": "Apply"
+  },
+  "table": {
+    "code": "Code",
+    "account": "Account",
+    "debit": "Debit",
+    "credit": "Credit",
+    "netBalance": "Net Balance",
+    "total": "Total",
+    "date": "Date",
+    "source": "Source",
+    "description": "Description",
+    "runningBalance": "Running Balance"
+  },
+  "trialBalance": {
+    "loadError": "Failed to load the trial balance",
+    "empty": "No accounting activity in this range",
+    "balanced": "Balanced",
+    "notBalanced": "Not Balanced"
+  },
+  "generalLedger": {
+    "accountsLoadError": "Failed to load the chart of accounts",
+    "loadError": "Failed to load the general ledger",
+    "empty": "No activity for this account in this range",
+    "openingBalance": "Opening Balance: {{value}}",
+    "closingBalance": "Closing Balance: {{value}}"
+  },
+  "pl": {
+    "loadError": "Failed to load the profit & loss report",
+    "revenue": "Revenue",
+    "expenses": "Expenses",
+    "emptyRevenue": "No revenue in this range",
+    "emptyExpenses": "No expenses in this range",
+    "totalRevenue": "Total Revenue",
+    "totalExpense": "Total Expenses",
+    "cogs": "Cost of Goods Sold (COGS)",
+    "grossProfit": "Gross Profit",
+    "netProfit": "Net Profit / Loss"
+  },
+  "balanceSheet": {
+    "loadError": "Failed to load the balance sheet",
+    "assets": "Assets",
+    "liabilities": "Liabilities",
+    "equity": "Equity",
+    "computedNote": "(computed, not posted as a journal entry)",
+    "emptyItems": "No items",
+    "totalAssets": "Total Assets:",
+    "liabilitiesPlusEquity": "Liabilities + Equity:",
+    "balanced": "Balance Sheet is balanced",
+    "notBalanced": "Balance Sheet is not balanced"
+  }
+}

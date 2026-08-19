@@ -1,0 +1,50 @@
+{
+  "title": "Expenses",
+  "loading": "Loading...",
+  "actions": {
+    "new": "+ New Expense",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "saving": "Saving..."
+  },
+  "paymentMethods": {
+    "cash": "Cash",
+    "card": "Card",
+    "transfer": "Transfer",
+    "other": "Other"
+  },
+  "table": {
+    "category": "Category",
+    "branch": "Branch",
+    "amount": "Amount",
+    "paymentMethod": "Payment Method",
+    "description": "Description",
+    "status": "Status",
+    "empty": "No expenses yet",
+    "companyNoBranch": "Company (no branch)"
+  },
+  "status": {
+    "recorded": "Recorded",
+    "cancelled": "Deleted"
+  },
+  "modal": {
+    "newTitle": "New Expense",
+    "editTitle": "Edit Expense"
+  },
+  "fields": {
+    "category": "Category",
+    "selectCategory": "Select a category",
+    "branch": "Branch (optional - leave blank for a company-wide expense)",
+    "noBranch": "No branch",
+    "amount": "Amount",
+    "paymentMethod": "Payment method",
+    "description": "Description (optional)"
+  },
+  "errors": {
+    "loadFailed": "Failed to load expenses",
+    "saveFailed": "Failed to save the expense",
+    "deleteFailed": "Failed to delete the expense",
+    "noViewPermission": "You don't have permission to view expenses"
+  }
+}

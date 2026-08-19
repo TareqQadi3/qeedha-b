@@ -1,0 +1,69 @@
+{
+  "title": "المبيعات والفواتير",
+  "cashCustomer": "عميل نقدي",
+  "fullyDeferred": "آجل بالكامل",
+  "listSeparator": "، ",
+  "paymentMethods": {
+    "cash": "نقدًا",
+    "card": "بطاقة",
+    "transfer": "تحويل بنكي",
+    "other": "أخرى"
+  },
+  "status": {
+    "issued": "سارية",
+    "cancelled": "ملغاة"
+  },
+  "table": {
+    "invoiceNumber": "رقم الفاتورة",
+    "date": "التاريخ",
+    "customer": "العميل",
+    "paymentMethod": "طريقة الدفع",
+    "total": "الإجمالي",
+    "status": "الحالة",
+    "qr": "QR",
+    "product": "المنتج",
+    "quantitySold": "الكمية المباعة",
+    "previouslyReturned": "المرتجَع سابقًا",
+    "returnQuantity": "كمية الإرجاع"
+  },
+  "actions": {
+    "viewQr": "عرض QR",
+    "detailsPaymentReturn": "تفاصيل / دفع / مرتجع",
+    "recordingReturn": "...جارٍ التسجيل",
+    "recordSalesReturn": "تسجيل مرتجع مبيعات",
+    "recordingPayment": "...جارٍ التسجيل",
+    "recordPayment": "تسجيل الدفعة"
+  },
+  "fields": {
+    "returnReason": "سبب الإرجاع (اختياري)",
+    "method": "الطريقة",
+    "amount": "المبلغ"
+  },
+  "emptyState": {
+    "noSales": "لا توجد مبيعات بعد",
+    "noPayments": "لا توجد دفعات بعد (بيع آجل بالكامل)"
+  },
+  "qrModal": {
+    "title": "رمز QR - فاتورة {{invoiceNumber}}",
+    "imageAlt": "رمز QR للفاتورة",
+    "disclaimer": "وفق مواصفة المرحلة الأولى (Phase 1) لهيئة الزكاة والضريبة والجمارك - مُولَّد محليًا، لم يُرسَل بعد لأي واجهة برمجية خارجية.",
+    "preparing": "...جارٍ التحضير"
+  },
+  "detailModal": {
+    "title": "تفاصيل عملية البيع {{invoiceNumber}}",
+    "itemsHeading": "الأصناف",
+    "paymentsHeading": "الدفعات",
+    "outstandingBalance": "الرصيد المستحق: {{balance}} {{currency}}",
+    "newPaymentHeading": "تسجيل دفعة جديدة",
+    "previousReturnsHeading": "مرتجعات سابقة"
+  },
+  "errors": {
+    "loadFailed": "تعذّر تحميل الفواتير",
+    "loadDetailFailed": "تعذّر تحميل تفاصيل عملية البيع",
+    "recordPaymentFailed": "تعذّر تسجيل الدفعة",
+    "selectReturnQuantity": "حدّد كمية إرجاع لصنف واحد على الأقل",
+    "recordReturnFailed": "تعذّر تسجيل مرتجع المبيعات",
+    "qrRenderFailed": "تعذّر رسم رمز QR",
+    "noPermission": "لا تملك صلاحية عرض المبيعات والفواتير"
+  }
+}

@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Layout } from './components/Layout';
 import { AccountingPage } from './pages/AccountingPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -21,8 +22,9 @@ import { SuppliersPage } from './pages/SuppliersPage';
 import { useAuth } from './state/auth';
 
 function RequireAuth({ children }: { children: JSX.Element }) {
+  const { t } = useTranslation('common');
   const { me, loading } = useAuth();
-  if (loading) return <div className="p-8 text-center text-slate-400">...جارٍ التحميل</div>;
+  if (loading) return <div className="p-8 text-center text-slate-400">{t('loading')}</div>;
   if (!me) return <Navigate to="/login" replace />;
   return children;
 }
