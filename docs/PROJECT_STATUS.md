@@ -1,6 +1,19 @@
 # حالة المشروع (Project Status)
 
-**آخر تحديث**: 2026-08-19 — **Phase 9 (SaaS Subscription & Production
+**آخر تحديث**: 2026-08-20 — **Phase 11 (Qeedha Integration API Foundation)
+منفَّذة بالكامل**: أول Adapter حقيقي (`QeedhaPaymentProvider`) في طبقة
+التكامل العامة الموجودة منذ Phase 1 (`modules/integrations`)، مسجَّل تحت
+`providerKey: "qeedha_payments"` - **مختلف عمدًا** عن `'qeedha'` الذي
+تستخدمه وحدة التكامل Inbound الموجودة أصلًا (Milestone 9)، لتفادي تصادم
+على عمود `IntegrationConnection.status` المشترك بين الاتجاهين. لا عقد API
+خارجي حقيقي من قيّدها منشور بعد لهذا الاتجاه، فالـAdapter (نمط
+`QEEDHA_PAYMENT_DRIVER=none` كما في Phase 9) يرفض كل عملية دفع بخطأ واضح
+بدل تزييف نجاح. **لا وحدة `sales`/POS تستدعيه بعد** - هذه بنية أساس فقط،
+لا محرك دفع/محفظة/دفتر أستاذ ثانٍ داخل qeedha-b (قيّدها للتمويل يبقى منتجًا
+مستقلًا تمامًا بقاعدة بياناته الخاصة). راجع `docs/QEEDHA_INTEGRATION.md`
+§"تحديث Phase 11" و`docs/INTEGRATION.md` §"تحديث Phase 11" للتفصيل الكامل.
+
+**آخر تحديث سابق**: 2026-08-19 — **Phase 9 (SaaS Subscription & Production
 Readiness) منفَّذة بالكامل**: تفعيل صلاحية الوصول لمنتج qeedha B عبر
 `SubscriptionGuard` (يمنع كل المسارات، قراءةً وكتابةً، عن أي باقة لا
 تشمل `qeedha_b`)، مدة تجربة قابلة للتخصيص لكل باقة (`Plan.trialDays`)،

@@ -167,8 +167,9 @@ Core Domain (Sales, Payments, Inventory ...)
 Integration Layer (src/modules/integrations)
   ├── core/           → الـPorts (Interfaces) + IntegrationRegistry
   ├── webhooks/        → Inbox عام لأي Webhook خارجي (يُوجَّه حسب provider_key)
-  └── providers/        → لا يزال فارغًا (KNOWN LIMITATION، راجع أدناه)
-        ├── qeedha/       (Outbound - لا يزال غير مُنفَّذ، ينتظر عقد API خارجي حقيقي من قيّدها)
+  └── providers/        → Adapter حقيقي واحد فقط حتى الآن (Phase 11)
+        ├── qeedha-payment-provider.ts  (Outbound، providerKey: "qeedha_payments"،
+        │                                 driver "none" فقط - لا اتصال حقيقي بعد)
         ├── payment-x/    (مستقبلًا)
         └── erp-y/        (مستقبلًا)
 ```
@@ -176,9 +177,15 @@ Integration Layer (src/modules/integrations)
 > **تحديث Milestone 9**: بدلًا من انتظار عقد Outbound خارجي من قيّدها،
 > Milestone 9 بنى اتجاهًا **Inbound** منفصلًا تمامًا (`modules/qeedha-integration`
 > — قيّدها تستدعي Qeedha B عبر عقد API صريح يملكه هذا المستودع نفسه، بدل
-> انتظار Qeedha B تستدعي قيّدها). الـAdapter الـOutbound أعلاه (`providers/qeedha`)
-> لا يزال غير مُنفَّذ بالكامل، وهذا **قرار نطاق مقصود** لا نقص تنفيذ — راجع
-> `docs/QEEDHA_INTEGRATION.md` §"تحديث Milestone 9" للتفصيل الكامل.
+> انتظار Qeedha B تستدعي قيّدها). راجع `docs/QEEDHA_INTEGRATION.md`
+> §"تحديث Milestone 9" للتفصيل الكامل.
+>
+> **تحديث Phase 11**: بنية أساس للـAdapter الـOutbound أُضيفت
+> (`QeedhaPaymentProvider`، `providerKey: "qeedha_payments"` - مفتاح مختلف
+> عمدًا عن `'qeedha'` الذي تستخدمه الوحدة Inbound، لتفادي تصادم على عمود
+> `IntegrationConnection.status` المشترك). لا يزال بلا اتصال حقيقي (لا عقد
+> API منشور من قيّدها بعد) ولا مستدعى من `sales`/POS - راجع
+> `docs/QEEDHA_INTEGRATION.md` §"تحديث Phase 11".
 
 - `IntegrationProvider`: سجل بالتكاملات المتاحة نظريًا (metadata فقط: key,
   name, category).

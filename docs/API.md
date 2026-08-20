@@ -67,7 +67,7 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 | GET/POST | `/warehouses` | المستودعات | `tenancy.warehouses.view` / `manage` |
 | GET/POST | `/pos-devices` | أجهزة نقاط البيع | `tenancy.pos_devices.view` / `manage` |
 
-### Integrations (`/api/v1/integrations`) — بنية عامة فقط، بدون منطق قيّدها
+### Integrations (`/api/v1/integrations`) — بنية عامة، Adapter حقيقي واحد (Phase 11)
 | Method | Path | الوصف | صلاحية |
 |---|---|---|---|
 | GET | `/providers` | التكاملات المتاحة (metadata) | `settings.integrations.view` |
@@ -75,6 +75,12 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 | POST | `/connections/:providerKey/connect` | بدء ربط تكامل | `settings.integrations.manage` |
 | POST | `/connections/:providerKey/disconnect` | فصل تكامل | `settings.integrations.manage` |
 | POST | `/webhooks/:providerKey` | استقبال Webhook عام (توقيع يُتحقق منه لكل provider) | عام (موقّع) |
+
+`connect`/`disconnect` تعمل فعليًا (لا `422`) لـ`providerKey: "qeedha_payments"`
+فقط حتى الآن (Phase 11) - أول Adapter حقيقي، لا يزال بلا اتصال فعلي ببيئة
+قيّدها (راجع `docs/QEEDHA_INTEGRATION.md` §"تحديث Phase 11"). أي `providerKey`
+آخر بلا Adapter مسجَّل لا يزال يرفض بـ`422`. **مختلف تمامًا** عن
+`providerKey: "qeedha"` أدناه (Milestone 9 Inbound) - راجع القسم التالي.
 
 ### Health
 | Method | Path | الوصف |

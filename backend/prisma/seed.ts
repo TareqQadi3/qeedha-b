@@ -13,6 +13,7 @@ import {
   QEEDHA_PROVIDER_KEY,
   QEEDHA_PROVIDER_NAME,
 } from '../src/modules/qeedha-integration/constants/qeedha-integration.constants';
+import { QEEDHA_PAYMENTS_PROVIDER_KEY } from '../src/modules/integrations/providers/qeedha-payment-provider';
 
 const prisma = new PrismaClient();
 
@@ -99,6 +100,22 @@ async function main() {
     },
   });
   console.log(`✔ مزوّد التكامل ${QEEDHA_PROVIDER_NAME}`);
+
+  // Phase 11: a SEPARATE catalog row for the outbound direction (Qeedha B
+  // calling out to Qeedha as a payment method), distinct from the inbound
+  // row above - see providers/qeedha-payment-provider.ts for why the two
+  // must not share a providerKey/IntegrationConnection row.
+  await prisma.integrationProvider.upsert({
+    where: { key: QEEDHA_PAYMENTS_PROVIDER_KEY },
+    update: { name: 'قيّدها (دفع)', category: 'payment', isEnabledGlobally: true },
+    create: {
+      key: QEEDHA_PAYMENTS_PROVIDER_KEY,
+      name: 'قيّدها (دفع)',
+      category: 'payment',
+      isEnabledGlobally: true,
+    },
+  });
+  console.log('✔ مزوّد التكامل قيّدها (دفع)');
 
   // The ONE global system identity every company's Qeedha connection shares
   // as its actor (see qeedha-connection.service.ts ensureSystemMembership) -

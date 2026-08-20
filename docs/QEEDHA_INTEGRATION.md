@@ -7,6 +7,27 @@
 > `docs/PAYMENTS.md`. لا شيء تغيّر في هذا الملف نفسه؛ لا يزال تصميمًا معماريًا
 > فقط بلا Adapter فعلي لقيّدها.
 
+## تحديث Phase 11: بداية بنية اتجاه Outbound (بلا اتصال حقيقي بعد)
+
+الاتجاه Outbound الموصوف أسفل هذا القسم بقي "تصميمًا معماريًا بلا أي تنفيذ"
+حتى Phase 11، التي أضافت أول Adapter حقيقي له
+(`QeedhaPaymentProvider`، `backend/src/modules/integrations/providers/`).
+**قرار تسمية متعمَّد**: هذا الـAdapter يستخدم `providerKey: "qeedha_payments"`،
+**وليس** `'qeedha'` (مفتاح الوحدة Inbound أدناه) - الاتجاهان يتشاركان شكل
+جدول `IntegrationConnection` نفسه لكل شركة+`providerKey` (`@@unique([companyId,
+providerKey])`)، وعمود `status` في صف الاتجاه Inbound يحمل معنى حقيقيًا
+بالفعل ("قيّدها قادرة على الاتصال بـQeedha B"). لو استُخدِم نفس المفتاح،
+ربط/فصل هذا التكامل Outbound عبر `IntegrationsService` العام كان سيكتب فوق
+حالة ربط Inbound لنفس الشركة دون أي علاقة - تحقَّقنا من هذا الفرض باختبار
+تكامل صريح (`backend/test/milestone9.e2e-spec.ts` §26) قبل اعتماد التسمية.
+
+**لا عقد API خارجي حقيقي من قيّدها لهذا الاتجاه بعد**، فلا يمكن اختلاق واحد.
+`QEEDHA_PAYMENT_DRIVER=none` (القيمة الوحيدة المدعومة) يبقي
+`initiatePayment`/`getTransactionStatus` يرفضان دائمًا بخطأ واضح - نفس نمط
+`UnconfiguredSubscriptionPaymentProvider` من Phase 9. **لا وحدة `sales`/POS
+تستدعي هذا الـAdapter بعد** - `PaymentMethod.external` لا يزال قيمة محجوزة
+غير مُستخدَمة. راجع `docs/INTEGRATION.md` §"تحديث Phase 11" للتفصيل الكامل.
+
 ## تحديث Milestone 9: اتجاهان، نموذج ربط واحد (Two directions, one connection model)
 
 كل ما يلي هذا القسم (بدءًا من "تحذير ثابت لكل من يقرأ هذا الملف") يصف

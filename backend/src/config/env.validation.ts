@@ -146,6 +146,15 @@ class EnvironmentVariables {
 
   @IsString()
   JWT_AFFILIATE_TTL: string;
+
+  // Phase 11: outbound Qeedha payment adapter driver (modules/integrations,
+  // provider key "qeedha_payments") - only "none" (never fakes a successful
+  // charge, no real Qeedha outbound contract published yet) is implemented;
+  // see IntegrationsModule/QeedhaPaymentProvider. Optional, defaults to
+  // "none".
+  @IsOptional()
+  @IsString()
+  QEEDHA_PAYMENT_DRIVER?: string;
 }
 
 // Milestone 10 (production release hardening): the exact placeholder

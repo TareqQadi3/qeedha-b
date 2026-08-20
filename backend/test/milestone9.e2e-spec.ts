@@ -860,4 +860,64 @@ describe('Milestone 9: Qeedha Integration (e2e)', () => {
       expect(Number(stockAfter.averageCost)).toBe(Number(stockBefore.averageCost));
     });
   });
+
+  // ---------------------------------------------------------------------
+  // Phase 11: the outbound adapter foundation (modules/integrations,
+  // provider key "qeedha_payments") deliberately uses a DIFFERENT
+  // providerKey from this file's inbound "qeedha" connection - both are
+  // rows on the same IntegrationConnection table keyed by
+  // (companyId, providerKey), and the inbound row's `status` column
+  // already carries real meaning here. This proves the two stay fully
+  // independent: linking/unlinking one must never affect the other's
+  // status.
+  // ---------------------------------------------------------------------
+  describe('26. Phase 11: عزل اتجاه Outbound (qeedha_payments) عن Inbound (qeedha)', () => {
+    it('ربط/فصل تكامل Outbound (qeedha_payments) لا يغيّر حالة ربط Inbound (qeedha) للمنشأة نفسها', async () => {
+      const tenant = await registerTenant();
+      await linkConnection(tenant);
+
+      const inboundBefore = await request(server)
+        .get('/api/v1/qeedha-integration/connection')
+        .set(auth(tenant.accessToken))
+        .expect(200);
+      expect(inboundBefore.body.status).toBe('connected');
+
+      const outboundConnect = await request(server)
+        .post('/api/v1/integrations/connections/qeedha_payments/connect')
+        .set(auth(tenant.accessToken))
+        .expect(201);
+      expect(outboundConnect.body.status).toBe('connected');
+      expect(outboundConnect.body.providerKey).toBe('qeedha_payments');
+
+      const connections = await request(server)
+        .get('/api/v1/integrations/connections')
+        .set(auth(tenant.accessToken))
+        .expect(200);
+      const outboundRow = connections.body.find((c: any) => c.providerKey === 'qeedha_payments');
+      expect(outboundRow.status).toBe('connected');
+      // The inbound "qeedha" row legitimately appears here too (it's the
+      // same company's connections list) - the isolation property under
+      // test is that mutating one row's status never touches the other's,
+      // asserted below, not that the listing hides it.
+      const inboundRow = connections.body.find((c: any) => c.providerKey === 'qeedha');
+      expect(inboundRow.status).toBe('connected');
+
+      const inboundAfterConnect = await request(server)
+        .get('/api/v1/qeedha-integration/connection')
+        .set(auth(tenant.accessToken))
+        .expect(200);
+      expect(inboundAfterConnect.body.status).toBe('connected');
+
+      await request(server)
+        .post('/api/v1/integrations/connections/qeedha_payments/disconnect')
+        .set(auth(tenant.accessToken))
+        .expect(201);
+
+      const inboundAfterDisconnect = await request(server)
+        .get('/api/v1/qeedha-integration/connection')
+        .set(auth(tenant.accessToken))
+        .expect(200);
+      expect(inboundAfterDisconnect.body.status).toBe('connected');
+    });
+  });
 });
