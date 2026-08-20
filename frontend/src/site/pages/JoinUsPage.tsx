@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../../api/client';
 import { Button, ErrorBanner, Field, Input } from '../../components/ui';
+import { PageHero } from '../components';
 import { SitePageContainer } from '../SiteLayout';
 
 const ROLE_SLUGS = [
@@ -65,21 +66,23 @@ export function JoinUsPage() {
 
   if (success) {
     return (
-      <SitePageContainer>
-        <div className="mx-auto max-w-md rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-          <p className="font-medium text-emerald-800">{t('joinUs.success')}</p>
-        </div>
-      </SitePageContainer>
+      <div>
+        <PageHero eyebrow={t('nav.joinUs')} title={t('joinUs.title')} />
+        <SitePageContainer>
+          <div className="mx-auto max-w-md rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
+            <p className="font-medium text-emerald-800">{t('joinUs.success')}</p>
+          </div>
+        </SitePageContainer>
+      </div>
     );
   }
 
   return (
-    <SitePageContainer>
-      <div className="mx-auto max-w-md">
-        <h1 className="text-3xl font-extrabold text-slate-900">{t('joinUs.title')}</h1>
-        <p className="mt-3 text-slate-500">{t('joinUs.subtitle')}</p>
-
-        <form onSubmit={onSubmit} className="mt-8 space-y-4">
+    <div>
+      <PageHero eyebrow={t('nav.joinUs')} title={t('joinUs.title')} subtitle={t('joinUs.subtitle')} />
+      <SitePageContainer>
+        <div className="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-card sm:p-8">
+          <form onSubmit={onSubmit} className="space-y-4">
           <ErrorBanner message={error} />
           <Field label={t('joinUs.fields.fullName')}>
             <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
@@ -117,8 +120,9 @@ export function JoinUsPage() {
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? t('joinUs.submitting') : t('joinUs.submit')}
           </Button>
-        </form>
-      </div>
-    </SitePageContainer>
+          </form>
+        </div>
+      </SitePageContainer>
+    </div>
   );
 }

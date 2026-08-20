@@ -1,24 +1,37 @@
 import { useTranslation } from 'react-i18next';
-import { SitePageContainer } from '../SiteLayout';
+import {
+  FeatureItem,
+  IconBranches,
+  IconImport,
+  IconLayers,
+  IconLedger,
+  IconPos,
+  IconShield,
+  IconUsers,
+  IconWallet,
+  PageHero,
+} from '../components';
+
+const ICONS = [IconPos, IconLayers, IconShield, IconLedger, IconWallet, IconImport, IconUsers, IconBranches];
+const TONES = ['brand', 'accent', 'violet', 'brand', 'accent', 'violet', 'brand', 'accent'] as const;
 
 export function FeaturesPage() {
   const { t } = useTranslation('site');
   const items = t('features.items', { returnObjects: true }) as { title: string; desc: string }[];
 
   return (
-    <SitePageContainer>
-      <div className="text-center">
-        <h1 className="text-3xl font-extrabold text-slate-900">{t('features.title')}</h1>
-        <p className="mx-auto mt-3 max-w-xl text-slate-500">{t('features.subtitle')}</p>
+    <div>
+      <PageHero eyebrow={t('nav.features')} title={t('features.title')} subtitle={t('features.subtitle')} />
+      <div className="mx-auto max-w-5xl px-4 py-16">
+        <div className="grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+          {items.map((item, i) => {
+            const Icon = ICONS[i % ICONS.length];
+            return (
+              <FeatureItem key={item.title} icon={<Icon />} title={item.title} desc={item.desc} tone={TONES[i % TONES.length]} />
+            );
+          })}
+        </div>
       </div>
-      <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => (
-          <div key={item.title} className="rounded-xl border border-slate-200 p-5">
-            <h3 className="mb-1.5 font-bold text-slate-900">{item.title}</h3>
-            <p className="text-sm text-slate-500">{item.desc}</p>
-          </div>
-        ))}
-      </div>
-    </SitePageContainer>
+    </div>
   );
 }

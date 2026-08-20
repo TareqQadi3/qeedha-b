@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../../api/client';
 import { Button, ErrorBanner, Field, Input } from '../../components/ui';
+import { IconArrowStart, PageHero } from '../components';
 import { SitePageContainer } from '../SiteLayout';
 
 /** Public affiliate self-registration - Website phase spec "Affiliate system". The referral link is built as `<site>/register?ref=<code>`, consumed by RegisterPage/AuthService first-touch attribution. Phase 9 adds a password so the affiliate can log into their own dashboard right after. */
@@ -35,40 +36,43 @@ export function AffiliatePage() {
   if (result) {
     const referralUrl = `${window.location.origin}/register?ref=${result.code}`;
     return (
-      <SitePageContainer>
-        <div className="mx-auto max-w-md text-center">
-          <h1 className="text-2xl font-extrabold text-slate-900">{t('affiliate.successTitle')}</h1>
-          <div className="mt-6 space-y-4 rounded-2xl border border-slate-200 p-5 text-start">
-            <div>
-              <div className="text-xs font-medium text-slate-500">{t('affiliate.codeLabel')}</div>
-              <div className="font-mono text-lg font-bold text-brand-700" dir="ltr">
-                {result.code}
+      <div>
+        <PageHero eyebrow={t('nav.affiliate')} title={t('affiliate.successTitle')} />
+        <SitePageContainer>
+          <div className="mx-auto max-w-md text-center">
+            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 text-start shadow-card">
+              <div>
+                <div className="text-xs font-medium text-slate-500">{t('affiliate.codeLabel')}</div>
+                <div className="font-mono text-lg font-bold text-brand-700" dir="ltr">
+                  {result.code}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500">{t('affiliate.linkLabel')}</div>
+                <div className="break-all font-mono text-sm text-slate-700" dir="ltr">
+                  {referralUrl}
+                </div>
               </div>
             </div>
-            <div>
-              <div className="text-xs font-medium text-slate-500">{t('affiliate.linkLabel')}</div>
-              <div className="break-all font-mono text-sm text-slate-700" dir="ltr">
-                {referralUrl}
-              </div>
-            </div>
+            <Link
+              to="/affiliate/login"
+              className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
+            >
+              {t('affiliate.goToLogin')}
+              <IconArrowStart />
+            </Link>
           </div>
-          <Link
-            to="/affiliate/login"
-            className="mt-6 inline-block rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700"
-          >
-            {t('affiliate.goToLogin')}
-          </Link>
-        </div>
-      </SitePageContainer>
+        </SitePageContainer>
+      </div>
     );
   }
 
   return (
-    <SitePageContainer>
-      <div className="mx-auto max-w-md">
-        <h1 className="text-3xl font-extrabold text-slate-900">{t('affiliate.title')}</h1>
-        <p className="mt-3 text-slate-500">{t('affiliate.subtitle')}</p>
-        <form onSubmit={onSubmit} className="mt-8 space-y-4">
+    <div>
+      <PageHero eyebrow={t('nav.affiliate')} title={t('affiliate.title')} subtitle={t('affiliate.subtitle')} />
+      <SitePageContainer>
+      <div className="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-card sm:p-8">
+        <form onSubmit={onSubmit} className="space-y-4">
           <ErrorBanner message={error} />
           <Field label={t('affiliate.fields.fullName')}>
             <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
@@ -100,6 +104,7 @@ export function AffiliatePage() {
           </p>
         </form>
       </div>
-    </SitePageContainer>
+      </SitePageContainer>
+    </div>
   );
 }
