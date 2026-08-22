@@ -15,6 +15,7 @@ import { ExpensesPage } from './pages/ExpensesPage';
 import { ImportPage } from './pages/ImportPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { InvoicesPage } from './pages/InvoicesPage';
+import { EmployeeLoginPage } from './pages/EmployeeLoginPage';
 import { LoginPage } from './pages/LoginPage';
 import { PosPage } from './pages/PosPage';
 import { ProductsPage } from './pages/ProductsPage';
@@ -73,6 +74,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/employee-login" element={<EmployeeLoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/site" element={<SiteLayout />}>

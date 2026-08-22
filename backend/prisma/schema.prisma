@@ -32,6 +32,15 @@ model Company {
   // country code, not an FK to Market.code, so a company keeps its history
   // even if a market is later deactivated/removed. See Market model below.
   countryCode     String        @default("SA") @map("country_code")
+  // Phase 12: human-dictatable tenant identifier ("رقم الاشتراك") -
+  // sequential, distinct from the internal uuid `id`. Assigned by the DB
+  // sequence at creation (never chosen by a caller); the migration restarts
+  // the underlying sequence at 10001 so the first company created gets that
+  // number rather than 1. Used as a third owner-login identifier alongside
+  // email/mobile, and as the entry point for employee login (see
+  // AuthService.employeeLogin) - see docs/DOMAIN_MODEL.md "Login and tenant
+  // selection".
+  subscriptionNumber Int        @unique @default(autoincrement()) @map("subscription_number")
   status          CompanyStatus @default(active)
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
@@ -80,6 +89,10 @@ model Company {
   subscription                Subscription?
   integrationCustomerMappings IntegrationCustomerMapping[]
   integrationTransactions     IntegrationTransaction[]
+  // Phase 12: users whose username identity is scoped to this company only
+  // (see User.homeCompanyId below) - not every Membership's user, just the
+  // username-only ones created for/by this company.
+  homeUsers                   User[]                        @relation("UserHomeCompany")
 
   @@map("companies")
 }
@@ -196,7 +209,18 @@ model User {
   // that identity with only a name, username, and password. Owners created
   // through company registration still use email/mobile as before; this is
   // purely an additional identifier, never required together with them.
-  username        String?    @unique
+  username        String?
+  // Phase 12: set only for a user created via a username (IamService.createUser,
+  // the branch above) - the ONE company that account belongs to. NULL for
+  // email/mobile-based accounts (owners, invited members), which stay a
+  // single global identity usable across every company's Membership as
+  // before. This is what makes `username` collision-free BETWEEN companies
+  // (see @@unique([homeCompanyId, username]) below) without requiring a
+  // platform-wide unique username - two different companies' cashiers can
+  // both be "ahmed". Employee login (AuthService.employeeLogin) resolves a
+  // username within a company already identified by subscriptionNumber, so
+  // this is also what that lookup filters on.
+  homeCompanyId   String?    @map("home_company_id") @db.Uuid
   passwordHash    String     @map("password_hash")
   status          UserStatus @default(active)
   locale          String     @default("ar")
@@ -214,6 +238,7 @@ model User {
   memberships             Membership[]
   refreshTokens           RefreshToken[]
   emailVerificationTokens EmailVerificationToken[]
+  homeCompany             Company?                 @relation("UserHomeCompany", fields: [homeCompanyId], references: [id])
 
   // Globally unique on purpose: one person, one login identity, usable
   // across every company they hold a Membership in. Login resolves the
@@ -221,6 +246,12 @@ model User {
   // resolves their memberships to determine/select the tenant context.
   @@unique([email])
   @@unique([mobile])
+  // Phase 12: replaces the old global @@unique([username]) - see
+  // homeCompanyId comment above. Two NULL,NULL rows (every email/mobile
+  // account with no username) never collide under standard unique-index
+  // NULL semantics, so this is a no-op for every account this schema had
+  // before Phase 12.
+  @@unique([homeCompanyId, username])
   @@index([deletedAt])
   @@map("users")
 }

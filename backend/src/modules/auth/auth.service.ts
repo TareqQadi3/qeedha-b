@@ -20,6 +20,7 @@ import { EmailService } from '../email/email.service';
 import { IamService } from '../iam/iam.service';
 import { SubscriptionService } from '../subscriptions/subscription.service';
 import { AuthLookupService } from './auth-lookup.service';
+import { EmployeeLoginDto } from './dto/employee-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterCompanyDto } from './dto/register-company.dto';
@@ -29,6 +30,14 @@ const OWNER_ROLE_NAME = 'Owner';
 const TENANT_SELECTION_PURPOSE = 'tenant_selection';
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_COUNTRY_CODE = 'SA';
+
+/** Owner login's subscriptionNumber identifier: digits only, no leading zero, within Postgres Int range. */
+function parseSubscriptionNumber(identifier: string): number | null {
+  if (!/^[1-9]\d*$/.test(identifier) || identifier.length > 9) {
+    return null;
+  }
+  return Number(identifier);
+}
 
 interface TenantSelectionPayload {
   sub: string; // userId
@@ -49,11 +58,19 @@ export class AuthService {
   ) {}
 
   async registerCompany(dto: RegisterCompanyDto) {
-    const { companyId, user, membership } = await this.createCompanyWithOwner(dto);
+    const { companyId, company, user, membership } = await this.createCompanyWithOwner(dto);
 
     const tokens = await this.issueTokens(user.id, membership.id, companyId);
     return {
-      company: { id: companyId, legalName: dto.legalName },
+      // Phase 12: subscriptionNumber surfaced immediately at signup - it's
+      // the owner's 3rd login identifier and the number they hand to
+      // employees for employeeLogin(), so it must be visible the moment
+      // the company exists, not buried in a settings page later.
+      company: {
+        id: companyId,
+        legalName: dto.legalName,
+        subscriptionNumber: company.subscriptionNumber,
+      },
       user: { id: user.id, fullName: user.fullName, email: user.email, mobile: user.mobile },
       activeTenant: { companyId, membershipId: membership.id },
       ...tokens,
@@ -103,7 +120,7 @@ export class AuthService {
     const membershipId = randomUUID();
 
     const registerTx = async (tx: TenantClient) => {
-      await tx.company.create({
+      const company = await tx.company.create({
         data: {
           id: companyId,
           legalName: dto.legalName,
@@ -193,7 +210,7 @@ export class AuthService {
         }
       }
 
-      return { user, membership };
+      return { company, user, membership };
     };
 
     // Phase 9 ("handle concurrent registration safely"): the app-level
@@ -204,10 +221,11 @@ export class AuthService {
     // actually close that race, and this catches the resulting P2002 from
     // whichever request loses it, converting it to the same generic
     // conflict response rather than a raw 500.
+    let company: Awaited<ReturnType<typeof registerTx>>['company'];
     let user: Awaited<ReturnType<typeof registerTx>>['user'];
     let membership: Awaited<ReturnType<typeof registerTx>>['membership'];
     try {
-      ({ user, membership } = await this.prisma.withTenant(companyId, registerTx));
+      ({ company, user, membership } = await this.prisma.withTenant(companyId, registerTx));
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException(
@@ -246,7 +264,7 @@ export class AuthService {
       // relevant - never rethrown here.
     }
 
-    return { companyId, user, membership };
+    return { companyId, company, user, membership };
   }
 
   /** Consumes a raw email-verification token - see docs/WEBSITE.md "Email verification". */
@@ -298,20 +316,52 @@ export class AuthService {
   }
 
   /**
-   * Two shapes of response, both intentional (see docs/DOMAIN_MODEL.md
-   * "Login and tenant selection"):
+   * Owner/merchant login. Three identifiers, all deliberately handled here
+   * (see docs/DOMAIN_MODEL.md "Login and tenant selection"):
+   *  - email or mobile: matched directly against the (global, no-RLS)
+   *    User table, exactly as before Phase 12.
+   *  - subscriptionNumber (Phase 12, the company's رقم الاشتراك): resolves
+   *    to a User indirectly, via that company's sole company-scoped Owner
+   *    Membership - see AuthLookupService.findSoleOwnerUserIdForCompany.
+   *    Ambiguous (co-owners) or missing resolves to no match, same as a
+   *    wrong email/mobile - this identifier only ever narrows to ONE owner
+   *    identity, never a list to choose from.
+   * `username` is deliberately NOT matched here anymore: since Phase 12
+   * scopes username uniqueness per company (User.homeCompanyId), a bare
+   * username here could resolve to an arbitrary same-named account at an
+   * unrelated company. Employee accounts (the only ones with a username)
+   * must use employeeLogin() below, which resolves username within a
+   * company already identified by subscriptionNumber.
+   *
+   * Two response shapes once a user is found, both intentional:
    *  - Exactly one active Membership: tokens are issued immediately for
    *    that tenant - no unnecessary selection screen for the common case.
    *  - Two or more: a short-lived tenantSelectionToken is returned instead
    *    of real tokens, alongside the list of companies to choose from.
    */
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        deletedAt: null,
-        OR: [{ email: dto.identifier }, { mobile: dto.identifier }, { username: dto.identifier }],
-      },
+    let user = await this.prisma.user.findFirst({
+      where: { deletedAt: null, OR: [{ email: dto.identifier }, { mobile: dto.identifier }] },
     });
+
+    if (!user) {
+      const subscriptionNumber = parseSubscriptionNumber(dto.identifier);
+      if (subscriptionNumber !== null) {
+        const company =
+          await this.authLookupService.findCompanyBySubscriptionNumber(subscriptionNumber);
+        if (company && company.status === 'active') {
+          const ownerUserId = await this.authLookupService.findSoleOwnerUserIdForCompany(
+            company.id,
+          );
+          if (ownerUserId) {
+            user = await this.prisma.user.findFirst({
+              where: { id: ownerUserId, deletedAt: null },
+            });
+          }
+        }
+      }
+    }
+
     if (!user || user.status !== 'active') {
       throw new UnauthorizedException('بيانات الدخول غير صحيحة');
     }
@@ -350,6 +400,93 @@ export class AuthService {
         legalName: m.companyLegalName,
         tradeName: m.companyTradeName,
       })),
+    };
+  }
+
+  /**
+   * Phase 12: login for team members (POS cashier/accountant/...) created
+   * via IamService.createUser with only a username - a company-scoped
+   * identity, never ambiguous across multiple Memberships (that's what
+   * subscriptionNumber+username already resolve to exactly one User), so
+   * unlike login() there is no tenant-selection step here.
+   *
+   * Four inputs, checked in order, each failing the same generic
+   * "بيانات الدخول غير صحيحة" so none of subscriptionNumber/branch/
+   * username/password individually leaks which part was wrong:
+   *  1. subscriptionNumber -> an active Company (AuthLookupService, same
+   *     bootstrap-before-tenant-context problem as owner login above).
+   *  2. branchId -> one of that company's active branches (the dropdown
+   *     the frontend already populated from listBranchesForLogin below).
+   *  3. username -> a User homed at this company (User.homeCompanyId).
+   *  4. password -> argon2 verify.
+   * Then, unlike the generic errors above, a distinct authorization check:
+   * the employee's Membership must actually hold a role scoped to this
+   * branch (or company-wide, branchId null) - reuses the existing IAM
+   * role/branch-scope model rather than inventing a second one. This is a
+   * real 403 ("wrong branch for you"), not folded into the generic 401s,
+   * since by this point the credentials themselves are already proven.
+   */
+  async employeeLogin(dto: EmployeeLoginDto) {
+    const company = await this.authLookupService.findCompanyBySubscriptionNumber(
+      dto.subscriptionNumber,
+    );
+    if (!company || company.status !== 'active') {
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+    }
+
+    const branches = await this.authLookupService.listActiveBranchesForCompany(company.id);
+    const branch = branches.find((b) => b.id === dto.branchId);
+    if (!branch) {
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { deletedAt: null, homeCompanyId: company.id, username: dto.username },
+    });
+    if (!user || user.status !== 'active') {
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+    }
+
+    const passwordValid = await argon2.verify(user.passwordHash, dto.password);
+    if (!passwordValid) {
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+    }
+
+    const membership = await this.authLookupService.findActiveMembership(company.id, user.id);
+    if (!membership || membership.status !== 'active') {
+      throw new UnauthorizedException('بيانات الدخول غير صحيحة');
+    }
+
+    const branchScopes = await this.authLookupService.listMembershipRoleBranchScopes(membership.id);
+    const authorizedForBranch = branchScopes.some((scope) => scope === null || scope === branch.id);
+    if (!authorizedForBranch) {
+      throw new ForbiddenException('لا تملك صلاحية الدخول على هذا الفرع');
+    }
+
+    const tokens = await this.issueTokens(user.id, membership.id, company.id, branch.id);
+    return {
+      user: this.toSafeUser(user),
+      activeTenant: {
+        companyId: company.id,
+        membershipId: membership.id,
+        companyLegalName: company.legalName,
+      },
+      branch: { id: branch.id, name: branch.name },
+      ...tokens,
+    };
+  }
+
+  /** The employee-login form's branch dropdown, populated once a subscriptionNumber resolves to an active company. */
+  async listBranchesForLogin(subscriptionNumber: number) {
+    const company =
+      await this.authLookupService.findCompanyBySubscriptionNumber(subscriptionNumber);
+    if (!company || company.status !== 'active') {
+      throw new NotFoundException('رقم الاشتراك غير صحيح');
+    }
+    const branches = await this.authLookupService.listActiveBranchesForCompany(company.id);
+    return {
+      companyLegalName: company.legalName,
+      branches: branches.map((b) => ({ id: b.id, name: b.name })),
     };
   }
 
@@ -487,6 +624,16 @@ export class AuthService {
 
       const permissions = await this.iamService.getEffectivePermissionKeys(tx, user.membershipId);
 
+      // Phase 12: read directly via the tenant transaction already open
+      // here (no need for AuthLookupService's pre-tenant-context bypass -
+      // that's only for resolving WHICH tenant before one exists; this
+      // company is already known) - surfaces the subscriptionNumber the
+      // owner hands to employees for employeeLogin().
+      const company = await tx.company.findUnique({
+        where: { id: user.companyId },
+        select: { legalName: true, subscriptionNumber: true },
+      });
+
       return {
         id: membership.user.id,
         fullName: membership.user.fullName,
@@ -496,6 +643,8 @@ export class AuthService {
         locale: membership.user.locale,
         emailVerified: membership.user.emailVerifiedAt !== null,
         companyId: user.companyId,
+        companyLegalName: company?.legalName ?? null,
+        subscriptionNumber: company?.subscriptionNumber ?? null,
         membershipId: membership.id,
         roles: membership.membershipRoles.map((mr) => ({
           name: mr.role.name,
@@ -544,9 +693,23 @@ export class AuthService {
     );
   }
 
-  private async issueTokens(userId: string, membershipId: string, companyId: string) {
+  /**
+   * `branchId` (Phase 12, employee login only) is informational, not an
+   * access-control boundary enforced elsewhere in this token's lifetime -
+   * the real branch authorization already happened in employeeLogin()
+   * above via the employee's MembershipRole scope, which every subsequent
+   * request re-checks independently (BranchScopeService) regardless of
+   * this claim. It exists purely so the frontend can default the POS/UI
+   * branch context without asking the employee to pick it again.
+   */
+  private async issueTokens(
+    userId: string,
+    membershipId: string,
+    companyId: string,
+    branchId?: string,
+  ) {
     const accessToken = this.jwtService.sign(
-      { sub: userId, companyId, membershipId },
+      { sub: userId, companyId, membershipId, ...(branchId ? { currentBranchId: branchId } : {}) },
       {
         secret: this.config.get<string>('JWT_ACCESS_SECRET'),
         expiresIn: this.config.get<string>('JWT_ACCESS_TTL'),

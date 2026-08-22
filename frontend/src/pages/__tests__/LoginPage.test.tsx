@@ -26,7 +26,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(screen.getByLabelText('البريد الإلكتروني أو رقم الجوال أو اسم المستخدم'), 'owner@test.local');
+    await user.type(screen.getByLabelText('البريد الإلكتروني أو رقم الجوال أو رقم الاشتراك'), 'owner@test.local');
     await user.type(screen.getByLabelText('كلمة المرور'), 'SuperSecret123');
     await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }));
 
@@ -46,7 +46,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(screen.getByLabelText('البريد الإلكتروني أو رقم الجوال أو اسم المستخدم'), 'owner@test.local');
+    await user.type(screen.getByLabelText('البريد الإلكتروني أو رقم الجوال أو رقم الاشتراك'), 'owner@test.local');
     await user.type(screen.getByLabelText('كلمة المرور'), 'SuperSecret123');
     await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }));
 
@@ -62,7 +62,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(screen.getByLabelText('البريد الإلكتروني أو رقم الجوال أو اسم المستخدم'), 'owner@test.local');
+    await user.type(screen.getByLabelText('البريد الإلكتروني أو رقم الجوال أو رقم الاشتراك'), 'owner@test.local');
     await user.type(screen.getByLabelText('كلمة المرور'), 'WrongPassword');
     await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }));
 

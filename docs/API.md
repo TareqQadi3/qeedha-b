@@ -35,12 +35,14 @@
 ### Auth (`/api/v1/auth`)
 | Method | Path | الوصف | صلاحية |
 |---|---|---|---|
-| POST | `/register-company` | تسجيل منشأة جديدة + مستخدم Owner أول + Membership | عام (Rate-limited) |
-| POST | `/login` | تسجيل دخول (`identifier` = email أو mobile أو username + password) — انظر ملاحظة أدناه | عام (Rate-limited) |
+| POST | `/register-company` | تسجيل منشأة جديدة + مستخدم Owner أول + Membership — الاستجابة تتضمن `company.subscriptionNumber` (Phase 12) | عام (Rate-limited) |
+| POST | `/login` | تسجيل دخول التاجر/المالك (`identifier` = email أو mobile أو **subscriptionNumber** + password) — انظر ملاحظة أدناه | عام (Rate-limited) |
+| GET | `/companies/:subscriptionNumber/branches` | (Phase 12) فروع منشأة برقم اشتراكها - لقائمة الفرع المنسدلة في شاشة دخول الموظف | عام (Rate-limited) |
+| POST | `/employee-login` | (Phase 12) دخول حساب فريق (username) - `{subscriptionNumber, branchId, username, password}` - انظر ملاحظة أدناه | عام (Rate-limited) |
 | POST | `/select-tenant` | إتمام الدخول لمستخدم بعدة عضويات (tenantSelectionToken + companyId) | عام، يتطلب tenantSelectionToken صالح |
 | POST | `/refresh` | تجديد access token عبر refresh token (لنفس الـtenant) | يتطلب refresh token صالح |
 | POST | `/logout` | إبطال refresh token الحالي | يتطلب مصادقة |
-| GET | `/me` | بيانات المستخدم الحالي + الـMembership الفعّالة + صلاحياتها | يتطلب مصادقة |
+| GET | `/me` | بيانات المستخدم الحالي + الـMembership الفعّالة + صلاحياتها + `companyLegalName`/`subscriptionNumber` (Phase 12) | يتطلب مصادقة |
 | GET | `/tenants` | المنشآت التي يملك المستخدم عضوية نشطة فيها (أساس Tenant Switcher) | يتطلب مصادقة |
 | POST | `/switch-tenant` | تبديل الجلسة الحالية إلى منشأة أخرى يملك المستخدم عضوية فيها | يتطلب مصادقة |
 
@@ -49,6 +51,15 @@
 عضويتان فأكثر تُعيد `{ tenantSelectionRequired: true, tenantSelectionToken,
 availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/select-tenant`.
 التفاصيل الكاملة في `DOMAIN_MODEL.md` قسم "تسجيل الدخول واختيار المنشأة".
+**`username` لم يعد يُطابَق هنا منذ Phase 12** - راجع `/employee-login`.
+
+**ملاحظة على `/employee-login` (Phase 12)**: مسار منفصل تمامًا عن `/login`،
+لحسابات الفريق (نقطة بيع/محاسب) فقط. يتحقق بالترتيب من: الشركة (عبر
+`subscriptionNumber`)، الفرع (يجب أن ينتمي لهذه الشركة)، اسم المستخدم (ضمن
+هذه الشركة تحديدًا)، كلمة المرور، ثم نطاق دور الموظف (يجب أن يشمل الفرع
+المختار أو المنشأة كاملة - وإلا `403`). الاستجابة الناجحة تماثل `/login`
+عضوية واحدة، مع حقل `branch: {id, name}` إضافي. التفاصيل الكاملة في
+`DOMAIN_MODEL.md` قسم "رقم الاشتراك ودخول الموظف".
 
 ### IAM (`/api/v1/iam`)
 | Method | Path | الوصف | صلاحية |
@@ -56,7 +67,7 @@ availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/
 | GET | `/roles` | قائمة الأدوار المتاحة للمنشأة | `iam.roles.view` |
 | GET | `/permissions` | قائمة الصلاحيات المتاحة في النظام | `iam.roles.view` |
 | GET | `/users` | أعضاء المنشأة (Memberships) وأدوارهم ضمنها — مُرقَّم (`?page&pageSize`)، صيغة `{data, meta}` القياسية أعلاه منذ Milestone 2 (كانت مصفوفة مسطّحة غير محدودة قبلها) | `iam.users.view` |
-| POST | `/users` | إضافة عضوية جديدة — تُنشئ مستخدمًا جديدًا، أو تُرفق مستخدمًا موجودًا بالفعل (بدون لمس كلمة مروره) إن تطابق البريد/الجوال. يقبل `username` بديلًا كاملًا عن `email`/`mobile` (حسابات فريق بلا بريد إلكتروني — انظر `DOMAIN_MODEL.md` "حسابات الفريق")؛ خلافًا للبريد/الجوال، تطابق `username` **لا** يُعيد استخدام هوية موجودة — يُرفض بـ409 | `iam.users.manage` |
+| POST | `/users` | إضافة عضوية جديدة — تُنشئ مستخدمًا جديدًا، أو تُرفق مستخدمًا موجودًا بالفعل (بدون لمس كلمة مروره) إن تطابق البريد/الجوال. يقبل `username` بديلًا كاملًا عن `email`/`mobile` (حسابات فريق بلا بريد إلكتروني — انظر `DOMAIN_MODEL.md` "حسابات الفريق")؛ خلافًا للبريد/الجوال، تطابق `username` **لا** يُعيد استخدام هوية موجودة — يُرفض بـ409 **ضمن هذه المنشأة فقط** (Phase 12: `username` فريد لكل منشأة، لا عالميًا - منشأتان مختلفتان تستطيعان استخدام نفس اسم المستخدم) | `iam.users.manage` |
 | POST | `/users/:id/roles` | إسناد دور لمستخدم ضمن هذه المنشأة (مع نطاق فرع اختياري) | `iam.users.manage` |
 | DELETE | `/users/:id/roles/:membershipRoleId` | إلغاء إسناد دور | `iam.users.manage` |
 

@@ -31,6 +31,8 @@ psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting" \
   -f prisma/manual-sql/002_auth_lookup_role_update.sql
 psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting" \
   -f prisma/manual-sql/004_platform_admin_role.sql
+psql "postgresql://qeedha_dev:qeedha_dev_pw@localhost:5432/qeedha_accounting" \
+  -f prisma/manual-sql/007_auth_lookup_role_phase12.sql
 
 # 4) بذر الصلاحيات والأدوار النظامية (يبذر أيضًا مدير منصة واحدًا للوحة
 #    تحكم SaaS إن كان PLATFORM_ADMIN_SEED_EMAIL/PASSWORD معيَّنين في .env)

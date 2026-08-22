@@ -26,6 +26,12 @@ interface AuthContextValue {
   loading: boolean;
   hasPermission: (key: string) => boolean;
   login: (identifier: string, password: string) => Promise<LoginResult>;
+  employeeLogin: (
+    subscriptionNumber: number,
+    branchId: string,
+    username: string,
+    password: string,
+  ) => Promise<void>;
   selectTenant: (tenantSelectionToken: string, companyId: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
@@ -83,6 +89,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { kind: 'authenticated' };
   };
 
+  const employeeLogin = async (
+    subscriptionNumber: number,
+    branchId: string,
+    username: string,
+    password: string,
+  ) => {
+    const res = await api.post(
+      '/auth/employee-login',
+      { subscriptionNumber, branchId, username, password },
+      true,
+    );
+    setSession(res.accessToken, res.refreshToken);
+    await refreshMe();
+  };
+
   const selectTenant = async (tenantSelectionToken: string, companyId: string) => {
     const res = await api.post('/auth/select-tenant', { tenantSelectionToken, companyId }, true);
     setSession(res.accessToken, res.refreshToken);
@@ -102,7 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasPermission = (key: string) => !!me?.permissions.includes(key);
 
   return (
-    <AuthContext.Provider value={{ me, loading, hasPermission, login, selectTenant, logout, refreshMe }}>
+    <AuthContext.Provider
+      value={{ me, loading, hasPermission, login, employeeLogin, selectTenant, logout, refreshMe }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -57,13 +57,19 @@ export class IamService {
     // attach this company's new employee to a stranger's account at another
     // company just because they typed the same username); it can only ever
     // mean "already taken, pick another".
+    //
+    // Phase 12: the check (and the DB constraint backing it,
+    // @@unique([homeCompanyId, username])) is scoped to THIS company, not
+    // global - two unrelated companies can both have a "ahmed". Employee
+    // login (AuthService.employeeLogin) resolves a username the same way,
+    // within a company already identified by subscriptionNumber.
     if (dto.username) {
       const usernameTaken = await tx.user.findFirst({
-        where: { deletedAt: null, username: dto.username },
+        where: { deletedAt: null, homeCompanyId: companyId, username: dto.username },
         select: { id: true },
       });
       if (usernameTaken) {
-        throw new ConflictException('اسم المستخدم هذا مُستخدَم بالفعل');
+        throw new ConflictException('اسم المستخدم هذا مُستخدَم بالفعل في هذه المنشأة');
       }
     }
 
@@ -92,6 +98,11 @@ export class IamService {
           email: dto.email,
           mobile: dto.mobile,
           username: dto.username,
+          // Phase 12: only username-based accounts get pinned to a single
+          // company (see homeCompanyId comment on the User model) - an
+          // email/mobile account stays a global identity even if a
+          // username happens to be set alongside it.
+          homeCompanyId: dto.username ? companyId : undefined,
           passwordHash,
         },
         select: SAFE_USER_SELECT,

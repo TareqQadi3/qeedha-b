@@ -59,6 +59,14 @@ tenant context لتفعيل RLS العادي:
   `002_auth_lookup_role_update.sql` (الأخير يُزيل الصلاحية القديمة على
   `users` بعد أن أصبحت غير ضرورية، ويضيف الصلاحية الجديدة على
   `memberships`/`companies`).
+- **Phase 12**: نفس مشكلة "bootstrap" بالضبط، لثلاث حاجات جديدة لا تعرف
+  الـtenant بعد: تحديد `Company` من `subscriptionNumber` (owner login + نقطة
+  دخول employee-login)، سرد فروع تلك الشركة (قائمة الفرع المنسدلة)، وتحديد
+  Membership صاحب الدور النظامي `Owner` لحل owner login عبر رقم الاشتراك.
+  توسيع إضافي لنفس الدور الضيق (`qeedha_auth_lookup`) على أعمدة محدَّدة من
+  `companies.subscription_number`، `branches`، `membership_roles`، `roles` -
+  `prisma/manual-sql/007_auth_lookup_role_phase12.sql`. لا صلاحية كتابة، ولا
+  توسيع لأي دور آخر.
 
 ## قرار Milestone 2: لماذا `refresh_tokens` لا يزال الاستثناء الوحيد من RLS
 

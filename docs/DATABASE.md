@@ -38,6 +38,10 @@ deleted_at    TIMESTAMPTZ                                -- soft delete
 ```text
 companies            الشركة/المنشأة (tenant الجذر)
   - legal_name, trade_name, vat_number, cr_number, default_currency, status
+  - subscription_number (Phase 12): Int فريد، تسلسلي (autoincrement، يبدأ من
+    10001) - مُعرِّف يمليه التاجر لفظيًا لتسجيل الدخول (owner) وتسجيل دخول
+    الموظفين (employee-login)، مختلف عن id الداخلي (uuid). راجع
+    DOMAIN_MODEL.md "رقم الاشتراك ودخول الموظف".
 
 branches              فرع تابع لمنشأة
   - company_id, name, code, address, is_default
@@ -51,6 +55,10 @@ pos_devices            جهاز نقطة بيع مسجَّل
 users                 هوية عالمية - لا تحمل company_id ولا تخضع لـRLS إطلاقًا
   - full_name, email (فريد عالميًا), mobile (فريد عالميًا), password_hash,
     status, locale
+  - home_company_id (Phase 12، nullable): مضبوط فقط لحسابات username (فِرَق
+    نقطة البيع/المحاسبة) - المنشأة الوحيدة التي ينتمي لها هذا الحساب.
+    username أصبح فريدًا ضمن (home_company_id, username) بدل عالميًا -
+    NULL لحسابات البريد/الجوال (تبقى هوية عالمية كما كانت).
 
 memberships            العلاقة الوحيدة بين مستخدم ومنشأة (tenant-scoped، RLS)
   - company_id, user_id, status (active/suspended)

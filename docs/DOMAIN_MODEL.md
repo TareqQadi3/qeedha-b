@@ -146,6 +146,42 @@ tokens    tenantSelectionToken
   مرة واحدة (منتهي الصلاحية سريعًا، ويحمل `purpose: "tenant_selection"` يُتحقق
   منه صراحة).
 
+## رقم الاشتراك ودخول الموظف (Phase 12)
+
+كل منشأة تحصل عند التسجيل على `subscriptionNumber` تسلسلي (يبدأ من `10001`،
+`Company.subscriptionNumber`، `Int @unique @default(autoincrement())`) —
+مُعرِّف يمليه التاجر لفظيًا، مختلف عن `id` الداخلي (uuid). يُعاد في استجابة
+`POST /auth/register-company` وفي `GET /auth/me`، ليكون التاجر قادرًا على
+مشاركته مع موظفيه.
+
+**دخول التاجر/المالك (`POST /auth/login`)** يقبل الآن 3 مُعرِّفات بدل 2:
+البريد الإلكتروني، رقم الجوال، أو رقم الاشتراك. الأولان يطابقان `User`
+مباشرة كما كان. رقم الاشتراك يُحل عبر مسار مختلف: يُحدَّد الـ`Company` أولًا
+(`AuthLookupService.findCompanyBySubscriptionNumber`، بنفس آلية الدور
+المتجاوز للـRLS المستخدمة أصلًا لحل Memberships)، ثم يُشترط وجود Membership
+واحدة **فقط** تحمل الدور النظامي `Owner` بنطاق المنشأة كاملة (`branchId:
+null`) لهذه الشركة — إن لم توجد بالضبط واحدة (لا واحدة، أو أكثر من مالك)
+يُرفض الدخول بنفس رسالة الخطأ العامة، ولا "يخمّن" أي حساب. **`username` لم
+يعد يُطابَق في `/auth/login`** (انظر أدناه لماذا).
+
+**دخول الموظف (`POST /auth/employee-login`)**: مسار منفصل تمامًا لحسابات
+الفريق (نقطة بيع/محاسب...، المُنشأة بـ`username` عبر `IamService.createUser`
+- راجع "تأثير هذا النموذج على IamService.createUser" أدناه). 4 حقول:
+`subscriptionNumber` + `branchId` + `username` + `password`. الفرع يُختار من
+قائمة تُجلَب مسبقًا عبر `GET /auth/companies/:subscriptionNumber/branches`
+(عام، بلا مصادقة - يُعيد فقط `companyLegalName` وقائمة فروع نشطة). بعد
+التحقق من كلمة المرور، يُشترط أن تملك عضوية هذا المستخدم دورًا يشمل هذا
+الفرع بالضبط أو نطاق المنشأة كاملة (`MembershipRole.branchId` = null أو =
+الفرع المختار) — وإلا `403`. التوكن الناتج يحمل `currentBranchId` إضافيًا
+(معلوماتي فقط، لتهيئة واجهة نقطة البيع - لا يُستخدَم كحد صلاحيات، ذلك يبقى
+عبر `BranchScopeService` في كل طلب لاحق كما كان).
+
+**لماذا `username` توقف عن العمل في `/auth/login`**: منذ Phase 12، تفرّد
+`username` لم يعد عالميًا بل مقصورًا على منشأته (`User.homeCompanyId`، انظر
+القسم التالي) - فمطابقته وحدها في `/auth/login` قد تُصادف حسابًا بنفس الاسم
+من منشأة مختلفة تمامًا. لذلك حسابات الفريق تستخدم `employee-login` حصرًا،
+حيث `subscriptionNumber` يحدد المنشأة أولًا قبل البحث عن `username`.
+
 ## تبديل المنشأة أثناء الجلسة (Tenant Switching)
 
 `POST /auth/switch-tenant` (Body: `{ companyId }`, يتطلب مصادقة حالية):
@@ -172,6 +208,14 @@ tokens    tenantSelectionToken
   فقط تُضاف `Membership` جديدة تربطه بهذه المنشأة. محاولة تمرير كلمة مرور في
   هذه الحالة تُتجاهل تمامًا (اختُبر صراحة في `test/app.e2e-spec.ts`).
 - محاولة إضافة نفس الشخص لنفس المنشأة مرتين → `409 Conflict`.
+- **Phase 12**: عند إنشاء حساب بـ`username` (بلا بريد/جوال)، يُضبَط
+  `User.homeCompanyId = companyId` تلقائيًا - هذا الحقل هو ما يجعل تفرّد
+  `username` مقصورًا على منشأته (`@@unique([homeCompanyId, username])`
+  بدل `@@unique([username])` عالميًا سابقًا). فحص "الاسم مأخوذ مسبقًا" أصبح
+  مُقيَّدًا بنفس `companyId` أيضًا (`homeCompanyId: companyId` في الاستعلام) -
+  فمنشأتان مختلفتان تستطيعان الآن، وبشكل صحيح، أن تسميا موظفًا لكل منهما
+  بنفس اسم المستخدم (مثلًا `ahmed`) دون أي تعارض. حسابات البريد/الجوال
+  تبقى `homeCompanyId: null` (هوية عالمية كما كانت).
 
 ## المرحلة 2 — الكتالوج والمخزون والأطراف (منفَّذ)
 

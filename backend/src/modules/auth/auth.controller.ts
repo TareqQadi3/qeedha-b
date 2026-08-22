@@ -1,9 +1,19 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Post,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { SubscriptionExempt } from '../../common/decorators/subscription-exempt.decorator';
 import { AuthService } from './auth.service';
+import { EmployeeLoginDto } from './dto/employee-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterCompanyDto } from './dto/register-company.dto';
@@ -28,6 +38,23 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  /** Phase 12 - the employee-login form's branch dropdown, once a subscriptionNumber is typed in. */
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Get('companies/:subscriptionNumber/branches')
+  listBranchesForLogin(@Param('subscriptionNumber', ParseIntPipe) subscriptionNumber: number) {
+    return this.authService.listBranchesForLogin(subscriptionNumber);
+  }
+
+  /** Phase 12 - team member (POS/accountant/...) login: subscriptionNumber + branch + username + password. See AuthService.employeeLogin. */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('employee-login')
+  employeeLogin(@Body() dto: EmployeeLoginDto) {
+    return this.authService.employeeLogin(dto);
   }
 
   /** Completes login for a user with more than one Membership (see AuthService.login). */

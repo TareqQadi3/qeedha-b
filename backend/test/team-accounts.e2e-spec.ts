@@ -46,7 +46,22 @@ describe('Team accounts: username-based creation and login (e2e)', () => {
         password: 'SuperSecret123',
       })
       .expect(201);
-    return { id, accessToken: res.body.accessToken as string };
+    return {
+      id,
+      accessToken: res.body.accessToken as string,
+      subscriptionNumber: res.body.company.subscriptionNumber as number,
+    };
+  };
+
+  /** The MAIN branch every registerTenant() company gets automatically - needed for employeeLogin(). */
+  const getMainBranchId = async (token: string) => {
+    const branches = await request(server)
+      .get('/api/v1/tenancy/branches')
+      .set(auth(token))
+      .expect(200);
+    const branch = branches.body.find((b: any) => b.code === 'MAIN');
+    if (!branch) throw new Error('MAIN branch not found');
+    return branch.id as string;
   };
 
   const getRoleId = async (token: string, name: string) => {
@@ -56,8 +71,9 @@ describe('Team accounts: username-based creation and login (e2e)', () => {
     return role.id as string;
   };
 
-  it('التاجر ينشئ حساب نقطة بيع باسم مستخدم وكلمة مرور فقط (بلا بريد/جوال)، ويستطيع الموظف الدخول باسم المستخدم', async () => {
+  it('التاجر ينشئ حساب نقطة بيع باسم مستخدم وكلمة مرور فقط (بلا بريد/جوال)، ويستطيع الموظف الدخول برقم الاشتراك + الفرع + اسم المستخدم', async () => {
     const owner = await registerTenant();
+    const branchId = await getMainBranchId(owner.accessToken);
     const cashierRoleId = await getRoleId(owner.accessToken, 'Cashier');
     const username = `cashier-${unique()}`;
 
@@ -78,12 +94,27 @@ describe('Team accounts: username-based creation and login (e2e)', () => {
     // passwordHash must never leave the API, under any identifier shape.
     expect(created.body.user.passwordHash).toBeUndefined();
 
-    const login = await request(server)
+    // Phase 12: username-based accounts no longer resolve through the
+    // owner-facing /auth/login (identifier could collide across companies
+    // now that username is scoped, not global) - employees use the
+    // dedicated employee-login flow instead.
+    await request(server)
       .post('/api/v1/auth/login')
       .send({ identifier: username, password: 'CashierPass123' })
+      .expect(401);
+
+    const login = await request(server)
+      .post('/api/v1/auth/employee-login')
+      .send({
+        subscriptionNumber: owner.subscriptionNumber,
+        branchId,
+        username,
+        password: 'CashierPass123',
+      })
       .expect(200);
 
     expect(login.body.user.username).toBe(username);
+    expect(login.body.branch.id).toBe(branchId);
 
     const me = await request(server)
       .get('/api/v1/auth/me')
@@ -94,6 +125,7 @@ describe('Team accounts: username-based creation and login (e2e)', () => {
 
   it('التاجر ينشئ حساب محاسب باسم مستخدم، وصلاحياته تختلف عن الكاشير (محاسب يرى الحسابات، كاشير لا يستطيع)', async () => {
     const owner = await registerTenant();
+    const branchId = await getMainBranchId(owner.accessToken);
     const accountantRoleId = await getRoleId(owner.accessToken, 'Accountant');
     const cashierRoleId = await getRoleId(owner.accessToken, 'Cashier');
 
@@ -121,12 +153,22 @@ describe('Team accounts: username-based creation and login (e2e)', () => {
       .expect(201);
 
     const accountantLogin = await request(server)
-      .post('/api/v1/auth/login')
-      .send({ identifier: accountantUsername, password: 'AccountantPass123' })
+      .post('/api/v1/auth/employee-login')
+      .send({
+        subscriptionNumber: owner.subscriptionNumber,
+        branchId,
+        username: accountantUsername,
+        password: 'AccountantPass123',
+      })
       .expect(200);
     const cashierLogin = await request(server)
-      .post('/api/v1/auth/login')
-      .send({ identifier: cashierUsername, password: 'CashierPass123' })
+      .post('/api/v1/auth/employee-login')
+      .send({
+        subscriptionNumber: owner.subscriptionNumber,
+        branchId,
+        username: cashierUsername,
+        password: 'CashierPass123',
+      })
       .expect(200);
 
     await request(server)
@@ -140,13 +182,19 @@ describe('Team accounts: username-based creation and login (e2e)', () => {
       .expect(403);
   });
 
-  it('اسم مستخدم مكرر بين منشأتين مختلفتين يُرفض بدل أن يُلحِق الموظف الجديد بحساب المستخدم الآخر', async () => {
+  it('اسم مستخدم مكرر بين منشأتين مختلفتين مسموح الآن (معزول برقم الاشتراك)، وكل موظف يدخل على منشأته فقط', async () => {
     const ownerA = await registerTenant();
     const ownerB = await registerTenant();
+    const branchIdA = await getMainBranchId(ownerA.accessToken);
+    const branchIdB = await getMainBranchId(ownerB.accessToken);
     const cashierRoleA = await getRoleId(ownerA.accessToken, 'Cashier');
     const cashierRoleB = await getRoleId(ownerB.accessToken, 'Cashier');
     const sharedUsername = `shared-${unique()}`;
 
+    // Phase 12: this is exactly the scenario the old global
+    // @@unique([username]) used to reject with 409 - two unrelated
+    // companies each independently naming an employee "shared-xxxx" is a
+    // completely normal, unrelated coincidence and must succeed for both.
     await request(server)
       .post('/api/v1/iam/users')
       .set(auth(ownerA.accessToken))
@@ -158,11 +206,6 @@ describe('Team accounts: username-based creation and login (e2e)', () => {
       })
       .expect(201);
 
-    // Company B's merchant picks the exact same username for a different
-    // real person - must be rejected, never silently attached to Company
-    // A's employee account (that would leak Company A's employee into
-    // Company B and let either password log into a Membership meant for
-    // someone else entirely).
     await request(server)
       .post('/api/v1/iam/users')
       .set(auth(ownerB.accessToken))
@@ -172,7 +215,51 @@ describe('Team accounts: username-based creation and login (e2e)', () => {
         password: 'PasswordB123',
         roleId: cashierRoleB,
       })
-      .expect(409);
+      .expect(201);
+
+    // Each logs in through THEIR OWN company's subscriptionNumber and gets
+    // exactly their own account - never each other's, and never a wrong
+    // password from the other company accidentally validating.
+    const loginA = await request(server)
+      .post('/api/v1/auth/employee-login')
+      .send({
+        subscriptionNumber: ownerA.subscriptionNumber,
+        branchId: branchIdA,
+        username: sharedUsername,
+        password: 'PasswordA123',
+      })
+      .expect(200);
+    const loginB = await request(server)
+      .post('/api/v1/auth/employee-login')
+      .send({
+        subscriptionNumber: ownerB.subscriptionNumber,
+        branchId: branchIdB,
+        username: sharedUsername,
+        password: 'PasswordB123',
+      })
+      .expect(200);
+    expect(loginA.body.user.id).not.toBe(loginB.body.user.id);
+
+    // Company A's employee password must NOT work against Company B's
+    // same-named account, and vice versa.
+    await request(server)
+      .post('/api/v1/auth/employee-login')
+      .send({
+        subscriptionNumber: ownerB.subscriptionNumber,
+        branchId: branchIdB,
+        username: sharedUsername,
+        password: 'PasswordA123',
+      })
+      .expect(401);
+    await request(server)
+      .post('/api/v1/auth/employee-login')
+      .send({
+        subscriptionNumber: ownerA.subscriptionNumber,
+        branchId: branchIdA,
+        username: sharedUsername,
+        password: 'PasswordB123',
+      })
+      .expect(401);
   });
 
   it('لا يجوز إنشاء حساب فريق بلا أي مُعرِّف إطلاقًا (لا بريد ولا جوال ولا اسم مستخدم)', async () => {

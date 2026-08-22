@@ -18,6 +18,20 @@ export interface IntegrationConnectionLookup {
   systemMembershipId: string | null;
 }
 
+export interface CompanyLookup {
+  id: string;
+  legalName: string;
+  tradeName: string | null;
+  status: string;
+}
+
+export interface BranchOption {
+  id: string;
+  name: string;
+  code: string;
+  isDefault: boolean;
+}
+
 /**
  * The only consumer of AuthLookupPrismaService. Resolves which companies a
  * user can act as (their active Memberships) *before* a tenant context
@@ -30,6 +44,13 @@ export interface IntegrationConnectionLookup {
  * QeedhaIntegrationAuthGuard must resolve an `IntegrationConnection` by its
  * `publicReference` before it knows which company/tenant the request is
  * even for - see prisma/manual-sql/003_auth_lookup_role_integration.sql.
+ *
+ * Phase 12 adds a third: resolving a Company by its subscriptionNumber
+ * (owner login's 3rd identifier, and the entry point for employee login),
+ * listing that company's branches for the employee-login dropdown, and
+ * finding its Owner membership/checking a membership's branch scope - all
+ * before any tenant context exists. See
+ * prisma/manual-sql/007_auth_lookup_role_phase12.sql.
  */
 @Injectable()
 export class AuthLookupService {
@@ -78,5 +99,67 @@ export class AuthLookupService {
           companyTradeName: company.tradeName,
         };
       });
+  }
+
+  /** Owner-login's 3rd identifier (email/mobile/subscriptionNumber) and the entry point for employee login. */
+  async findCompanyBySubscriptionNumber(subscriptionNumber: number): Promise<CompanyLookup | null> {
+    return this.authLookupPrisma.company.findFirst({
+      where: { subscriptionNumber },
+      select: { id: true, legalName: true, tradeName: true, status: true },
+    });
+  }
+
+  /** For the employee-login branch dropdown, once a company was resolved by subscriptionNumber. */
+  async listActiveBranchesForCompany(companyId: string): Promise<BranchOption[]> {
+    return this.authLookupPrisma.branch.findMany({
+      where: { companyId, deletedAt: null },
+      select: { id: true, name: true, code: true, isDefault: true },
+      orderBy: { isDefault: 'desc' },
+    });
+  }
+
+  /**
+   * The one active Membership holding the system Owner role at company
+   * scope (branchId null) for this company - resolves owner login via
+   * subscriptionNumber. Returns null both when there is none (shouldn't
+   * happen for a real company) and when there is more than one (co-owner
+   * setups this schema allows but subscriptionNumber login can't safely
+   * disambiguate) - either way the caller falls back to "use email/mobile
+   * instead" rather than guessing.
+   */
+  async findSoleOwnerUserIdForCompany(companyId: string): Promise<string | null> {
+    const ownerScopes = await this.authLookupPrisma.membershipRole.findMany({
+      where: { companyId, branchId: null, role: { name: 'Owner' } },
+      select: { membershipId: true },
+    });
+    const membershipIds = [...new Set(ownerScopes.map((r) => r.membershipId))];
+    if (membershipIds.length !== 1) {
+      return null;
+    }
+    const membership = await this.authLookupPrisma.membership.findFirst({
+      where: { id: membershipIds[0], status: 'active' },
+      select: { userId: true },
+    });
+    return membership?.userId ?? null;
+  }
+
+  /** The active Membership (if any) linking this user to this company - employee login needs its id/status before a tenant context exists. */
+  async findActiveMembership(
+    companyId: string,
+    userId: string,
+  ): Promise<{ id: string; status: string } | null> {
+    return this.authLookupPrisma.membership.findFirst({
+      where: { companyId, userId },
+      select: { id: true, status: true },
+    });
+  }
+
+  /** branchId of every role this membership holds - null means "whole company", used to authorize the branch picked at employee login. */
+  async listMembershipRoleBranchScopes(membershipId: string): Promise<(string | null)[]> {
+    const rows = await this.authLookupPrisma.membershipRole.findMany({
+      where: { membershipId },
+      select: { branchId: true },
+    });
+    return rows.map((r) => r.branchId);
   }
 }

@@ -83,6 +83,11 @@ export function LoginPage() {
                   {t('login.registerLink')}
                 </Link>
               </p>
+              <p className="text-center text-sm text-slate-500">
+                <Link to="/employee-login" className="font-medium text-brand-600 hover:underline">
+                  {t('login.employeeLoginLink')}
+                </Link>
+              </p>
             </form>
           ) : (
             <div className="space-y-3">
