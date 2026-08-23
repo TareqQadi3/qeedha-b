@@ -111,13 +111,18 @@ describe('Phase 12: subscriptionNumber owner login + employee login + branch sco
       .expect(401);
   });
 
-  it('قائمة الفروع لتسجيل دخول الموظف تُعاد من رقم الاشتراك (بلا حاجة لأي مصادقة)', async () => {
+  it('قائمة الفروع لتسجيل دخول الموظف تُعاد من رقم الاشتراك (بلا حاجة لأي مصادقة)، بلا كشف اسم الشركة', async () => {
     const owner = await registerTenant();
     const res = await request(server)
       .get(`/api/v1/auth/companies/${owner.subscriptionNumber}/branches`)
       .expect(200);
     expect(res.body.branches.length).toBe(1);
     expect(res.body.branches[0].name).toBe('الفرع الرئيسي');
+    // Security fix: subscriptionNumber is a plain sequential integer, so
+    // this public endpoint must never confirm a company's identity to an
+    // unauthenticated caller - otherwise scanning 10001, 10002, ... would
+    // harvest a named roster of every company on the platform.
+    expect(res.body.companyLegalName).toBeUndefined();
   });
 
   it('رقم اشتراك غير موجود لقائمة الفروع يُعيد 404', async () => {

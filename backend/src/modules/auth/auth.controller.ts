@@ -40,9 +40,16 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  /** Phase 12 - the employee-login form's branch dropdown, once a subscriptionNumber is typed in. */
+  /**
+   * Phase 12 - the employee-login form's branch dropdown, once a
+   * subscriptionNumber is typed in. Tighter throttle than other public
+   * auth endpoints on purpose: subscriptionNumber is a plain sequential
+   * integer, so this is the endpoint an unauthenticated scan of the ID
+   * space would hit to enumerate companies - see AuthService.listBranchesForLogin
+   * for why the response itself also never names the company.
+   */
   @Public()
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Get('companies/:subscriptionNumber/branches')
   listBranchesForLogin(@Param('subscriptionNumber', ParseIntPipe) subscriptionNumber: number) {
     return this.authService.listBranchesForLogin(subscriptionNumber);

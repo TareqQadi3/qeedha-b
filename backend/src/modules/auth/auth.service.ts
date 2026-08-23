@@ -476,7 +476,19 @@ export class AuthService {
     };
   }
 
-  /** The employee-login form's branch dropdown, populated once a subscriptionNumber resolves to an active company. */
+  /**
+   * The employee-login form's branch dropdown, populated once a
+   * subscriptionNumber resolves to an active company.
+   *
+   * Deliberately does NOT return the company's legal name (or anything
+   * else identifying beyond branch names): subscriptionNumber is a plain
+   * sequential integer, so this endpoint is reachable by anyone who just
+   * increments it - returning a legal name here would let that scan build
+   * a named roster of every company on the platform. An employee already
+   * knows where they work; the branch list alone is enough to complete
+   * the form without the server confirming "this number belongs to
+   * company X" to an unauthenticated caller.
+   */
   async listBranchesForLogin(subscriptionNumber: number) {
     const company =
       await this.authLookupService.findCompanyBySubscriptionNumber(subscriptionNumber);
@@ -485,7 +497,6 @@ export class AuthService {
     }
     const branches = await this.authLookupService.listActiveBranchesForCompany(company.id);
     return {
-      companyLegalName: company.legalName,
       branches: branches.map((b) => ({ id: b.id, name: b.name })),
     };
   }

@@ -18,7 +18,6 @@ export function EmployeeLoginPage() {
 
   const [subscriptionNumber, setSubscriptionNumber] = useState('');
   const [branches, setBranches] = useState<BranchOption[] | null>(null);
-  const [companyLegalName, setCompanyLegalName] = useState<string | null>(null);
   const [branchId, setBranchId] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -34,7 +33,6 @@ export function EmployeeLoginPage() {
     setLoadingBranches(true);
     try {
       const res = await api.get(`/auth/companies/${subscriptionNumber}/branches`);
-      setCompanyLegalName(res.companyLegalName);
       setBranches(res.branches);
       if (res.branches.length === 1) {
         setBranchId(res.branches[0].id);
@@ -99,7 +97,6 @@ export function EmployeeLoginPage() {
 
             {branches && (
               <Field label={t('fields.branch')}>
-                {companyLegalName && <p className="mb-1 text-xs text-slate-500">{companyLegalName}</p>}
                 <Select value={branchId} onChange={(e) => setBranchId(e.target.value)} required>
                   <option value="" disabled>
                     {t('employeeLogin.selectBranch')}

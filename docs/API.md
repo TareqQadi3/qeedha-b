@@ -37,7 +37,7 @@
 |---|---|---|---|
 | POST | `/register-company` | تسجيل منشأة جديدة + مستخدم Owner أول + Membership — الاستجابة تتضمن `company.subscriptionNumber` (Phase 12) | عام (Rate-limited) |
 | POST | `/login` | تسجيل دخول التاجر/المالك (`identifier` = email أو mobile أو **subscriptionNumber** + password) — انظر ملاحظة أدناه | عام (Rate-limited) |
-| GET | `/companies/:subscriptionNumber/branches` | (Phase 12) فروع منشأة برقم اشتراكها - لقائمة الفرع المنسدلة في شاشة دخول الموظف | عام (Rate-limited) |
+| GET | `/companies/:subscriptionNumber/branches` | (Phase 12) فروع منشأة برقم اشتراكها - لقائمة الفرع المنسدلة في شاشة دخول الموظف. **لا تُعيد اسم الشركة** ومُقيَّدة بمعدّل أشد (5/دقيقة) - راجع الملاحظة أدناه | عام (Rate-limited) |
 | POST | `/employee-login` | (Phase 12) دخول حساب فريق (username) - `{subscriptionNumber, branchId, username, password}` - انظر ملاحظة أدناه | عام (Rate-limited) |
 | POST | `/select-tenant` | إتمام الدخول لمستخدم بعدة عضويات (tenantSelectionToken + companyId) | عام، يتطلب tenantSelectionToken صالح |
 | POST | `/refresh` | تجديد access token عبر refresh token (لنفس الـtenant) | يتطلب refresh token صالح |
@@ -52,6 +52,14 @@
 availableCompanies }` بدل tokens حقيقية، إلى أن يُستدعى `/select-tenant`.
 التفاصيل الكاملة في `DOMAIN_MODEL.md` قسم "تسجيل الدخول واختيار المنشأة".
 **`username` لم يعد يُطابَق هنا منذ Phase 12** - راجع `/employee-login`.
+
+**ملاحظة أمنية على `/companies/:subscriptionNumber/branches`**: `subscriptionNumber`
+رقم تسلسلي بسيط (يبدأ من 10001) لا عشوائية فيه، والمسار عام بلا مصادقة
+بالتصميم (الموظف يحتاجه قبل إدخال بيانات دخوله). لتفادي تحوّله إلى أداة
+لحصر "كل الشركات المسجَّلة بالمنصة" عبر تجربة الأرقام تباعًا: الاستجابة
+**لا تتضمن اسم الشركة إطلاقًا** (فروع فقط، بلا أي معلومة تُثبت هوية الشركة
+لطرف غير مصادَق)، والحد الأقصى للطلبات 5/دقيقة لكل IP (أشد من باقي مسارات
+Auth العامة الأخرى - 10-20/دقيقة).
 
 **ملاحظة على `/employee-login` (Phase 12)**: مسار منفصل تمامًا عن `/login`،
 لحسابات الفريق (نقطة بيع/محاسب) فقط. يتحقق بالترتيب من: الشركة (عبر
