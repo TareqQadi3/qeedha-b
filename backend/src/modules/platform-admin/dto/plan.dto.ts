@@ -71,6 +71,27 @@ export class CreatePlanDto {
   @Min(0)
   maxMonthlySales?: number;
 
+  // Phase 13: per-role account limits - see Plan schema comment.
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxCashiers?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxAccountants?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxManagers?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxWarehouses?: number;
+
   @IsOptional()
   @IsObject()
   features?: Record<string, boolean>;
@@ -141,6 +162,27 @@ export class UpdatePlanDto {
   @IsInt()
   @Min(0)
   maxMonthlySales?: number;
+
+  // Phase 13: per-role account limits - see Plan schema comment.
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxCashiers?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxAccountants?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxManagers?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxWarehouses?: number;
 
   @IsOptional()
   @IsObject()

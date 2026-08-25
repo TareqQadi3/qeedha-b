@@ -8,9 +8,21 @@ import * as argon2 from 'argon2';
 import { TenantClient } from '../../common/prisma/prisma.service';
 import { paginate, paginationSkip } from '../../common/utils/pagination';
 import { AuditService } from '../audit/audit.service';
-import { SubscriptionService } from '../subscriptions/subscription.service';
+import { SubscriptionService, UsageLimitResource } from '../subscriptions/subscription.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
+
+/**
+ * Phase 13: the system Role names (default-roles.ts) that carry a
+ * per-role plan/subscription limit (Plan.maxCashiers/maxAccountants/
+ * maxManagers) - Owner/Inventory Manager/Integration are unrestricted
+ * beyond the generic 'users' total.
+ */
+const LIMITED_ROLE_RESOURCE: Record<string, UsageLimitResource> = {
+  Cashier: 'cashiers',
+  Accountant: 'accountants',
+  Manager: 'managers',
+};
 
 /** Never let passwordHash leave this module through an API response. User carries no company_id - see docs/DOMAIN_MODEL.md. */
 const SAFE_USER_SELECT = {
@@ -217,6 +229,22 @@ export class IamService {
     ]);
     if (!membership) throw new NotFoundException('لا توجد عضوية نشطة لهذا المستخدم في هذه المنشأة');
     if (!role) throw new NotFoundException('الدور غير موجود');
+
+    // Phase 13: a per-role plan/subscription limit (e.g. maxCashiers) only
+    // applies the FIRST time this membership gets this role - re-granting
+    // the same role at another branch (a branch-scope expansion, not a new
+    // headcount) must never be blocked by a limit that already counts them
+    // once via SubscriptionService.countActiveMembershipsWithRole.
+    const limitedResource = LIMITED_ROLE_RESOURCE[role.name];
+    if (limitedResource) {
+      const alreadyHasThisRole = await tx.membershipRole.findFirst({
+        where: { membershipId: membership.id, roleId: params.roleId },
+        select: { id: true },
+      });
+      if (!alreadyHasThisRole) {
+        await this.subscriptionService.assertWithinLimit(tx, companyId, limitedResource);
+      }
+    }
 
     if (params.branchId) {
       const branch = await tx.branch.findFirst({

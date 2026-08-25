@@ -6,7 +6,15 @@ import { FeatureKey } from './constants/feature-keys';
 import { PLAN_CODES } from './constants/default-plans';
 import { PlanProductKey } from './constants/products';
 
-export type UsageLimitResource = 'users' | 'branches' | 'monthlySales';
+export type UsageLimitResource =
+  'users' | 'branches' | 'monthlySales' | 'cashiers' | 'accountants' | 'managers' | 'warehouses';
+
+/** Phase 13: the exact system Role names (see iam/constants/default-roles.ts) each per-role resource counts. */
+const ROLE_NAME_BY_RESOURCE: Partial<Record<UsageLimitResource, string>> = {
+  cashiers: 'Cashier',
+  accountants: 'Accountant',
+  managers: 'Manager',
+};
 
 /** Subscription statuses that block MUTATING requests (see SubscriptionGuard). Reads stay allowed - "recovery/visibility" (Milestone 8 spec section 10). */
 const RESTRICTED_STATUSES: SubscriptionStatus[] = ['expired', 'suspended', 'cancelled'];
@@ -220,6 +228,7 @@ export class SubscriptionService {
       tx,
       companyId,
       subscription.plan,
+      subscription,
       resource,
     );
     if (limit !== null && current >= limit) {
@@ -229,20 +238,76 @@ export class SubscriptionService {
     }
   }
 
+  /**
+   * `overrides` (Phase 13): per-company customization set by a platform
+   * admin - null on any field means "use the plan's value for that
+   * resource" (the pre-Phase-13 behavior, unchanged for every company
+   * that has none set). A set override (including 0) always wins over the
+   * plan, regardless of which plan the company is on - this is both how
+   * an add-on is granted (override = plan value + N) and how the
+   * "enterprise" plan (whose own limits are all null/unlimited) gets real,
+   * per-customer limits.
+   */
   private async resourceUsage(
     tx: TenantClient,
     companyId: string,
     plan: Plan,
+    overrides: Pick<
+      Subscription,
+      | 'usersOverride'
+      | 'branchesOverride'
+      | 'warehousesOverride'
+      | 'cashiersOverride'
+      | 'accountantsOverride'
+      | 'managersOverride'
+    >,
     resource: UsageLimitResource,
   ): Promise<{ limit: number | null; current: number; label: string }> {
+    const roleName = ROLE_NAME_BY_RESOURCE[resource];
+    if (roleName) {
+      const current = await this.countActiveMembershipsWithRole(tx, companyId, roleName);
+      const overrideField = {
+        cashiers: overrides.cashiersOverride,
+        accountants: overrides.accountantsOverride,
+        managers: overrides.managersOverride,
+      }[resource as 'cashiers' | 'accountants' | 'managers'];
+      const planLimit = {
+        cashiers: plan.maxCashiers,
+        accountants: plan.maxAccountants,
+        managers: plan.maxManagers,
+      }[resource as 'cashiers' | 'accountants' | 'managers'];
+      const label = {
+        cashiers: 'عدد حسابات نقطة البيع',
+        accountants: 'عدد حسابات المحاسبين',
+        managers: 'عدد حسابات المدراء',
+      }[resource as 'cashiers' | 'accountants' | 'managers'];
+      return { limit: overrideField ?? planLimit, current, label };
+    }
+
     switch (resource) {
       case 'users': {
         const current = await tx.membership.count({ where: { companyId, status: 'active' } });
-        return { limit: plan.maxUsers, current, label: 'عدد المستخدمين' };
+        return {
+          limit: overrides.usersOverride ?? plan.maxUsers,
+          current,
+          label: 'عدد المستخدمين',
+        };
       }
       case 'branches': {
         const current = await tx.branch.count({ where: { companyId, deletedAt: null } });
-        return { limit: plan.maxBranches, current, label: 'عدد الفروع' };
+        return {
+          limit: overrides.branchesOverride ?? plan.maxBranches,
+          current,
+          label: 'عدد الفروع',
+        };
+      }
+      case 'warehouses': {
+        const current = await tx.warehouse.count({ where: { companyId, deletedAt: null } });
+        return {
+          limit: overrides.warehousesOverride ?? plan.maxWarehouses,
+          current,
+          label: 'عدد المستودعات',
+        };
       }
       case 'monthlySales': {
         const startOfMonth = new Date();
@@ -253,17 +318,55 @@ export class SubscriptionService {
         });
         return { limit: plan.maxMonthlySales, current, label: 'عدد مبيعات الشهر' };
       }
+      default:
+        throw new InternalServerErrorException(`resource usage not implemented: ${resource}`);
     }
+  }
+
+  /** Distinct people (not role-assignment rows - a Cashier can hold the role at more than one branch) holding this system role, active membership only. */
+  private async countActiveMembershipsWithRole(
+    tx: TenantClient,
+    companyId: string,
+    roleName: string,
+  ): Promise<number> {
+    const rows = await tx.membershipRole.findMany({
+      where: { companyId, role: { name: roleName }, membership: { status: 'active' } },
+      select: { membershipId: true },
+      distinct: ['membershipId'],
+    });
+    return rows.length;
+  }
+
+  /** Phase 13: resolves the products a company's subscription actually grants - subscription.productsOverride wins over plan.products when set. */
+  effectiveProducts(
+    plan: Pick<Plan, 'products'>,
+    subscription: Pick<Subscription, 'productsOverride'>,
+  ): string[] {
+    return (
+      (subscription.productsOverride as string[] | null) ?? (plan.products as string[] | null) ?? []
+    );
   }
 
   /** Merchant-facing read model - GET /subscriptions/me. Never exposes internal ids beyond what the merchant's own company already owns. */
   async getMerchantView(tx: TenantClient, companyId: string) {
     const { subscription, plan, effectiveStatus } = await this.loadContext(tx, companyId);
 
-    const [usersUsed, branchesUsed, monthlySalesUsed] = await Promise.all([
-      this.resourceUsage(tx, companyId, plan, 'users'),
-      this.resourceUsage(tx, companyId, plan, 'branches'),
-      this.resourceUsage(tx, companyId, plan, 'monthlySales'),
+    const [
+      usersUsed,
+      branchesUsed,
+      monthlySalesUsed,
+      warehousesUsed,
+      cashiersUsed,
+      accountantsUsed,
+      managersUsed,
+    ] = await Promise.all([
+      this.resourceUsage(tx, companyId, plan, subscription, 'users'),
+      this.resourceUsage(tx, companyId, plan, subscription, 'branches'),
+      this.resourceUsage(tx, companyId, plan, subscription, 'monthlySales'),
+      this.resourceUsage(tx, companyId, plan, subscription, 'warehouses'),
+      this.resourceUsage(tx, companyId, plan, subscription, 'cashiers'),
+      this.resourceUsage(tx, companyId, plan, subscription, 'accountants'),
+      this.resourceUsage(tx, companyId, plan, subscription, 'managers'),
     ]);
 
     const trialDaysRemaining =
@@ -292,13 +395,19 @@ export class SubscriptionService {
         // Phase 9: lets the merchant-facing UI show which product(s)
         // ("qeedha_b"/"qeedha") their current plan actually grants -
         // SubscriptionGuard is what enforces it; this is read-only display.
-        products: plan.products,
+        // Phase 13: reflects this company's productsOverride if the admin
+        // set one (e.g. the قيّدها add-on), not just the plan's default.
+        products: this.effectiveProducts(plan, subscription),
       },
       features: plan.features,
       usage: {
         users: usersUsed,
         branches: branchesUsed,
         monthlySales: monthlySalesUsed,
+        warehouses: warehousesUsed,
+        cashiers: cashiersUsed,
+        accountants: accountantsUsed,
+        managers: managersUsed,
       },
       // No external payment collection is implemented in this milestone
       // (Milestone 8 spec section 16) - the frontend renders this instead of
@@ -323,6 +432,10 @@ export class SubscriptionService {
       maxUsers: plan.maxUsers,
       maxBranches: plan.maxBranches,
       maxMonthlySales: plan.maxMonthlySales,
+      maxCashiers: plan.maxCashiers,
+      maxAccountants: plan.maxAccountants,
+      maxManagers: plan.maxManagers,
+      maxWarehouses: plan.maxWarehouses,
       features: plan.features,
       products: plan.products,
     }));

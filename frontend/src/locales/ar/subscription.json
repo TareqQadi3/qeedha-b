@@ -41,11 +41,16 @@
     "users": "المستخدمون",
     "branches": "الفروع",
     "monthlySales": "مبيعات هذا الشهر",
+    "warehouses": "المخازن",
+    "cashiers": "حسابات نقاط البيع",
+    "accountants": "حسابات المحاسبين",
+    "managers": "حسابات المدراء",
     "unlimited": "غير محدود"
   },
   "plans": {
     "title": "الخطط المتاحة",
     "summary": "المستخدمون: {{users}} · الفروع: {{branches}} · مبيعات شهرية: {{sales}}",
+    "summaryDetailed": "الفروع: {{branches}} · نقاط البيع: {{cashiers}} · المحاسبون: {{accountants}} · المدراء: {{managers}} · المخازن: {{warehouses}}",
     "footerNote": "إدارة الفوترة والترقية بين الخطط ستكون متاحة قريبًا عبر مركز التحكم في Qeedha. للترقية أو الاستفسار حول الفوترة، يرجى التواصل مع الدعم."
   },
   "errors": {

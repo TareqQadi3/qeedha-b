@@ -119,4 +119,36 @@ describe('SubscriptionPage', () => {
 
     expect(await screen.findByText('تعذّر تحميل بيانات الاشتراك')).toBeInTheDocument();
   });
+
+  it('shows Phase 13 per-role usage (warehouses/cashiers/accountants/managers) when present', async () => {
+    const meWithRoleUsage = {
+      ...baseMe,
+      usage: {
+        ...baseMe.usage,
+        warehouses: { current: 1, limit: 2 },
+        cashiers: { current: 2, limit: 6 },
+        accountants: { current: 1, limit: 1 },
+        managers: { current: 0, limit: 1 },
+      },
+    };
+    const plansWithRoleLimits = basePlans.map((p) => ({
+      ...p,
+      maxWarehouses: 2,
+      maxCashiers: 6,
+      maxAccountants: 1,
+      maxManagers: 1,
+    }));
+    vi.spyOn(client.api, 'get').mockImplementation((path: string) => {
+      if (path === '/subscriptions/me') return Promise.resolve(meWithRoleUsage);
+      if (path === '/subscriptions/plans') return Promise.resolve(plansWithRoleLimits);
+      return Promise.reject(new Error(`unexpected path ${path}`));
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('2 / 6')).toBeInTheDocument();
+    expect(screen.getByText('1 / 1')).toBeInTheDocument();
+    expect(screen.getByText('0 / 1')).toBeInTheDocument();
+    expect(screen.getAllByText(/الفروع:.*نقاط البيع:.*المحاسبون:.*المدراء:.*المخازن:/).length).toBeGreaterThan(0);
+  });
 });

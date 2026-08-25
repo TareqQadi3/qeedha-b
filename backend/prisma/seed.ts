@@ -31,6 +31,10 @@ async function main() {
         maxUsers: plan.maxUsers,
         maxBranches: plan.maxBranches,
         maxMonthlySales: plan.maxMonthlySales,
+        maxCashiers: plan.maxCashiers,
+        maxAccountants: plan.maxAccountants,
+        maxManagers: plan.maxManagers,
+        maxWarehouses: plan.maxWarehouses,
         features: planFeaturesJson(plan.features),
       },
       create: {
@@ -44,6 +48,10 @@ async function main() {
         maxUsers: plan.maxUsers,
         maxBranches: plan.maxBranches,
         maxMonthlySales: plan.maxMonthlySales,
+        maxCashiers: plan.maxCashiers,
+        maxAccountants: plan.maxAccountants,
+        maxManagers: plan.maxManagers,
+        maxWarehouses: plan.maxWarehouses,
         features: planFeaturesJson(plan.features),
       },
     });

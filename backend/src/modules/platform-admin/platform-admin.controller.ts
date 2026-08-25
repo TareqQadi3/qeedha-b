@@ -19,6 +19,7 @@ import { PlatformAdminLoginDto } from './dto/platform-admin-login.dto';
 import {
   ChangeSubscriptionPlanDto,
   ExtendTrialDto,
+  SetSubscriptionOverridesDto,
   SetSubscriptionStatusDto,
 } from './dto/subscription-actions.dto';
 import { SetApplicationStatusDto, SetCommissionStatusDto } from './dto/status-update.dto';
@@ -113,6 +114,30 @@ export class PlatformAdminController {
   @Post('companies/:companyId/subscription/extend-trial')
   extendTrial(@Param('companyId') companyId: string, @Body() dto: ExtendTrialDto) {
     return this.platformAdminService.extendSubscriptionTrial(companyId, dto.days);
+  }
+
+  /**
+   * Phase 13 - the SAME effective-limits/current-usage view the merchant
+   * sees on their own subscription page (SubscriptionService.getMerchantView),
+   * so the admin edits overrides against real numbers instead of guessing.
+   */
+  @UseGuards(PlatformAdminAuthGuard, PlatformAdminRoleGuard)
+  @RequirePlatformAdminRole('finance')
+  @Get('companies/:companyId/subscription')
+  getCompanySubscription(@Param('companyId') companyId: string) {
+    return this.platformAdminService.getCompanySubscription(companyId);
+  }
+
+  /** Phase 13 - "أخصص أي باقة من لوحة التحكم": per-company limit overrides + the قيّدها add-on, independent of the company's plan. */
+  @UseGuards(PlatformAdminAuthGuard, PlatformAdminRoleGuard)
+  @RequirePlatformAdminRole('finance')
+  @HttpCode(HttpStatus.OK)
+  @Post('companies/:companyId/subscription/overrides')
+  setSubscriptionOverrides(
+    @Param('companyId') companyId: string,
+    @Body() dto: SetSubscriptionOverridesDto,
+  ) {
+    return this.platformAdminService.setSubscriptionOverrides(companyId, dto);
   }
 
   // ---- Plans / Packages (admin role only) ----

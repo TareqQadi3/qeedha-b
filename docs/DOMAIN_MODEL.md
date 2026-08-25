@@ -623,6 +623,80 @@ schema منذ Phase 1 لكنه **لم يكن مُفعَّلًا في أي Guard/
 `docs/SECURITY.md` "Milestone 8" لتفصيل `SubscriptionGuard`/RLS/التزامن،
 و`docs/API.md` "Milestone 8" لعقد `/subscriptions/*`.
 
+## الباقات (Phase 13)
+
+يوسّع نموذج Milestone 8 أعلاه بحدود استخدام **لكل دور** (لا مجرد إجمالي
+`maxUsers` واحد) وبقدرة مدير المنصة على تخصيص أي باقة لمنشأة واحدة بعينها،
+دون أي كيان/جدول جديد — فقط أعمدة إضافية على `Plan`/`Subscription`
+الموجودين، وكلاهما `nullable`.
+
+### أربع باقات جديدة، إلى جانب `starter`/`professional` القديمتين دون تغيير
+
+`starter`/`professional` (رموز `PLAN_CODES.STARTER`/`PROFESSIONAL`) تبقيان
+**بلا أي تعديل على قيمهما** — هما الباقة التي تُمنَح تلقائيًا لكل تسجيل
+جديد (`AuthService.registerCompany`)، وتعتمد عليها نحو 270 اختبار e2e
+موجود سلفًا بحدودها الواسعة غير المقيّدة. بدلًا من إعادة استخدامهما، أُضيفت
+أربع باقات جديدة (`PLAN_CODES.BASIC/STANDARD/PREMIUM/ENTERPRISE`) بحدود
+مطابقة تمامًا لما طلبه صاحب المنتج لكل دور:
+
+| الباقة | فروع | نقاط بيع (Cashier) | محاسب | مدير | مخزن |
+|---|---|---|---|---|---|
+| الأولى (`basic`) | 1 | 2 | 1 | 0 | 1 |
+| الثانية (`standard`) | 2 | 4 | 1 | 1 | 1 |
+| الثالثة (`premium`) | 3 | 6 | 1 | 1 | 2 |
+| المؤسسات (`enterprise`) | بلا حد افتراضي | بلا حد افتراضي | بلا حد افتراضي | بلا حد افتراضي | بلا حد افتراضي |
+
+مالك المنشأة (`Owner`) لا يُحتسَب ضمن أي من هذه الحدود — يُنشأ تلقائيًا
+عند التسجيل وهو دائمًا واحد بالضبط. باقة المؤسسات مقصودة كنقطة انطلاق بلا
+حدود افتراضية؛ الحدود الفعلية لكل عميل مؤسسي تُضبَط عبر تخصيص الاشتراك
+أدناه، وليس عبر تعديل الباقة نفسها (التي يشترك فيها عدة عملاء).
+
+### حدود لكل دور، لا لكل مستخدم
+
+`Plan` يكتسب `maxCashiers`/`maxAccountants`/`maxManagers`/`maxWarehouses`
+(كلها `Int?`، `null` = بلا حد) — تُطابق أدوار النظام الموجودة سلفًا بالاسم
+تمامًا (`Cashier`/`Accountant`/`Manager` من `iam/constants/default-roles.ts`؛
+لم يُستحدَث أي دور جديد). `SubscriptionService.countActiveMembershipsWithRole`
+يحتسب عضويات (`Membership`) **مميّزة** تحمل هذا الدور — عضوية Cashier في
+فرعين تُحتسَب مرة واحدة، لا مرتين.
+
+**قاعدة توسيع النطاق**: منح دور لعضوية تملكه بالفعل في فرع آخر (توسيع
+نطاق، لا عدد جديد) لا يُصطدم بالحد أبدًا — `IamService.assignRole` يتحقق
+من الحد فقط عند أول منح لهذا الدور لهذه العضوية (`membershipRole.findFirst`
+قبل الفحص)، لا عند كل منح لاحق بفرع مختلف.
+
+### تخصيص الاشتراك لكل منشأة — "أخصص أي باقة من لوحة التحكم"
+
+بدلًا من نظام إضافات مدفوعة منفصل (لا بوابة دفع فعلية موجودة أصلًا — راجع
+Phase 9 `SubscriptionPaymentProvider`)، `Subscription` يكتسب ستة أعمدة
+تجاوز اختيارية (`usersOverride`/`branchesOverride`/`warehousesOverride`/
+`cashiersOverride`/`accountantsOverride`/`managersOverride`، كلها `Int?`)
+بالإضافة إلى `productsOverride` (`Json?`، مصفوفة `PlanProductKey`). القاعدة:
+`null` = استخدم حد الباقة كما هو، وأي قيمة أخرى — **بما فيها صفر** — تَغلب
+على حد الباقة لهذه المنشأة **فقط**. هذا يحقق حرفيًا طلب "خدمات إضافية"
+(إضافة مدير/نقطة بيع/محاسب/مخزن) وكذلك "اشتراك قيّدها (التقسيط)" كخدمة
+إضافية مستقلة عن الباقة — `productsOverride` يفعّل `'qeedha'` لمنشأة واحدة
+دون تغيير باقتها المُشترَك فيها مع عملاء آخرين.
+
+`SubscriptionService.effectiveProducts(plan, subscription)` هو نقطة
+القراءة الوحيدة: `subscription.productsOverride ?? plan.products ?? []`.
+مثيلها لكل حد رقمي هو `overrides.xOverride ?? plan.maxX` داخل
+`resourceUsage()`، ومُستخدَم من كل من مسار الإنفاذ (`assertWithinLimit`)
+وواجهتي القراءة (تاجر + مدير منصة) — رقم واحد فعلي دائمًا، لا حسابان
+منفصلان قد يختلفان.
+
+يعدّل مدير المنصة (دور `finance` أو `admin`) هذه القيم مباشرة عبر
+`POST /platform-admin/companies/:companyId/subscription/overrides` — لا
+عبر واجهة تاجر (لا يوجد Endpoint تاجر يسمح بذلك، تمامًا كتغيير الباقة
+نفسها في Milestone 8)، ويطّلع عليها مع الاستخدام الحالي لكل مورد عبر
+`GET /platform-admin/companies/:companyId/subscription` (نفس
+`SubscriptionService.getMerchantView` التي يراها التاجر بالضبط، بالإضافة
+إلى التجاوزات الخام).
+
+راجع `docs/DATABASE.md` "Phase 13" للأعمدة/الفهارس، و`docs/API.md`
+"Phase 13" لعقد `/platform-admin/companies/:id/subscription*`
+و`/platform-admin/plans`.
+
 ## Milestone 9 (Qeedha Integration — Inbound)
 
 يضيف اتجاه تكامل **Inbound** جديدًا (قيّدها، نظام خارجي مستقل، تستدعي

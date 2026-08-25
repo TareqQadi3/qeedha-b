@@ -22,16 +22,16 @@ enum CompanyStatus {
 }
 
 model Company {
-  id              String        @id @default(uuid()) @db.Uuid
-  legalName       String        @map("legal_name")
-  tradeName       String?       @map("trade_name")
-  vatNumber       String?       @map("vat_number")
-  crNumber        String?       @map("cr_number")
-  defaultCurrency String        @default("SAR") @map("default_currency")
+  id                 String        @id @default(uuid()) @db.Uuid
+  legalName          String        @map("legal_name")
+  tradeName          String?       @map("trade_name")
+  vatNumber          String?       @map("vat_number")
+  crNumber           String?       @map("cr_number")
+  defaultCurrency    String        @default("SAR") @map("default_currency")
   // Market the company registered under (Website phase) - free-text ISO
   // country code, not an FK to Market.code, so a company keeps its history
   // even if a market is later deactivated/removed. See Market model below.
-  countryCode     String        @default("SA") @map("country_code")
+  countryCode        String        @default("SA") @map("country_code")
   // Phase 12: human-dictatable tenant identifier ("رقم الاشتراك") -
   // sequential, distinct from the internal uuid `id`. Assigned by the DB
   // sequence at creation (never chosen by a caller); the migration restarts
@@ -40,11 +40,11 @@ model Company {
   // email/mobile, and as the entry point for employee login (see
   // AuthService.employeeLogin) - see docs/DOMAIN_MODEL.md "Login and tenant
   // selection".
-  subscriptionNumber Int        @unique @default(autoincrement()) @map("subscription_number")
-  status          CompanyStatus @default(active)
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-  deletedAt       DateTime?     @map("deleted_at")
+  subscriptionNumber Int           @unique @default(autoincrement()) @map("subscription_number")
+  status             CompanyStatus @default(active)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  deletedAt          DateTime?     @map("deleted_at")
 
   branches                    Branch[]
   memberships                 Membership[]
@@ -92,7 +92,7 @@ model Company {
   // Phase 12: users whose username identity is scoped to this company only
   // (see User.homeCompanyId below) - not every Membership's user, just the
   // username-only ones created for/by this company.
-  homeUsers                   User[]                        @relation("UserHomeCompany")
+  homeUsers                   User[]                       @relation("UserHomeCompany")
 
   @@map("companies")
 }
@@ -1810,6 +1810,17 @@ model Plan {
   maxUsers        Int?     @map("max_users")
   maxBranches     Int?     @map("max_branches")
   maxMonthlySales Int?     @map("max_monthly_sales")
+  // Phase 13 ("tiered plans with per-role account limits"): maxUsers above
+  // stays as a legacy total-membership safety net (kept for the
+  // pre-Phase-13 starter/professional demo plans); these four are the real
+  // per-role/resource limits the tiered plans (basic/standard/premium/
+  // enterprise) actually enforce - see SubscriptionService.resourceUsage.
+  // Cashier/Accountant/Manager map to the exact same-named system roles
+  // seeded in iam/constants/default-roles.ts - not new roles.
+  maxCashiers     Int?     @map("max_cashiers")
+  maxAccountants  Int?     @map("max_accountants")
+  maxManagers     Int?     @map("max_managers")
+  maxWarehouses   Int?     @map("max_warehouses")
   features        Json
   // Website phase ("Packages/Commercial model"): which product(s) this
   // plan/package grants - a JSON array of ProductKey values ("qeedha_b" |
@@ -1852,16 +1863,35 @@ enum SubscriptionStatus {
 // rather than requiring a background job, since this codebase has no job
 // scheduler - see docs/DOMAIN_MODEL.md "SaaS / Subscription" "Why no cron".
 model Subscription {
-  id                 String             @id @default(uuid()) @db.Uuid
-  companyId          String             @unique @map("company_id") @db.Uuid
-  planId             String             @map("plan_id") @db.Uuid
-  status             SubscriptionStatus @default(trialing)
-  trialEndsAt        DateTime?          @map("trial_ends_at")
-  currentPeriodStart DateTime?          @map("current_period_start")
-  currentPeriodEnd   DateTime?          @map("current_period_end")
-  cancelledAt        DateTime?          @map("cancelled_at")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  id                  String             @id @default(uuid()) @db.Uuid
+  companyId           String             @unique @map("company_id") @db.Uuid
+  planId              String             @map("plan_id") @db.Uuid
+  status              SubscriptionStatus @default(trialing)
+  trialEndsAt         DateTime?          @map("trial_ends_at")
+  currentPeriodStart  DateTime?          @map("current_period_start")
+  currentPeriodEnd    DateTime?          @map("current_period_end")
+  cancelledAt         DateTime?          @map("cancelled_at")
+  // Phase 13 ("لوحة تحكمي، أخصص أي باقة"): per-company overrides of the
+  // plan's resource limits - null means "use the plan's value", a set
+  // value (including 0) wins over the plan regardless of which plan this
+  // company is on. This is how a platform admin grants one company an
+  // add-on (e.g. "إضافة حساب محاسب" = accountantsOverride: planValue+1)
+  // or fully customizes a company on the "enterprise" plan (whose own
+  // limits are all null/unlimited by design - see default-plans.ts) without
+  // creating a one-off Plan row per customer. See
+  // SubscriptionService.resourceUsage for how these combine with the plan.
+  usersOverride       Int?               @map("users_override")
+  branchesOverride    Int?               @map("branches_override")
+  warehousesOverride  Int?               @map("warehouses_override")
+  cashiersOverride    Int?               @map("cashiers_override")
+  accountantsOverride Int?               @map("accountants_override")
+  managersOverride    Int?               @map("managers_override")
+  // Same override pattern for the plan's `products` array - lets a single
+  // company get the قيّدها (Qeedha/installment) add-on without changing
+  // its plan. null = use the plan's products list unchanged.
+  productsOverride    Json?              @map("products_override")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
 
   company Company @relation(fields: [companyId], references: [id])
   plan    Plan    @relation(fields: [planId], references: [id])

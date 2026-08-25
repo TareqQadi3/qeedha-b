@@ -37,11 +37,16 @@
     "users": "Users",
     "branches": "Branches",
     "monthlySales": "This month's sales",
+    "warehouses": "Warehouses",
+    "cashiers": "POS (cashier) accounts",
+    "accountants": "Accountant accounts",
+    "managers": "Manager accounts",
     "unlimited": "Unlimited"
   },
   "plans": {
     "title": "Available Plans",
     "summary": "Users: {{users}} · Branches: {{branches}} · Monthly sales: {{sales}}",
+    "summaryDetailed": "Branches: {{branches}} · POS: {{cashiers}} · Accountants: {{accountants}} · Managers: {{managers}} · Warehouses: {{warehouses}}",
     "footerNote": "Billing management and plan upgrades will be available soon through the Qeedha control center. To upgrade or ask about billing, please contact support."
   },
   "errors": {

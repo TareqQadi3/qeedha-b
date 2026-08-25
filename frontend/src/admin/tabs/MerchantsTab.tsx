@@ -27,6 +27,35 @@ interface Plan {
   name: string;
 }
 
+interface UsageEntry {
+  limit: number | null;
+  current: number;
+  label: string;
+}
+
+/** Phase 13: response shape of GET /platform-admin/companies/:id/subscription (SubscriptionService.getMerchantView + raw overrides). */
+interface SubscriptionDetail {
+  plan: { code: string; name: string; products: string[] };
+  usage: {
+    users: UsageEntry;
+    branches: UsageEntry;
+    monthlySales: UsageEntry;
+    warehouses: UsageEntry;
+    cashiers: UsageEntry;
+    accountants: UsageEntry;
+    managers: UsageEntry;
+  };
+  overrides: {
+    usersOverride: number | null;
+    branchesOverride: number | null;
+    warehousesOverride: number | null;
+    cashiersOverride: number | null;
+    accountantsOverride: number | null;
+    managersOverride: number | null;
+    productsOverride: string[] | null;
+  };
+}
+
 const emptyForm = {
   legalName: '',
   tradeName: '',
@@ -35,6 +64,27 @@ const emptyForm = {
   ownerEmail: '',
   password: '',
 };
+
+const emptyOverrideForm = {
+  usersOverride: '',
+  branchesOverride: '',
+  warehousesOverride: '',
+  cashiersOverride: '',
+  accountantsOverride: '',
+  managersOverride: '',
+  qeedhaAddon: false,
+};
+
+const OVERRIDE_FIELDS = [
+  'branchesOverride',
+  'warehousesOverride',
+  'cashiersOverride',
+  'accountantsOverride',
+  'managersOverride',
+  'usersOverride',
+] as const;
+
+const USAGE_FIELDS = ['branches', 'warehouses', 'cashiers', 'accountants', 'managers', 'users', 'monthlySales'] as const;
 
 const SUB_STATUSES: Subscription['status'][] = ['trialing', 'active', 'expired', 'suspended', 'cancelled'];
 
@@ -64,6 +114,12 @@ export function MerchantsTab({ role }: { role: PlatformAdminRole }) {
   const [extendDays, setExtendDays] = useState(30);
   const [manageError, setManageError] = useState<string | null>(null);
   const [manageBusy, setManageBusy] = useState(false);
+
+  const [detail, setDetail] = useState<SubscriptionDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [overrideForm, setOverrideForm] = useState(emptyOverrideForm);
+  const [overridesSaving, setOverridesSaving] = useState(false);
+  const [overridesError, setOverridesError] = useState<string | null>(null);
 
   const load = async () => {
     setListLoading(true);
@@ -124,6 +180,59 @@ export function MerchantsTab({ role }: { role: PlatformAdminRole }) {
     setPlanChoice(company.subscription?.plan?.code ?? '');
     setExtendDays(30);
     setManageError(null);
+    setDetail(null);
+    setOverrideForm(emptyOverrideForm);
+    setOverridesError(null);
+    setDetailLoading(true);
+    adminApi
+      .get(`/platform-admin/companies/${company.id}/subscription`)
+      .then((data: SubscriptionDetail) => {
+        setDetail(data);
+        setOverrideForm({
+          usersOverride: data.overrides.usersOverride === null ? '' : String(data.overrides.usersOverride),
+          branchesOverride: data.overrides.branchesOverride === null ? '' : String(data.overrides.branchesOverride),
+          warehousesOverride:
+            data.overrides.warehousesOverride === null ? '' : String(data.overrides.warehousesOverride),
+          cashiersOverride: data.overrides.cashiersOverride === null ? '' : String(data.overrides.cashiersOverride),
+          accountantsOverride:
+            data.overrides.accountantsOverride === null ? '' : String(data.overrides.accountantsOverride),
+          managersOverride: data.overrides.managersOverride === null ? '' : String(data.overrides.managersOverride),
+          qeedhaAddon: (data.overrides.productsOverride ?? data.plan.products).includes('qeedha'),
+        });
+      })
+      .catch(() => setOverridesError(t('errors.loadFailed')))
+      .finally(() => setDetailLoading(false));
+  };
+
+  const onSaveOverrides = async () => {
+    if (!managing) return;
+    setOverridesSaving(true);
+    setOverridesError(null);
+    try {
+      const overrideOrNull = (v: string) => (v === '' ? null : Number(v));
+      // Only send a productsOverride when the add-on toggle disagrees with
+      // what the plan itself already grants - otherwise this company just
+      // keeps following its plan's product list going forward.
+      const basePlanHasQeedha = detail?.plan.products.includes('qeedha') ?? false;
+      const desiredProducts = overrideForm.qeedhaAddon ? ['qeedha_b', 'qeedha'] : ['qeedha_b'];
+      await adminApi.post(`/platform-admin/companies/${managing.id}/subscription/overrides`, {
+        usersOverride: overrideOrNull(overrideForm.usersOverride),
+        branchesOverride: overrideOrNull(overrideForm.branchesOverride),
+        warehousesOverride: overrideOrNull(overrideForm.warehousesOverride),
+        cashiersOverride: overrideOrNull(overrideForm.cashiersOverride),
+        accountantsOverride: overrideOrNull(overrideForm.accountantsOverride),
+        managersOverride: overrideOrNull(overrideForm.managersOverride),
+        productsOverride: overrideForm.qeedhaAddon === basePlanHasQeedha ? null : desiredProducts,
+      });
+      const refreshed: SubscriptionDetail = await adminApi.get(
+        `/platform-admin/companies/${managing.id}/subscription`,
+      );
+      setDetail(refreshed);
+    } catch {
+      setOverridesError(t('errors.actionFailed'));
+    } finally {
+      setOverridesSaving(false);
+    }
   };
 
   const onChangeStatus = async () => {
@@ -371,6 +480,60 @@ export function MerchantsTab({ role }: { role: PlatformAdminRole }) {
               </Button>
             </div>
           </Field>
+
+          {detailLoading && <div className="py-2 text-center text-slate-400">{t('dashboard.loading')}</div>}
+
+          {detail && (
+            <>
+              <div className="border-t pt-3">
+                <div className="mb-2 text-sm font-medium text-slate-700">{t('subscriptionModal.usageTitle')}</div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {USAGE_FIELDS.map((field) => {
+                    const entry = detail.usage[field];
+                    return (
+                      <div key={field} className="flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                        <span className="text-slate-600">{entry.label}</span>
+                        <span className="font-mono tabular-nums" dir="ltr">
+                          {entry.current} / {entry.limit === null ? t('subscriptionModal.unlimited') : entry.limit}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="border-t pt-3">
+                <ErrorBanner message={overridesError} />
+                <div className="mb-2 text-sm font-medium text-slate-700">{t('subscriptionModal.overridesTitle')}</div>
+                <p className="mb-2 text-xs text-slate-500">{t('subscriptionModal.overridesHint')}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {OVERRIDE_FIELDS.map((field) => (
+                    <Field key={field} label={t(`subscriptionModal.${field}`)}>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder={t('subscriptionModal.unlimited')}
+                        value={overrideForm[field]}
+                        onChange={(e) => setOverrideForm({ ...overrideForm, [field]: e.target.value })}
+                        dir="ltr"
+                      />
+                    </Field>
+                  ))}
+                </div>
+                <label className="mt-2 flex items-center gap-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={overrideForm.qeedhaAddon}
+                    onChange={(e) => setOverrideForm({ ...overrideForm, qeedhaAddon: e.target.checked })}
+                  />
+                  {t('subscriptionModal.qeedhaAddon')}
+                </label>
+                <Button className="mt-3 w-full" variant="secondary" disabled={overridesSaving} onClick={onSaveOverrides}>
+                  {overridesSaving ? t('subscriptionModal.savingOverrides') : t('subscriptionModal.saveOverrides')}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>

@@ -67,6 +67,10 @@ export class TenancyService {
     actorUserId: string,
     dto: CreateWarehouseDto,
   ) {
+    // Phase 13: usage limit (plan.maxWarehouses / subscription override) -
+    // same locked-count-before-insert pattern as createBranch above.
+    await this.subscriptionService.assertWithinLimit(tx, companyId, 'warehouses');
+
     const branch = await tx.branch.findFirst({
       where: { id: dto.branchId, companyId, deletedAt: null },
     });

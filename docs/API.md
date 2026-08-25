@@ -342,11 +342,21 @@ Endpoint مخصص، ولا صلاحية RBAC جديدة (يظهر ضمن `invoic
 | GET | `/subscriptions/plans` | كتالوج الخطط النشطة المتاحة (للعرض/الترقية المستقبلية) — بلا `id` داخلي | عضوية نشطة فقط |
 
 مسارات امتيازية لمركز تحكم مستقبلي (تغيير خطة، تعليق/إلغاء اشتراك،
-تمديد تجربة) **غير موجودة على الإطلاق** في هذا الـMilestone — الدوال
-المقابلة موجودة على مستوى الخدمة (`SubscriptionService.changePlan`/
-`setStatus`/`extendTrial`) لكنها غير مكشوفة عبر أي Controller، تفاديًا
-لكشف مسارات امتيازية بلا بنية مصادقة إدارية حقيقية بعد (راجع
-`docs/SECURITY.md` "Milestone 8").
+تمديد تجربة) لم تكن مكشوفة عند إطلاق هذا الـMilestone، لكنها أُضيفت لاحقًا
+تحت `/platform-admin/companies/:id/subscription/*` بمصادقة مدير منصة
+منفصلة تمامًا — راجع "لوحة تحكم SaaS" أدناه، لا عبر أي Endpoint تاجر
+(`SubscriptionService.changePlan`/`setStatus`/`extendTrial` لا تزال غير
+مكشوفة لجلسة Membership عادية إطلاقًا).
+
+**Phase 13**: `usage` في `/subscriptions/me` و`maxUsers`/`maxBranches`/
+`maxMonthlySales` في `/subscriptions/plans` صارا يحملان أيضًا
+`warehouses`/`cashiers`/`accountants`/`managers` (و`maxWarehouses`/
+`maxCashiers`/`maxAccountants`/`maxManagers` في الكتالوج) — نفس شكل
+الحقل `{limit, current, label}` الموجود لكل مورد سابقًا، بلا أي تغيير
+على الحقول القديمة (`users`/`branches`/`monthlySales` تبقى كما هي).
+`plan.products` في `/subscriptions/me` يعكس تخصيص هذه المنشأة
+(`productsOverride`) إن وُجد، لا منتجات الباقة دائمًا — راجع
+`docs/DOMAIN_MODEL.md` "الباقات (Phase 13)".
 
 ## Endpoints Milestone 9: Qeedha Integration (Inbound)
 
@@ -386,9 +396,27 @@ Endpoint مخصص، ولا صلاحية RBAC جديدة (يظهر ضمن `invoic
 | GET | `/platform-admin/auth/me` | بيانات مدير المنصة الحالي | رمز وصول مدير منصة صالح |
 | GET | `/platform-admin/companies` | كل منشآت المنصة عبر كل الـtenants (عبر دور Postgres ثالث ضيق `qeedha_platform_admin` - راجع `prisma/manual-sql/004_platform_admin_role.sql`) | رمز وصول مدير منصة صالح |
 | POST | `/platform-admin/companies` | ينشئ منشأة تاجر + Owner بالنيابة عنه (نفس منطق `POST /auth/register-company` بالضبط - نفس الفرع/المستودع الافتراضي/دليل الحسابات/الاشتراك التجريبي) - لا يُصدر tokens للمدير نفسه، التاجر يسجّل دخوله بنفسه لاحقًا ببيانات الاعتماد التي أدخلها المدير | رمز وصول مدير منصة صالح |
+| POST | `/platform-admin/companies/:companyId/subscription/status` | يضبط `status` الاشتراك مباشرة | دور `finance` (أو `admin`) |
+| POST | `/platform-admin/companies/:companyId/subscription/plan` | يغيّر باقة المنشأة (`planCode`) | دور `finance` (أو `admin`) |
+| POST | `/platform-admin/companies/:companyId/subscription/extend-trial` | يمدد الفترة التجريبية (`days`) | دور `finance` (أو `admin`) |
+| GET | `/platform-admin/companies/:companyId/subscription` **(Phase 13)** | نفس `SubscriptionService.getMerchantView` التي يراها التاجر بالضبط (الخطة، الميزات، `usage` لكل مورد) + `overrides` الخام لهذه المنشأة (`usersOverride`/`branchesOverride`/`warehousesOverride`/`cashiersOverride`/`accountantsOverride`/`managersOverride`/`productsOverride`) | دور `finance` (أو `admin`) |
+| POST | `/platform-admin/companies/:companyId/subscription/overrides` **(Phase 13)** | "أخصص أي باقة من لوحة التحكم": يضبط تجاوزات هذه المنشأة فقط، مستقلة عن باقتها. كل حقل رقمي اختياري *و*قابل لإرسال `null` صراحة لإلغائه (يعود لحد الباقة)؛ **الحقل المُهمَل تمامًا (لا يُرسَل) يبقى كما هو، بخلاف `null` الصريح** — راجع `SetSubscriptionOverridesDto`. `productsOverride: ['qeedha_b','qeedha']` يفعّل خدمة قيّدها لهذه المنشأة وحدها دون تغيير باقتها | دور `finance` (أو `admin`) |
 
 مدير منصة لا يُسجَّل ذاتيًا أبدًا - يُبذَر فقط عبر `prisma/seed.ts` عند
 تعيين `PLATFORM_ADMIN_SEED_EMAIL`/`PLATFORM_ADMIN_SEED_PASSWORD`.
+
+### إدارة الباقات (`/platform-admin/plans`) — دور `admin` فقط
+
+| Method | Path | الوصف | صلاحية |
+|---|---|---|---|
+| GET | `/platform-admin/plans` | كل الباقات (نشطة وغير نشطة)، تشمل `id` الداخلي (بخلاف `/subscriptions/plans` العامة للتاجر) | دور `admin` |
+| POST | `/platform-admin/plans` | ينشئ باقة جديدة — `code` فريد، `maxUsers`/`maxBranches`/`maxMonthlySales`/`maxCashiers`/`maxAccountants`/`maxManagers`/`maxWarehouses` **(الأربعة الأخيرة Phase 13)** كلها اختيارية (`null`/محذوفة = بلا حد) | دور `admin` |
+| PATCH | `/platform-admin/plans/:id` | تحديث جزئي لأي حقل من حقول الباقة أعلاه، يشمل حدود Phase 13 | دور `admin` |
+
+هذه هي **باقة** الكيان (`Plan`) — كتالوج عام يشترك فيه كل عميل يختار
+هذا الرمز؛ لتخصيص عميل واحد بعينه دون تغيير باقته المشتركة مع آخرين،
+استخدم `POST /platform-admin/companies/:id/subscription/overrides`
+أعلاه بدلًا من تعديل الباقة نفسها.
 
 ## Endpoints المراحل القادمة
 

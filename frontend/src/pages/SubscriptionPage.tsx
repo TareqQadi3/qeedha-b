@@ -36,6 +36,12 @@ interface SubscriptionMe {
     users: UsageEntry;
     branches: UsageEntry;
     monthlySales: UsageEntry;
+    // Phase 13 - optional so this page keeps rendering against older mocked
+    // API responses (e.g. existing tests) that predate these resources.
+    warehouses?: UsageEntry;
+    cashiers?: UsageEntry;
+    accountants?: UsageEntry;
+    managers?: UsageEntry;
   };
   billingNote: string;
 }
@@ -49,6 +55,10 @@ interface PlanCatalogEntry {
   maxUsers: number | null;
   maxBranches: number | null;
   maxMonthlySales: number | null;
+  maxWarehouses?: number | null;
+  maxCashiers?: number | null;
+  maxAccountants?: number | null;
+  maxManagers?: number | null;
   features: Record<string, boolean>;
 }
 
@@ -190,6 +200,10 @@ export function SubscriptionPage() {
           <UsageRow label={t('usage.users')} usage={data.usage.users} />
           <UsageRow label={t('usage.branches')} usage={data.usage.branches} />
           <UsageRow label={t('usage.monthlySales')} usage={data.usage.monthlySales} />
+          {data.usage.warehouses && <UsageRow label={t('usage.warehouses')} usage={data.usage.warehouses} />}
+          {data.usage.cashiers && <UsageRow label={t('usage.cashiers')} usage={data.usage.cashiers} />}
+          {data.usage.accountants && <UsageRow label={t('usage.accountants')} usage={data.usage.accountants} />}
+          {data.usage.managers && <UsageRow label={t('usage.managers')} usage={data.usage.managers} />}
         </div>
       </Card>
 
@@ -212,11 +226,22 @@ export function SubscriptionPage() {
                   : t('labels.priceMonthly', { price: money(plan.priceMonthlySar) })}
               </div>
               <div className="mt-1 text-xs text-slate-400">
-                {t('plans.summary', {
-                  users: plan.maxUsers ?? t('usage.unlimited'),
-                  branches: plan.maxBranches ?? t('usage.unlimited'),
-                  sales: plan.maxMonthlySales ?? t('usage.unlimited'),
-                })}
+                {plan.maxCashiers !== undefined ||
+                plan.maxAccountants !== undefined ||
+                plan.maxManagers !== undefined ||
+                plan.maxWarehouses !== undefined
+                  ? t('plans.summaryDetailed', {
+                      branches: plan.maxBranches ?? t('usage.unlimited'),
+                      cashiers: plan.maxCashiers ?? t('usage.unlimited'),
+                      accountants: plan.maxAccountants ?? t('usage.unlimited'),
+                      managers: plan.maxManagers ?? t('usage.unlimited'),
+                      warehouses: plan.maxWarehouses ?? t('usage.unlimited'),
+                    })
+                  : t('plans.summary', {
+                      users: plan.maxUsers ?? t('usage.unlimited'),
+                      branches: plan.maxBranches ?? t('usage.unlimited'),
+                      sales: plan.maxMonthlySales ?? t('usage.unlimited'),
+                    })}
               </div>
             </div>
           ))}

@@ -592,6 +592,30 @@ idempotent ضمن نفس الـmigration — راجع `docs/ACCOUNTING.md` "ال
 الـmigration" للسبب الدقيق المرتبط بـRLS) — أي منشأة قديمة بلا سطر
 اشتراك تحصل عليه بشكل كسول عند أول طلب مصادَق بعد النشر.
 
+**Phase 13 (باقات مُخصَّصة لكل دور + تخصيص لكل منشأة)**: migration واحدة
+إضافية فقط (`20260823090000_phase13_tiered_plan_limits`)، كلها
+`ALTER TABLE` إضافية بحتة (بلا حذف/إعادة تسمية عمود) على الجدولين
+الموجودين أعلاه:
+
+- **`plans`** يكتسب أربعة أعمدة حدود إضافية (كلها `Int?`، `null` = بلا
+  حد): `max_cashiers`، `max_accountants`، `max_managers`، `max_warehouses`
+  — نفس معاملة `max_users`/`max_branches` الموجودة، لكن لكل دور نظام
+  بعينه بدل إجمالي واحد.
+- **`subscriptions`** يكتسب ستة أعمدة تجاوز اختيارية (`Int?`):
+  `users_override`، `branches_override`، `warehouses_override`،
+  `cashiers_override`، `accountants_override`، `managers_override`،
+  بالإضافة إلى `products_override` (`Jsonb?`) — تخصيص لهذه المنشأة
+  بعينها فقط، مستقل تمامًا عن باقتها. `null` (الافتراضي) = اتّبع حد/منتجات
+  الباقة كما هي؛ أي قيمة أخرى — **بما فيها صفر** — تَغلب. لا فهرس إضافي
+  مطلوب (كل عمود يُقرأ فقط عبر `company_id` الفريد الموجود سلفًا على
+  `subscriptions`).
+
+لا جدول جديد، لا عمود جديد على `companies`/`users`/أي جدول آخر، لا حذف
+بيانات. أربع باقات جديدة (`basic`/`standard`/`premium`/`enterprise`)
+تُدرَج عبر `prisma db seed` (upsert بـ`code` — لا تُعاد قيم `starter`/
+`professional` الموجودتين). راجع `docs/DOMAIN_MODEL.md` "الباقات
+(Phase 13)" للتفصيل الكامل.
+
 **Milestone 9 (Qeedha Integration — Inbound)**: جدولان جديدان +
 أعمدة إضافية على جدول موجود، migration واحدة
 (`20260818000000_milestone9_qeedha_integration`) — راجع القسم 10.1 أعلاه

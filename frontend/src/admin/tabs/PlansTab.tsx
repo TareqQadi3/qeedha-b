@@ -14,9 +14,27 @@ interface Plan {
   products: string[];
   isRecommended: boolean;
   isActive: boolean;
+  maxUsers: number | null;
+  maxBranches: number | null;
+  maxMonthlySales: number | null;
+  maxCashiers: number | null;
+  maxAccountants: number | null;
+  maxManagers: number | null;
+  maxWarehouses: number | null;
 }
 
 const PRODUCT_KEYS = ['qeedha_b', 'qeedha'] as const;
+
+/** Phase 13: null/'' = unlimited for that resource - see backend Plan schema comment. */
+const LIMIT_FIELDS = [
+  'maxBranches',
+  'maxWarehouses',
+  'maxCashiers',
+  'maxAccountants',
+  'maxManagers',
+  'maxUsers',
+  'maxMonthlySales',
+] as const;
 
 const emptyForm = {
   code: '',
@@ -27,6 +45,13 @@ const emptyForm = {
   trialDays: '14',
   products: ['qeedha_b'] as string[],
   isRecommended: false,
+  maxBranches: '',
+  maxWarehouses: '',
+  maxCashiers: '',
+  maxAccountants: '',
+  maxManagers: '',
+  maxUsers: '',
+  maxMonthlySales: '',
 };
 
 /** Plans/Packages (admin role only, per PlatformAdminController) - Website phase spec "Packages/Commercial model": never hardcoded in the frontend, always CRUD through this section. */
@@ -77,6 +102,13 @@ export function PlansTab() {
       trialDays: String(plan.trialDays),
       products: plan.products,
       isRecommended: plan.isRecommended,
+      maxBranches: plan.maxBranches === null ? '' : String(plan.maxBranches),
+      maxWarehouses: plan.maxWarehouses === null ? '' : String(plan.maxWarehouses),
+      maxCashiers: plan.maxCashiers === null ? '' : String(plan.maxCashiers),
+      maxAccountants: plan.maxAccountants === null ? '' : String(plan.maxAccountants),
+      maxManagers: plan.maxManagers === null ? '' : String(plan.maxManagers),
+      maxUsers: plan.maxUsers === null ? '' : String(plan.maxUsers),
+      maxMonthlySales: plan.maxMonthlySales === null ? '' : String(plan.maxMonthlySales),
     });
     setFormError(null);
     setModalOpen(true);
@@ -94,6 +126,10 @@ export function PlansTab() {
     setFormError(null);
     setSaving(true);
     try {
+      // '' -> null ("unlimited" for this resource) - sent explicitly (not
+      // omitted) so clearing a limit on an existing plan actually clears
+      // it, not just leaves the previous value untouched.
+      const limitOrNull = (v: string) => (v === '' ? null : Number(v));
       const body = {
         name: form.name,
         description: form.description || undefined,
@@ -102,6 +138,13 @@ export function PlansTab() {
         trialDays: form.trialDays ? Number(form.trialDays) : undefined,
         products: form.products,
         isRecommended: form.isRecommended,
+        maxBranches: limitOrNull(form.maxBranches),
+        maxWarehouses: limitOrNull(form.maxWarehouses),
+        maxCashiers: limitOrNull(form.maxCashiers),
+        maxAccountants: limitOrNull(form.maxAccountants),
+        maxManagers: limitOrNull(form.maxManagers),
+        maxUsers: limitOrNull(form.maxUsers),
+        maxMonthlySales: limitOrNull(form.maxMonthlySales),
       };
       if (editingId) {
         await adminApi.patch(`/platform-admin/plans/${editingId}`, body);
@@ -226,6 +269,24 @@ export function PlansTab() {
               ))}
             </div>
           </Field>
+          <div className="border-t pt-3">
+            <div className="mb-2 text-sm font-medium text-slate-700">{t('plans.modal.limitsTitle')}</div>
+            <p className="mb-2 text-xs text-slate-500">{t('plans.modal.limitsHint')}</p>
+            <div className="grid grid-cols-2 gap-3">
+              {LIMIT_FIELDS.map((field) => (
+                <Field key={field} label={t(`plans.modal.${field}`)}>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder={t('plans.modal.unlimited')}
+                    value={form[field]}
+                    onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+                    dir="ltr"
+                  />
+                </Field>
+              ))}
+            </div>
+          </div>
           <label className="flex items-center gap-1.5 text-sm">
             <input
               type="checkbox"

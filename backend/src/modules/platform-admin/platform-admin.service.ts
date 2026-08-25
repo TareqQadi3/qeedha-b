@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { SubscriptionStatus } from '@prisma/client';
+import { Prisma, SubscriptionStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PlatformAdminPrismaService } from '../../common/prisma/platform-admin-prisma.service';
@@ -19,6 +19,7 @@ import { CreateCompanyByAdminDto } from './dto/create-company-by-admin.dto';
 import { CreateMarketDto, UpdateMarketDto } from './dto/market.dto';
 import { CreatePlanDto, UpdatePlanDto } from './dto/plan.dto';
 import { PlatformAdminLoginDto } from './dto/platform-admin-login.dto';
+import { SetSubscriptionOverridesDto } from './dto/subscription-actions.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 
 export const PLATFORM_ADMIN_JWT_SCOPE = 'platform_admin';
@@ -281,6 +282,71 @@ export class PlatformAdminService {
     );
   }
 
+  /**
+   * Phase 13 - the same effective-limits/usage view the merchant sees on
+   * their own subscription page, PLUS the raw override values (the
+   * merchant view only ever shows the resolved effective limit - an admin
+   * editing overrides needs to see whether a limit is currently coming
+   * from the plan or from an override already set on this company, and
+   * what that override's exact value is, to pre-fill the edit form).
+   */
+  async getCompanySubscription(companyId: string) {
+    return this.prisma.withTenant(companyId, async (tx) => {
+      const [view, subscription] = await Promise.all([
+        this.subscriptionService.getMerchantView(tx, companyId),
+        tx.subscription.findUniqueOrThrow({ where: { companyId } }),
+      ]);
+      return {
+        ...view,
+        overrides: {
+          usersOverride: subscription.usersOverride,
+          branchesOverride: subscription.branchesOverride,
+          warehousesOverride: subscription.warehousesOverride,
+          cashiersOverride: subscription.cashiersOverride,
+          accountantsOverride: subscription.accountantsOverride,
+          managersOverride: subscription.managersOverride,
+          productsOverride: subscription.productsOverride,
+        },
+      };
+    });
+  }
+
+  /**
+   * Phase 13 ("أخصص أي باقة من لوحة التحكم"): sets per-company overrides -
+   * only the fields present in `dto` are touched (an omitted field leaves
+   * that override as-is; an explicit `null` clears it back to "use the
+   * plan's value" - see SetSubscriptionOverridesDto). Reuses the plain
+   * `subscription` table update rather than SubscriptionService, since
+   * this is direct administrative data-editing, not a lifecycle
+   * transition with its own business rules (unlike setStatus/changePlan/
+   * extendTrial above).
+   */
+  async setSubscriptionOverrides(companyId: string, dto: SetSubscriptionOverridesDto) {
+    return this.prisma.withTenant(companyId, async (tx) => {
+      const subscription = await tx.subscription.findUnique({ where: { companyId } });
+      if (!subscription) throw new NotFoundException('لا يوجد اشتراك لهذه المنشأة');
+      return tx.subscription.update({
+        where: { companyId },
+        data: {
+          usersOverride: dto.usersOverride,
+          branchesOverride: dto.branchesOverride,
+          warehousesOverride: dto.warehousesOverride,
+          cashiersOverride: dto.cashiersOverride,
+          accountantsOverride: dto.accountantsOverride,
+          managersOverride: dto.managersOverride,
+          // Prisma's JSON columns need the Prisma.JsonNull sentinel to
+          // actually clear to SQL NULL - a plain `null` here would instead
+          // be rejected/misread as "no change" for a Json? field.
+          ...(dto.productsOverride !== undefined && {
+            productsOverride:
+              dto.productsOverride === null ? Prisma.JsonNull : dto.productsOverride,
+          }),
+        },
+        include: { plan: true },
+      });
+    });
+  }
+
   // -------------------------------------------------------------------
   // Plans / Packages (admin role only)
   // -------------------------------------------------------------------
@@ -305,6 +371,10 @@ export class PlatformAdminService {
         maxUsers: dto.maxUsers,
         maxBranches: dto.maxBranches,
         maxMonthlySales: dto.maxMonthlySales,
+        maxCashiers: dto.maxCashiers,
+        maxAccountants: dto.maxAccountants,
+        maxManagers: dto.maxManagers,
+        maxWarehouses: dto.maxWarehouses,
         features: dto.features ?? {},
         products: dto.products ?? ['qeedha_b'],
         isRecommended: dto.isRecommended ?? false,
